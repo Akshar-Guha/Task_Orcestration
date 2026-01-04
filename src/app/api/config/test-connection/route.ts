@@ -15,11 +15,12 @@ export async function POST() {
       success: true,
       message: 'Successfully connected to Supabase database',
     });
-  } catch (error: any) {
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Connection failed';
     return NextResponse.json(
       {
         success: false,
-        message: error.message || 'Connection failed',
+        message,
       },
       { status: 500 }
     );

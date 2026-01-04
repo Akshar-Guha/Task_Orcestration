@@ -207,7 +207,7 @@ export function useSyncedStore() {
   const logTimelineEventWithSync = useCallback(
     async (eventType: Parameters<typeof store.logTimelineEvent>[0], goalId: string | undefined, taskId: string | undefined, details?: Record<string, unknown>) => {
       // Local log
-      store.logTimelineEvent(eventType, goalId, taskId, details as any);
+      store.logTimelineEvent(eventType, goalId, taskId, details ? JSON.stringify(details) : undefined);
 
       // Sync to backend
       const event = useAppStore.getState().timelineEvents[0]; // Get the just-added event
