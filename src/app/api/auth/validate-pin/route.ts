@@ -10,7 +10,10 @@ export async function POST(request: Request) {
       return NextResponse.json({ valid: false, error: 'PIN not configured' }, { status: 500 });
     }
     
-    const valid = pin === sitePin;
+    const valid = pin.trim() === sitePin.trim();
+    
+    // Debug log (remove in production)
+    console.log('[Auth] PIN validation:', { received: pin, expected: sitePin, valid });
     
     return NextResponse.json({ valid });
   } catch (error) {
