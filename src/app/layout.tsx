@@ -3,6 +3,7 @@ import { Inter } from 'next/font/google';
 import './globals.css';
 import { AppShell } from '@/components/layout';
 import { AppInitializer } from '@/components/AppInitializer';
+import { DeviceAuthProvider } from '@/components/DeviceAuthProvider';
 
 const inter = Inter({
   subsets: ['latin'],
@@ -45,8 +46,10 @@ export default function RootLayout({
         <meta name="mobile-web-app-capable" content="yes" />
       </head>
       <body className={inter.className}>
-        <AppInitializer />
-        <AppShell>{children}</AppShell>
+        <DeviceAuthProvider>
+          <AppInitializer />
+          <AppShell>{children}</AppShell>
+        </DeviceAuthProvider>
       </body>
     </html>
   );
