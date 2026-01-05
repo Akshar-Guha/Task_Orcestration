@@ -14,7 +14,6 @@ export const metadata: Metadata = {
   title: 'GoalTracker - Personal Goal Management',
   description: 'Track your goals, build habits, and achieve your dreams',
   manifest: '/manifest.json',
-  themeColor: '#0f172a',
   appleWebApp: {
     capable: true,
     statusBarStyle: 'black-translucent',
@@ -46,11 +45,12 @@ export default function RootLayout({
         <meta name="mobile-web-app-capable" content="yes" />
       </head>
       <body className={inter.className}>
+        <AppInitializer />
         <DeviceAuthProvider>
-          <AppInitializer />
           <AppShell>{children}</AppShell>
         </DeviceAuthProvider>
       </body>
     </html>
   );
 }
+
