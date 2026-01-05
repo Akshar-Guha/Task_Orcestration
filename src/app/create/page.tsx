@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { useSyncedStore } from '@/lib/useSyncedStore';
+import { useAppStore } from '@/lib/store';
 import type { GoalLevel, CreateGoalInput, CreateTaskInput, GoalMetadata } from '@/lib/types';
 
 
@@ -10,8 +10,7 @@ import type { GoalLevel, CreateGoalInput, CreateTaskInput, GoalMetadata } from '
 export default function CreatePage() {
 
   const router = useRouter();
-  const store = useSyncedStore();
-  const { addGoalWithSync, addTaskWithSync, goals } = store;
+  const { addGoal, addTask, goals } = useAppStore();
   
   const [tab, setTab] = useState<'goal' | 'task'>('task');
   
@@ -42,7 +41,7 @@ export default function CreatePage() {
       metadata: getGoalMetadata(),
     };
     
-    await addGoalWithSync(input);
+    addGoal(input);
     router.push('/goals');
   };
   
@@ -58,14 +57,40 @@ export default function CreatePage() {
       goalId: selectedGoalId || undefined, // Single parent goal
     };
     
-    await addTaskWithSync(input);
+    addTask(input);
     router.push('/planner');
   };
   
+  // Handle Obsidian launch
+  const handleOpenObsidian = () => {
+    // Open Obsidian with a new note in the specified vault
+    const obsidianUrl = `obsidian://new?vault=My%20Repo&name=Untitled`;
+    window.location.href = obsidianUrl;
+  };
+
   return (
     <div className="min-h-screen bg-slate-950 pb-24">
       <div className="max-w-md mx-auto px-4 py-6">
         <h1 className="text-2xl font-bold text-white mb-6">Create New</h1>
+        
+        {/* Obsidian Launcher */}
+        <button
+          onClick={handleOpenObsidian}
+          className="w-full mb-6 p-4 bg-purple-900/30 border-2 border-purple-500/50 hover:border-purple-500 rounded-xl flex items-center justify-between group transition-all"
+        >
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 bg-purple-500/20 rounded-lg flex items-center justify-center text-2xl">
+              📝
+            </div>
+            <div className="text-left">
+              <div className="text-white font-semibold">Open in Obsidian</div>
+              <div className="text-xs text-purple-300">Create note in canvas</div>
+            </div>
+          </div>
+          <div className="text-purple-400 group-hover:text-purple-300 transition-colors">
+            →
+          </div>
+        </button>
         
         {/* Tabs */}
         <div className="flex gap-2 mb-6">
