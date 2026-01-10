@@ -1,328 +1,323 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState } from 'react';
 import { useAppStore } from '@/lib/store';
-import type { Goal, TimelineEvent } from '@/lib/types';
+import { formatDuration, LEVEL_LABELS, LEVEL_COLORS } from '@/lib/types';
+import Link from 'next/link';
 
-// Status colors and icons
-const STATUS_CONFIG = {
-  not_started: { icon: '🟡', label: 'Not Started', bg: 'bg-amber-500/10', border: 'border-amber-500/50', text: 'text-amber-400' },
-  in_progress: { icon: '🔵', label: 'In Progress', bg: 'bg-blue-500/10', border: 'border-blue-500/50', text: 'text-blue-400' },
-  completed: { icon: '🟢', label: 'Completed', bg: 'bg-emerald-500/10', border: 'border-emerald-500/50', text: 'text-emerald-400' },
-};
-
-// Format relative time
-const formatRelativeTime = (timestamp: string) => {
-  const date = new Date(timestamp);
-  const now = new Date();
-  const diffMs = now.getTime() - date.getTime();
-  const diffMins = Math.floor(diffMs / 60000);
-  const diffHours = Math.floor(diffMs / 3600000);
-  const diffDays = Math.floor(diffMs / 86400000);
-  
-  if (diffMins < 1) return 'Just now';
-  if (diffMins < 60) return `${diffMins}m ago`;
-  if (diffHours < 24) return `${diffHours}h ago`;
-  if (diffDays === 1) return 'Yesterday';
-  return `${diffDays} days ago`;
-};
-
-// Format date
-const formatDate = (timestamp: string) => {
-  return new Date(timestamp).toLocaleDateString('en-IN', {
-    day: 'numeric',
-    month: 'short',
-    year: 'numeric',
-  });
-};
-
-// Goal Card Component (Collapsible)
-function GoalCard({ goal }: { goal: Goal }) {
-  const [isExpanded, setIsExpanded] = useState(false);
-  const { tasks, getTimelineEventsForGoal, getGoalTimelineStats } = useAppStore();
-  
-  const goalTasks = tasks.filter((t) => t.goalId === goal.id);
-  const stats = getGoalTimelineStats(goal.id);
-  const events = getTimelineEventsForGoal(goal.id);
-  
-  // Fallback for old goals without status
-  const status = goal.status || 'not_started';
-  const config = STATUS_CONFIG[status];
-  
-  const completedTasks = goalTasks.filter((t) => t.isCompleted).length;
-  const progress = goalTasks.length > 0 ? Math.round((completedTasks / goalTasks.length) * 100) : 0;
-  
-  return (
-    <div className={`rounded-xl border ${config.border} ${config.bg} overflow-hidden transition-all`}>
-      {/* Header - Always visible */}
-      <button
-        onClick={() => setIsExpanded(!isExpanded)}
-        className="w-full p-4 flex items-center justify-between hover:bg-white/5 transition-colors"
-      >
-        <div className="flex items-center gap-3">
-          <span className="text-2xl">{config.icon}</span>
-          <div className="text-left">
-            <h3 className="font-semibold text-white">{goal.title}</h3>
-            <div className="flex items-center gap-2 text-sm text-slate-400">
-              <span className={config.text}>{config.label}</span>
-              <span>•</span>
-              <span>{completedTasks}/{goalTasks.length} tasks</span>
-              {status !== 'not_started' && (
-                <>
-                  <span>•</span>
-                  <span>{stats.totalDays} days</span>
-                </>
-              )}
-            </div>
-          </div>
-        </div>
-        <div className="flex items-center gap-3">
-          {goalTasks.length > 0 && (
-            <div className="w-20 h-2 bg-slate-700 rounded-full overflow-hidden">
-              <div 
-                className="h-full bg-violet-500 transition-all" 
-                style={{ width: `${progress}%` }} 
-              />
-            </div>
-          )}
-          <span className="text-slate-400 text-lg">{isExpanded ? '▼' : '▶'}</span>
-        </div>
-      </button>
-      
-      {/* Expanded Content */}
-      {isExpanded && (
-        <div className="border-t border-slate-700/50 p-4 space-y-4">
-          {/* Stats Row */}
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-            <div className="bg-slate-800/50 rounded-lg p-3 text-center">
-              <div className="text-2xl font-bold text-white">{stats.tasksTotal}</div>
-              <div className="text-xs text-slate-400">Total Tasks</div>
-            </div>
-            <div className="bg-slate-800/50 rounded-lg p-3 text-center">
-              <div className="text-2xl font-bold text-emerald-400">{stats.tasksCompleted}</div>
-              <div className="text-xs text-slate-400">Completed</div>
-            </div>
-            <div className="bg-slate-800/50 rounded-lg p-3 text-center">
-              <div className="text-2xl font-bold text-white">{stats.totalDays}</div>
-              <div className="text-xs text-slate-400">Days Since Created</div>
-            </div>
-            <div className="bg-slate-800/50 rounded-lg p-3 text-center">
-              <div className="text-2xl font-bold text-violet-400">
-                {goal.completionSnapshot?.activeDays || events.length}
-              </div>
-              <div className="text-xs text-slate-400">Active Days</div>
-            </div>
-          </div>
-          
-          {/* Timeline */}
-          <div className="space-y-1">
-            <div className="text-sm font-medium text-slate-400 mb-2">Created: {formatDate(goal.createdAt)}</div>
-            {goal.startedAt && (
-              <div className="text-sm text-blue-400">Started: {formatDate(goal.startedAt)}</div>
-            )}
-            {goal.completedAt && (
-              <div className="text-sm text-emerald-400">Completed: {formatDate(goal.completedAt)}</div>
-            )}
-          </div>
-          
-          {/* Tasks List */}
-          {goalTasks.length > 0 && (
-            <div>
-              <h4 className="text-sm font-medium text-slate-400 mb-2">Tasks</h4>
-              <div className="space-y-1">
-                {goalTasks.map((task) => (
-                  <div 
-                    key={task.id} 
-                    className={`flex items-center gap-2 p-2 rounded ${
-                      task.isCompleted ? 'bg-emerald-500/10' : 'bg-slate-800/50'
-                    }`}
-                  >
-                    <span>{task.isCompleted ? '✅' : '⬜'}</span>
-                    <span className={task.isCompleted ? 'text-slate-400 line-through' : 'text-white'}>
-                      {task.title}
-                    </span>
-                    {task.completedAt && (
-                      <span className="text-xs text-slate-500 ml-auto">
-                        {formatRelativeTime(task.completedAt)}
-                      </span>
-                    )}
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-          
-          {/* Recent Events */}
-          {events.length > 0 && (
-            <div>
-              <h4 className="text-sm font-medium text-slate-400 mb-2">Recent Activity</h4>
-              <div className="space-y-1 max-h-40 overflow-y-auto">
-                {events.slice(0, 5).map((event) => (
-                  <div key={event.id} className="flex items-center gap-2 text-sm">
-                    <span className="text-slate-500">{formatRelativeTime(event.timestamp)}</span>
-                    <span className="text-slate-400">{event.details}</span>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-          
-          {/* Completion Snapshot (for completed goals) */}
-          {status === 'completed' && goal.completionSnapshot && (
-            <div className="bg-emerald-500/10 border border-emerald-500/30 rounded-lg p-3">
-              <h4 className="text-sm font-medium text-emerald-400 mb-1">Completion Summary</h4>
-              <p className="text-sm text-slate-300">
-                Completed {goal.completionSnapshot.completedTasks}/{goal.completionSnapshot.totalTasks} tasks 
-                in {goal.completionSnapshot.daysToComplete} days 
-                ({goal.completionSnapshot.activeDays} active days)
-              </p>
-            </div>
-          )}
-
-        </div>
-      )}
-    </div>
-  );
-}
-
-// Activity Feed Component
-function ActivityFeed({ events }: { events: TimelineEvent[] }) {
-  if (events.length === 0) {
-    return (
-      <div className="text-center text-slate-500 py-8">
-        No activity yet. Start completing tasks!
-      </div>
-    );
-  }
-  
-  // Group events by date
-  const groupedEvents = events.reduce((acc, event) => {
-    const date = event.timestamp.split('T')[0];
-    if (!acc[date]) acc[date] = [];
-    acc[date].push(event);
-    return acc;
-  }, {} as Record<string, TimelineEvent[]>);
-  
-  return (
-    <div className="space-y-4">
-      {Object.entries(groupedEvents).slice(0, 5).map(([date, dayEvents]) => (
-        <div key={date}>
-          <div className="text-sm font-medium text-slate-400 mb-2">
-            {formatDate(date + 'T00:00:00')}
-          </div>
-          <div className="space-y-1 border-l-2 border-slate-700 pl-4">
-            {dayEvents.map((event) => (
-              <div key={event.id} className="flex items-start gap-2 text-sm">
-                <span className="text-slate-500 w-16 shrink-0">
-                  {new Date(event.timestamp).toLocaleTimeString('en-IN', { 
-                    hour: '2-digit', 
-                    minute: '2-digit',
-                    hour12: true 
-                  })}
-                </span>
-                <span className="text-slate-300">{event.details}</span>
-              </div>
-            ))}
-          </div>
-        </div>
-      ))}
-    </div>
-  );
-}
+type ViewTab = 'goals' | 'productivity';
 
 export default function TimelinePage() {
-  const { goals, tasks, getTimelineEvents } = useAppStore();
-  const [statusFilter, setStatusFilter] = useState<'all' | 'not_started' | 'in_progress' | 'completed'>('all');
-  
-  const timelineEvents = getTimelineEvents(100);
-  
-  const filteredGoals = useMemo(() => {
-    if (statusFilter === 'all') return goals.filter((g) => !g.isArchived);
-    return goals.filter((g) => (g.status || 'not_started') === statusFilter && !g.isArchived);
-  }, [goals, statusFilter]);
-  
-  // Stats
-  const stats = useMemo(() => ({
-    total: goals.filter((g) => !g.isArchived).length,
-    notStarted: goals.filter((g) => (g.status || 'not_started') === 'not_started' && !g.isArchived).length,
-    inProgress: goals.filter((g) => g.status === 'in_progress' && !g.isArchived).length,
-    completed: goals.filter((g) => g.status === 'completed' && !g.isArchived).length,
-    totalTasks: tasks.length,
-    completedTasks: tasks.filter((t) => t.isCompleted).length,
-  }), [goals, tasks]);
-  
+  const {
+    goals,
+    tasks,
+    timeSlots,
+    productivityLogs,
+    getTodayProductivity,
+    getGoalTimeSpent,
+    getGoalTimelineStats,
+    getTasksForGoal,
+  } = useAppStore();
+
+  const [activeTab, setActiveTab] = useState<ViewTab>('goals');
+  const [filterStatus, setFilterStatus] = useState<'all' | 'active' | 'completed'>('all');
+
+  const activeGoals = goals.filter((g) => !g.isArchived);
+  const filteredGoals = activeGoals.filter((g) => {
+    if (filterStatus === 'all') return true;
+    if (filterStatus === 'active') return g.status !== 'completed';
+    if (filterStatus === 'completed') return g.status === 'completed';
+    return true;
+  });
+
+  const productivity = getTodayProductivity();
+
+  // Get last 7 days of productivity
+  const last7Days = Array.from({ length: 7 }, (_, i) => {
+    const date = new Date();
+    date.setDate(date.getDate() - (6 - i));
+    return date.toISOString().split('T')[0];
+  });
+
+  const weeklyData = last7Days.map((date) => {
+    const log = productivityLogs.find((l) => l.date === date);
+    return {
+      date,
+      day: new Date(date).toLocaleDateString('en-US', { weekday: 'short' }),
+      minutes: log?.productiveMinutes || 0,
+    };
+  });
+
+  const maxMinutes = Math.max(...weeklyData.map((d) => d.minutes), 60);
+
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-white">Timeline</h1>
-          <p className="text-sm text-slate-400">Track your goals and activities</p>
-        </div>
-      </div>
-      
-      {/* Stats Overview */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-        <div className="bg-slate-900/50 border border-slate-800 rounded-xl p-4">
-          <div className="text-3xl font-bold text-white">{stats.total}</div>
-          <div className="text-sm text-slate-400">Total Goals</div>
-        </div>
-        <div className="bg-amber-500/10 border border-amber-500/30 rounded-xl p-4">
-          <div className="text-3xl font-bold text-amber-400">{stats.notStarted}</div>
-          <div className="text-sm text-slate-400">Not Started</div>
-        </div>
-        <div className="bg-blue-500/10 border border-blue-500/30 rounded-xl p-4">
-          <div className="text-3xl font-bold text-blue-400">{stats.inProgress}</div>
-          <div className="text-sm text-slate-400">In Progress</div>
-        </div>
-        <div className="bg-emerald-500/10 border border-emerald-500/30 rounded-xl p-4">
-          <div className="text-3xl font-bold text-emerald-400">{stats.completed}</div>
-          <div className="text-sm text-slate-400">Completed</div>
-        </div>
-      </div>
-      
-      {/* Filter Tabs */}
-      <div className="flex gap-2 overflow-x-auto pb-2">
-        {(['all', 'not_started', 'in_progress', 'completed'] as const).map((filter) => (
+    <div className="min-h-screen bg-slate-950 pb-24">
+      <div className="max-w-4xl mx-auto px-4 py-6">
+        <h1 className="text-2xl font-bold text-white mb-6">Timeline & Progress</h1>
+
+        {/* Tabs */}
+        <div className="flex gap-2 mb-6">
           <button
-            key={filter}
-            onClick={() => setStatusFilter(filter)}
-            className={`px-4 py-2 rounded-lg font-medium text-sm whitespace-nowrap transition-all ${
-              statusFilter === filter
-                ? 'bg-violet-600 text-white'
-                : 'bg-slate-800 text-slate-400 hover:bg-slate-700'
+            onClick={() => setActiveTab('goals')}
+            className={`flex-1 py-3 rounded-xl font-medium transition-all ${
+              activeTab === 'goals'
+                ? 'bg-violet-500 text-white'
+                : 'bg-slate-900 text-slate-500 border border-slate-800'
             }`}
           >
-            {filter === 'all' ? 'All Goals' : STATUS_CONFIG[filter].label}
+            🎯 Goals
           </button>
-        ))}
-      </div>
-      
-      {/* Main Content - 2 Column Layout */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Goals List */}
-        <div className="lg:col-span-2 space-y-3">
-          <h2 className="text-lg font-semibold text-white">Goals</h2>
-          {filteredGoals.length === 0 ? (
-            <div className="bg-slate-900/50 border border-slate-800 rounded-xl p-8 text-center">
-              <p className="text-slate-400">No goals found. Create one to get started!</p>
-            </div>
-          ) : (
-            <div className="space-y-3">
-              {filteredGoals.map((goal) => (
-                <GoalCard key={goal.id} goal={goal} />
+          <button
+            onClick={() => setActiveTab('productivity')}
+            className={`flex-1 py-3 rounded-xl font-medium transition-all ${
+              activeTab === 'productivity'
+                ? 'bg-violet-500 text-white'
+                : 'bg-slate-900 text-slate-500 border border-slate-800'
+            }`}
+          >
+            📊 Productivity
+          </button>
+        </div>
+
+        {/* GOALS TAB */}
+        {activeTab === 'goals' && (
+          <div className="space-y-4">
+            {/* Filter */}
+            <div className="flex gap-2 mb-4">
+              {[
+                { id: 'all' as const, label: 'All' },
+                { id: 'active' as const, label: 'Active' },
+                { id: 'completed' as const, label: 'Completed' },
+              ].map((filter) => (
+                <button
+                  key={filter.id}
+                  onClick={() => setFilterStatus(filter.id)}
+                  className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
+                    filterStatus === filter.id
+                      ? 'bg-slate-700 text-white'
+                      : 'bg-slate-800/50 text-slate-500 hover:text-slate-400'
+                  }`}
+                >
+                  {filter.label}
+                </button>
               ))}
             </div>
-          )}
-        </div>
-        
-        {/* Activity Feed Sidebar */}
-        <div className="space-y-3">
-          <h2 className="text-lg font-semibold text-white">Recent Activity</h2>
-          <div className="bg-slate-900/50 border border-slate-800 rounded-xl p-4">
-            <ActivityFeed events={timelineEvents} />
+
+            {/* Goals List */}
+            {filteredGoals.length === 0 ? (
+              <div className="text-center py-12 bg-slate-900/50 border border-slate-800 rounded-xl">
+                <div className="text-5xl mb-4">🎯</div>
+                <p className="text-slate-400 mb-4">No goals yet</p>
+                <Link
+                  href="/create"
+                  className="inline-block px-6 py-3 bg-violet-600 hover:bg-violet-700 text-white rounded-xl font-medium transition-all"
+                >
+                  Create Your First Goal
+                </Link>
+              </div>
+            ) : (
+              filteredGoals
+                .sort((a, b) => {
+                  // Sort by status: in_progress first, then not_started, then completed
+                  const statusOrder = { in_progress: 0, not_started: 1, completed: 2 };
+                  return statusOrder[a.status] - statusOrder[b.status];
+                })
+                .map((goal) => {
+                  const stats = getGoalTimelineStats(goal.id);
+                  const goalTasks = getTasksForGoal(goal.id);
+                  const slot = timeSlots.find((ts) => ts.goalIds?.includes(goal.id));
+                  
+                  const statusConfig = {
+                    not_started: { icon: '🟡', label: 'Not Started', bg: 'bg-amber-500/10', border: 'border-amber-500/30' },
+                    in_progress: { icon: '🔵', label: 'In Progress', bg: 'bg-blue-500/10', border: 'border-blue-500/30' },
+                    completed: { icon: '🟢', label: 'Completed', bg: 'bg-emerald-500/10', border: 'border-emerald-500/30' },
+                  }[goal.status];
+
+                  const progress = stats.tasksTotal > 0 
+                    ? Math.round((stats.tasksCompleted / stats.tasksTotal) * 100) 
+                    : 0;
+
+                  return (
+                    <div
+                      key={goal.id}
+                      className={`p-4 rounded-xl ${statusConfig.bg} border ${statusConfig.border}`}
+                    >
+                      {/* Header */}
+                      <div className="flex items-start justify-between mb-3">
+                        <div>
+                          <h3 className="text-lg font-semibold text-white mb-1">{goal.title}</h3>
+                          <div className="flex items-center gap-3 text-sm">
+                            <span className={statusConfig.bg + ' px-2 py-0.5 rounded'}>
+                              {statusConfig.icon} {statusConfig.label}
+                            </span>
+                            <span className="text-slate-500">
+                              {LEVEL_LABELS[goal.level]}
+                            </span>
+                            {slot && (
+                              <span className="text-slate-600">
+                                • {slot.name}
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                        <div className="text-right">
+                          <div className="text-2xl font-bold text-violet-400">
+                            {formatDuration(stats.minutesSpent)}
+                          </div>
+                          <div className="text-xs text-slate-500">spent</div>
+                        </div>
+                      </div>
+
+                      {/* Progress Bar */}
+                      <div className="mb-3">
+                        <div className="flex justify-between text-xs text-slate-500 mb-1">
+                          <span>{stats.tasksCompleted} of {stats.tasksTotal} tasks</span>
+                          <span>{progress}%</span>
+                        </div>
+                        <div className="w-full h-2 bg-slate-800 rounded-full overflow-hidden">
+                          <div
+                            className="h-full bg-gradient-to-r from-violet-500 to-cyan-500 transition-all"
+                            style={{ width: `${progress}%` }}
+                          />
+                        </div>
+                      </div>
+
+                      {/* Task Breakdown */}
+                      {goalTasks.length > 0 && (
+                        <div className="border-t border-slate-700/50 pt-3 mt-3">
+                          <h4 className="text-xs text-slate-500 uppercase mb-2">Task Breakdown</h4>
+                          <div className="space-y-1">
+                            {goalTasks.slice(0, 5).map((task) => (
+                              <div key={task.id} className="flex items-center justify-between text-sm">
+                                <div className="flex items-center gap-2">
+                                  <span className={task.isCompleted ? 'text-emerald-400' : 'text-slate-500'}>
+                                    {task.isCompleted ? '✓' : '○'}
+                                  </span>
+                                  <span className={task.isCompleted ? 'text-slate-400' : 'text-slate-300'}>
+                                    {task.title}
+                                  </span>
+                                </div>
+                                <span className={`text-xs ${task.isCompleted ? 'text-emerald-400' : 'text-slate-500'}`}>
+                                  {task.estimatedMinutes}m
+                                </span>
+                              </div>
+                            ))}
+                            {goalTasks.length > 5 && (
+                              <div className="text-xs text-slate-500 pt-1">
+                                +{goalTasks.length - 5} more tasks
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Stats Row */}
+                      <div className="flex items-center gap-4 mt-3 pt-3 border-t border-slate-700/50 text-xs text-slate-500">
+                        <span>📅 {stats.totalDays} days old</span>
+                        {goal.completedAt && (
+                          <span>✓ Completed {new Date(goal.completedAt).toLocaleDateString()}</span>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })
+            )}
           </div>
-        </div>
+        )}
+
+        {/* PRODUCTIVITY TAB */}
+        {activeTab === 'productivity' && (
+          <div className="space-y-6">
+            {/* Today Summary */}
+            <div className="p-6 bg-gradient-to-br from-violet-900/30 to-slate-900/50 border border-violet-500/30 rounded-xl">
+              <h3 className="text-lg font-semibold text-white mb-4">Today&apos;s Productivity</h3>
+              <div className="grid grid-cols-2 gap-4 mb-4">
+                <div>
+                  <div className="text-3xl font-bold text-violet-400">
+                    {formatDuration(productivity.todayMinutes)}
+                  </div>
+                  <div className="text-sm text-slate-500">Productive time</div>
+                </div>
+                <div>
+                  <div className="text-3xl font-bold text-cyan-400">
+                    {productivity.todayPercentage}%
+                  </div>
+                  <div className="text-sm text-slate-500">Of waking hours</div>
+                </div>
+              </div>
+              <div className="w-full h-4 bg-slate-800 rounded-full overflow-hidden">
+                <div
+                  className="h-full bg-gradient-to-r from-violet-500 to-cyan-500 transition-all"
+                  style={{ width: `${Math.min(100, productivity.todayPercentage)}%` }}
+                />
+              </div>
+            </div>
+
+            {/* Weekly Chart */}
+            <div className="p-6 bg-slate-900/50 border border-slate-800 rounded-xl">
+              <h3 className="text-lg font-semibold text-white mb-4">Last 7 Days</h3>
+              <div className="flex items-end justify-between gap-2 h-32">
+                {weeklyData.map((day, idx) => (
+                  <div key={day.date} className="flex-1 flex flex-col items-center">
+                    <div className="w-full flex-1 flex items-end">
+                      <div
+                        className={`w-full rounded-t transition-all ${
+                          idx === 6 ? 'bg-violet-500' : 'bg-slate-700'
+                        }`}
+                        style={{
+                          height: `${maxMinutes > 0 ? (day.minutes / maxMinutes) * 100 : 0}%`,
+                          minHeight: day.minutes > 0 ? '4px' : '0',
+                        }}
+                      />
+                    </div>
+                    <div className="text-xs text-slate-500 mt-2">{day.day}</div>
+                    <div className="text-xs text-slate-600">{formatDuration(day.minutes)}</div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Week Summary */}
+            <div className="grid grid-cols-2 gap-4">
+              <div className="p-4 bg-slate-900/50 border border-slate-800 rounded-xl">
+                <div className="text-2xl font-bold text-white">
+                  {formatDuration(productivity.weekMinutes)}
+                </div>
+                <div className="text-sm text-slate-500">This week total</div>
+              </div>
+              <div className="p-4 bg-slate-900/50 border border-slate-800 rounded-xl">
+                <div className="text-2xl font-bold text-white">
+                  {formatDuration(productivity.weeklyAverage)}
+                </div>
+                <div className="text-sm text-slate-500">Daily average</div>
+              </div>
+            </div>
+
+            {/* Top Goals */}
+            {productivity.topGoals.length > 0 && (
+              <div className="p-6 bg-slate-900/50 border border-slate-800 rounded-xl">
+                <h3 className="text-lg font-semibold text-white mb-4">Today&apos;s Top Goals</h3>
+                <div className="space-y-3">
+                  {productivity.topGoals.map((item, idx) => {
+                    const goal = goals.find((g) => g.id === item.goalId);
+                    if (!goal) return null;
+                    return (
+                      <div key={item.goalId} className="flex items-center gap-3">
+                        <span className="text-xl">{['🥇', '🥈', '🥉', '4️⃣', '5️⃣'][idx]}</span>
+                        <div className="flex-1">
+                          <div className="text-white font-medium">{goal.title}</div>
+                        </div>
+                        <div className="text-violet-400 font-semibold">
+                          {formatDuration(item.minutes)}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
       </div>
     </div>
   );

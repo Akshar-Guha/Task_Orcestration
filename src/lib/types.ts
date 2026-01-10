@@ -1,33 +1,53 @@
-// Core types for Goal Tracker
+// Core types for Goal Tracker - Aligned with MTO Architecture
+// Uses graph model (nodes/edges) with type-specific properties
+
+// ========================================
+// CORE ENTITIES
+// ========================================
 
 export type GoalLevel = 'yearly' | 'quarterly' | 'monthly' | 'weekly' | 'uncategorized';
 export type GoalStatus = 'not_started' | 'in_progress' | 'completed';
+export type TimeSlotType = 'morning' | 'work' | 'afternoon' | 'evening' | 'leisure';
 
+// TIME SLOT - Groups goals into daily schedule blocks
+export interface TimeSlot {
+  id: string;
+  name: string;
+  type: TimeSlotType;
+  startTime: string;  // "06:00" (24hr format)
+  endTime: string;    // "09:00"
+  color: string;      // Hex color for UI
+  goalIds: string[];  // Goals assigned to this slot
+  isActive: boolean;
+  createdAt: string;
+}
+
+// GOAL - Container for tasks with status tracking
 export interface Goal {
   id: string;
   title: string;
   description?: string;
   level: GoalLevel;
   metadata: GoalMetadata;
-  
-  // Status (3 states)
   status: GoalStatus;
   
-  // Life Routine Links removed - Goals are standalone
+  // Time slot assignment (optional)
+  timeSlotId?: string;
   
   // Timeline tracking
   createdAt: string;
-  startedAt?: string;      // When first task was completed
-  completedAt?: string;    // When goal was marked complete
-  lastActivityAt?: string; // Last task activity timestamp
+  startedAt?: string;
+  completedAt?: string;
+  lastActivityAt?: string;
   
-  // Completion snapshot (stored when goal is completed)
+  // Completion snapshot
   completionSnapshot?: {
     totalTasks: number;
     completedTasks: number;
     daysToComplete: number;
-    activeDays: number;     // Days with activity
-    tasks: Array<{ id: string; title: string; completedAt?: string }>;
+    activeDays: number;
+    totalMinutesSpent: number;  // NEW: Total time invested
+    tasks: Array<{ id: string; title: string; completedAt?: string; duration?: number }>;
   };
   
   isArchived: boolean;
@@ -40,352 +60,196 @@ export type GoalMetadata =
   | { type: 'weekly'; weekStartDate: string }
   | { type: 'uncategorized' };
 
+// TASK - Actionable item with duration tracking
 export interface Task {
   id: string;
   title: string;
   description?: string;
-  
-  // Single parent goal (strict one-to-one)
   goalId?: string;
   
-  // Repetition tracking
-  isRepeating: boolean;
-  requiredCount: number;
-  completedCount: number;
+  // Duration tracking (NEW - replaces isRepeating)
+  estimatedMinutes: number;     // How long task should take
+  actualMinutes?: number;       // How long it actually took (optional)
   
-  // Single completion (for non-repeating tasks)
+  // Completion state
   isCompleted: boolean;
-  
-  // Life Routine Links removed - Tasks link only to Goals via goalId
+  completedAt?: string;
   
   // Metadata
   createdAt: string;
-  completedAt?: string;
   isArchived: boolean;
 }
 
-export interface TaskGoalLink {
+// ========================================
+// PRODUCTIVITY TRACKING (NEW)
+// ========================================
+
+// Individual task completion record
+export interface TaskCompletion {
   id: string;
   taskId: string;
-  goalId: string;
-  contributionWeight: number;
+  goalId?: string;
+  date: string;           // "2026-01-10"
+  durationMinutes: number;
+  completedAt: string;
+}
+
+// Daily productivity summary
+export interface ProductivityLog {
+  id: string;
+  date: string;               // "2026-01-10" (unique key)
+  productiveMinutes: number;  // Sum of completed task durations
+  totalWakingMinutes?: number; // From sleep tracking (for %)
+  completions: TaskCompletion[];
   createdAt: string;
+  updatedAt: string;
+}
+
+// Productivity stats helper
+export interface ProductivityStats {
+  todayMinutes: number;
+  todayPercentage: number;
+  weekMinutes: number;
+  weeklyAverage: number;
+  topGoals: Array<{ goalId: string; minutes: number }>;
 }
 
 // ========================================
-// TIMELINE EVENT SYSTEM (Core Logging)
+// TIMELINE EVENT SYSTEM
 // ========================================
 
 export type TimelineEventType = 
   | 'goal_created'
-  | 'goal_started'      // Transitioned to in_progress
+  | 'goal_started'
   | 'goal_completed'
   | 'task_created'
   | 'task_completed'
-  | 'task_uncompleted'  // If user unchecks
-  | 'task_progress'     // For repeating tasks
-  | 'note_added'
-  | 'daily_summary';
+  | 'task_uncompleted'
+  | 'productivity_logged';  // NEW
 
 export interface TimelineEvent {
   id: string;
   timestamp: string;
   eventType: TimelineEventType;
-  
-  // References
   goalId?: string;
   taskId?: string;
-  
-  // Context
   details?: string;
   metadata?: Record<string, unknown>;
 }
 
-// Legacy ActivityType (keeping for backwards compatibility)
-export type ActivityType = 'task_completed' | 'task_created' | 'goal_created' | 'link_created' | 'task_incremented';
-
-export interface ActivityEntry {
-  id: string;
-  type: ActivityType;
-  taskId?: string;
-  goalId?: string;
-  timestamp: string;
-  details?: string;
-}
-
 // ========================================
-// DAILY SUMMARY (Auto-generated)
+// SLEEP/WAKE TRACKING
 // ========================================
 
-export interface TimelineDailySummary {
-  id: string;
-  date: string;                  // "2026-01-04"
-  
-  // Stats
-  tasksCompleted: number;
-  tasksCreated: number;
-  goalsProgressed: string[];     // Goal IDs with activity
-  goalsCompleted: string[];      // Goals that finished today
-  
-  // User notes
-  highlights?: string[];
-  reflection?: string;
-  
-  createdAt: string;
-}
-
-// ========================================
-// TIMELINE SYSTEM (Scheduling Foundation)
-// ========================================
-
-export type RecurrenceType = 'daily' | 'weekly' | 'monthly' | 'yearly';
-
-export interface RecurrencePattern {
-  type: RecurrenceType;
-  interval: number;           // Every N days/weeks/months/years
-  daysOfWeek?: number[];      // 0=Sun, 1=Mon, ..., 6=Sat (for weekly)
-  dayOfMonth?: number;        // 1-31 (for monthly)
-  endDate?: string;           // When recurrence stops
-}
-
-export interface TimeSpec {
-  // When is it scheduled?
-  scheduledDate?: string;      // "2026-01-01" (ISO date)
-  scheduledTime?: string;      // "09:00" (24hr format, IST)
-  endTime?: string;            // "10:30" (for duration calculation)
-  duration?: number;           // Minutes (alternative to endTime)
-  
-  // Recurring pattern
-  recurrence?: RecurrencePattern;
-  
-  // Due/Deadline (different from scheduled)
-  dueDate?: string;
-  dueTime?: string;
-  
-  // Timezone (default: IST)
-  timezone?: string;           // "Asia/Kolkata"
-}
-
-// ========================================
-// SLEEP/WAKE TRACKING SYSTEM
-// ========================================
-
-export type MoodLevel = 1 | 2 | 3 | 4 | 5; // 1=Terrible, 5=Great
+export type MoodLevel = 1 | 2 | 3 | 4 | 5;
 
 export interface SleepWakeLog {
   id: string;
-  date: string;                // "2025-12-30" (ISO date)
-  
-  // Wake-up tracking
-  wakeUpTime?: string;         // "06:30" (24hr IST)
-  wakeUpConfirmedAt?: string;  // ISO timestamp when confirmed
-  wakeUpAdjustedMinutes?: number; // -30 means "woke up 30 min ago"
-  wakeUpMood?: MoodLevel;      // How you felt waking up
-  
-  // Sleep tracking
-  sleepTime?: string;          // "23:00" (24hr IST)
-  sleepAttempts: string[];     // Array of timestamps for re-enabled sleep button
-  
-  // Calculated fields
+  date: string;
+  wakeUpTime?: string;
+  wakeUpConfirmedAt?: string;
+  wakeUpMood?: MoodLevel;
+  sleepTime?: string;
+  sleepAttempts: string[];
   sleepDurationMinutes?: number;
-  
-  // Metadata
   notes?: string;
   createdAt: string;
   updatedAt: string;
 }
 
 export interface SleepStats {
-  averageSleepDuration: number;     // Minutes
-  averageWakeUpTime: string;        // "06:45"
-  averageSleepTime: string;         // "22:30"
-  averageMood: number;              // 1-5 scale
-  sleepDebtMinutes: number;         // Cumulative deficit (target: 8hrs)
-  streakDays: number;               // Consecutive days logged
+  averageSleepDuration: number;
+  averageWakeUpTime: string;
+  averageSleepTime: string;
+  averageMood: number;
+  sleepDebtMinutes: number;
+  streakDays: number;
 }
 
 // ========================================
-// LIFE ROUTINES SYSTEM (Fixed Foundation)
+// DAILY SUMMARY
 // ========================================
 
-export type LifeRoutineType = 'health' | 'money' | 'relationship';
-
-export interface LifeRoutine {
+export interface TimelineDailySummary {
   id: string;
-  type: LifeRoutineType;
-  name: string; // "Health", "Money", "Relationship"
-  icon: string; // "💪", "💰", "❤️"
-  priority: number; // 1 = highest
-  isActive: boolean; // Can deactivate but NOT delete
-  color: string; // For UI theming
+  date: string;
+  tasksCompleted: number;
+  tasksCreated: number;
+  productiveMinutes: number;  // NEW: From productivity log
+  goalsProgressed: string[];
+  goalsCompleted: string[];
+  highlights?: string[];
+  reflection?: string;
   createdAt: string;
 }
 
-// Legacy SubRoutine system removed - Goals are now the primary entity
+// ========================================
+// SCHEDULING (TimeSpec)
+// ========================================
 
-export interface DailySummary {
-  id: string;
-  date: string; // YYYY-MM-DD
-  totalTasksCompleted: number;
-  totalTasksPlanned: number;
-  lifeRoutineBreakdown: {
-    health: { completed: number; total: number; percentage: number };
-    money: { completed: number; total: number; percentage: number };
-  };
-  notes?: string;
-  timestamp: string;
+export type RecurrenceType = 'daily' | 'weekly' | 'monthly' | 'yearly';
+
+export interface RecurrencePattern {
+  type: RecurrenceType;
+  interval: number;
+  daysOfWeek?: number[];
+  dayOfMonth?: number;
+  endDate?: string;
 }
+
+export interface TimeSpec {
+  scheduledDate?: string;
+  scheduledTime?: string;
+  endTime?: string;
+  duration?: number;
+  recurrence?: RecurrencePattern;
+  dueDate?: string;
+  dueTime?: string;
+  timezone?: string;
+}
+
+// ========================================
+// USER SETTINGS
+// ========================================
 
 export interface UserSettings {
-  dailySummaryTime: string; // "22:00" (10 PM default)
+  dailySummaryTime: string;
   enableDailySummaryReminder: boolean;
+  defaultTaskDuration: number;  // NEW: Default duration for new tasks
+  wakingHoursPerDay: number;    // NEW: For productivity % calculation
 }
 
 // ========================================
-// DAILY ROUTINE SYSTEM (Schedule Slots)
+// INPUT TYPES
 // ========================================
 
-export type RoutineType = 'morning' | 'work' | 'evening' | 'leisure';
-
-// A Routine is just a time slot that groups existing Goals
-export interface RoutineTemplate {
-  id: string;
-  name: string;
-  type: RoutineType;
-  startTime: string; // "06:00"
-  endTime: string; // "09:00"
-  goalIds: string[]; // References to existing Goals
-  isActive: boolean;
-  createdAt: string;
-}
-
-// Legacy RoutineTask type (for backwards compatibility, will be migrated)
-export interface RoutineTask {
-  id: string;
-  title: string;
-  description?: string;
-  duration: number; // minutes
-  order: number;
-  requiresPrevious: boolean;
-  linkedGoalIds: string[];
-  contributionWeight: number;
-}
-
-export interface DailyTaskInstance {
-  id: string;
-  routineTemplateId: string;
-  routineTaskId: string;
-  date: string; // YYYY-MM-DD
-  scheduledTime: string; // HH:MM
-  isUnlocked: boolean;
-  isCompleted: boolean;
-  completedAt?: string;
-}
-
-export interface DailyStat {
-  date: string; // YYYY-MM-DD
-  wakeUpTime?: string;
-  sleepTime?: string;
-  sleepDuration?: number; // minutes
-}
-
-// ========================================
-// PERSONAL DATA COLLECTION (6 Categories)
-// ========================================
-
-export interface PhysicalHealth {
-  waterIntake: number; // glasses
-  mealsLogged: number; // 0-3+
-  exerciseDuration: number; // minutes
-  exerciseType?: string;
-  steps?: number;
-  weight?: number;
-  energyLevel: 1 | 2 | 3 | 4 | 5;
-}
-
-export interface MentalWellness {
-  mood: 1 | 2 | 3 | 4 | 5;
-  stressLevel: 1 | 2 | 3 | 4 | 5;
-  anxietyLevel: 1 | 2 | 3 | 4 | 5;
-  meditationMinutes: number;
-  journalEntry?: string;
-  gratitudeItems: string[];
-  mentalChallenges?: string;
-}
-
-export interface Productivity {
-  deepWorkHours: number;
-  distractionsCount: number;
-  screenTime: number; // hours
-  topDistraction?: string;
-  productivityRating: 1 | 2 | 3 | 4 | 5;
-}
-
-export interface Social {
-  meaningfulConversations: number;
-  peopleHelped: number;
-  socialTime: number; // hours
-  lonelyFeeling: boolean;
-  conflictsResolved: number;
-  actionsOfKindness: number;
-}
-
-export interface Financial {
-  moneySpent: number;
-  moneyEarned: number;
-  savingsContribution: number;
-  wasteMoneyOn?: string;
-  investedInSelf: number;
-}
-
-export interface Environment {
-  cleanSpace: boolean;
-  timeOutdoors: number; // minutes
-  screenFreeTime: number; // minutes
-  badHabitsIndulged: string[];
-  goodHabitsCompleted: string[];
-}
-
-export interface DailyDataPoint {
-  id: string;
-  date: string; // YYYY-MM-DD
-  timestamp: string;
-  
-  // 6 Categories
-  physicalHealth: PhysicalHealth;
-  mentalWellness: MentalWellness;
-  productivity: Productivity;
-  social: Social;
-  financial: Financial;
-  environment: Environment;
-  
-  // Auto-calculated from routines
-  routineTasksCompleted: number;
-  routineTasksTotal: number;
-  routineCompletionPercentage: number;
-  
-  // Meta
-  dataCompleteness: number; // % of fields filled
-  isFullyLogged: boolean;
-}
-
-// Input types
 export interface CreateGoalInput {
   title: string;
   description?: string;
   level: GoalLevel;
   metadata: GoalMetadata;
+  timeSlotId?: string;  // NEW: Optional time slot assignment
 }
 
 export interface CreateTaskInput {
   title: string;
   description?: string;
-  isRepeating: boolean;
-  requiredCount?: number;
-  goalId?: string; // Single parent goal
+  estimatedMinutes: number;  // REQUIRED now
+  goalId?: string;
 }
 
-// Display helpers
+export interface CreateTimeSlotInput {
+  name: string;
+  type: TimeSlotType;
+  startTime: string;
+  endTime: string;
+  color?: string;
+}
+
+// ========================================
+// DISPLAY HELPERS
+// ========================================
+
 export const LEVEL_LABELS: Record<GoalLevel, string> = {
   yearly: 'Yearly Goal',
   quarterly: 'Quarterly Goal',
@@ -402,16 +266,29 @@ export const LEVEL_COLORS: Record<GoalLevel, { bg: string; border: string; text:
   uncategorized: { bg: 'bg-slate-500/10', border: 'border-slate-500', text: 'text-slate-400' },
 };
 
-export const ROUTINE_LABELS: Record<RoutineType, string> = {
+export const TIME_SLOT_LABELS: Record<TimeSlotType, string> = {
   morning: '🌅 Morning',
   work: '💼 Work',
+  afternoon: '☀️ Afternoon',
   evening: '🌙 Evening',
   leisure: '🎮 Leisure',
 };
 
-export const LIFE_ROUTINE_CONFIG: Record<LifeRoutineType, { name: string; icon: string; color: string; priority: number }> = {
-  health: { name: 'Health', icon: '💪', color: '#10b981', priority: 1 },
-  money: { name: 'Money', icon: '💰', color: '#f59e0b', priority: 2 },
-  relationship: { name: 'Relationship', icon: '❤️', color: '#ec4899', priority: 3 },
+export const TIME_SLOT_COLORS: Record<TimeSlotType, string> = {
+  morning: '#10b981',   // Emerald
+  work: '#3b82f6',      // Blue
+  afternoon: '#f59e0b', // Amber
+  evening: '#8b5cf6',   // Violet
+  leisure: '#ec4899',   // Pink
 };
 
+// Duration quick-select options (in minutes)
+export const DURATION_OPTIONS = [15, 30, 45, 60, 90, 120, 180];
+
+// Format duration for display
+export const formatDuration = (minutes: number): string => {
+  if (minutes < 60) return `${minutes}m`;
+  const hours = Math.floor(minutes / 60);
+  const mins = minutes % 60;
+  return mins > 0 ? `${hours}h ${mins}m` : `${hours}h`;
+};
