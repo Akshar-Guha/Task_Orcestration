@@ -3,49 +3,52 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAppStore } from '@/lib/store';
-import type { Goal, Task, RoutineTemplate, GoalLevel, GoalMetadata } from '@/lib/types';
+import type { Goal, Task, TimeSlot, GoalLevel, GoalMetadata, TimeSlotType } from '@/lib/types';
+import { TIME_SLOT_LABELS, TIME_SLOT_COLORS, DURATION_OPTIONS, formatDuration } from '@/lib/types';
 
-type EditTab = 'goals' | 'tasks' | 'routines' | 'sleep';
+type EditTab = 'timeslots' | 'goals' | 'tasks';
 
 export default function EditPage() {
   const router = useRouter();
   const {
-    lifeRoutines,
+    timeSlots,
     goals,
     tasks,
-    routineTemplates,
     updateGoal,
     deleteGoal,
     updateTask,
     deleteTask,
-    createRoutineTemplate,
-    updateRoutineTemplate,
-    sleepWakeLogs,
-    recordWakeUp,
-    recordSleep,
+    addTimeSlot,
+    updateTimeSlot,
+    deleteTimeSlot,
+    addGoalToTimeSlot,
+    removeGoalFromTimeSlot,
   } = useAppStore();
 
-  const [activeTab, setActiveTab] = useState<EditTab>('goals');
+  const [activeTab, setActiveTab] = useState<EditTab>('timeslots');
   const [hasChanges, setHasChanges] = useState(false);
 
-  // Local state for editing
-  // Local state for editing
+  // Local editing state
+  const [editingSlots, setEditingSlots] = useState<TimeSlot[]>([]);
   const [editingGoals, setEditingGoals] = useState<Goal[]>([]);
   const [editingTasks, setEditingTasks] = useState<Task[]>([]);
-  const [editingRoutines, setEditingRoutines] = useState<RoutineTemplate[]>([]);
 
   // Initialize editing state
   useEffect(() => {
-    // eslint-disable-next-line
+    setEditingSlots(JSON.parse(JSON.stringify(timeSlots)));
     setEditingGoals(JSON.parse(JSON.stringify(goals)));
-    // eslint-disable-next-line
     setEditingTasks(JSON.parse(JSON.stringify(tasks)));
-    // eslint-disable-next-line
-    setEditingRoutines(JSON.parse(JSON.stringify(routineTemplates)));
-  }, [goals, tasks, routineTemplates]);
+  }, [timeSlots, goals, tasks]);
 
   const handleSave = () => {
-    // Save all changes to store
+    // Save time slots
+    editingSlots.forEach((slot) => {
+      const existing = timeSlots.find((ts) => ts.id === slot.id);
+      if (existing) {
+        updateTimeSlot(slot.id, slot);
+      }
+    });
+
     // Save goals
     editingGoals.forEach((g) => {
       updateGoal(g.id, g);
@@ -55,36 +58,38 @@ export default function EditPage() {
     editingTasks.forEach((t) => {
       const original = tasks.find((task) => task.id === t.id);
       if (original) {
-        // Only update if task exists
-        const updates: Partial<Task> = {
+        updateTask(t.id, {
           title: t.title,
           description: t.description,
-          isRepeating: t.isRepeating,
-          requiredCount: t.requiredCount,
-        };
-        updateTask(t.id, updates);
-      }
-    });
-
-    // Save routines
-    editingRoutines.forEach((r) => {
-      const existing = routineTemplates.find((rt) => rt.id === r.id);
-      if (existing) {
-        updateRoutineTemplate(r.id, r);
-      } else {
-        // Create new
-        const { id, createdAt, ...rest } = r;
-        createRoutineTemplate(rest);
+          estimatedMinutes: t.estimatedMinutes,
+        });
       }
     });
 
     setHasChanges(false);
-    router.push('/profile');
+    router.push('/dashboard');
   };
 
   const handleCancel = () => {
     if (hasChanges && !confirm('Discard unsaved changes?')) return;
-    router.push('/profile');
+    router.push('/dashboard');
+  };
+
+  const addNewTimeSlot = () => {
+    const newSlot: TimeSlot = {
+      id: `slot-${Date.now()}`,
+      name: 'New Time Slot',
+      type: 'work',
+      startTime: '09:00',
+      endTime: '12:00',
+      color: TIME_SLOT_COLORS.work,
+      goalIds: [],
+      isActive: true,
+      createdAt: new Date().toISOString(),
+    };
+    setEditingSlots([...editingSlots, newSlot]);
+    addTimeSlot({ name: newSlot.name, type: newSlot.type, startTime: newSlot.startTime, endTime: newSlot.endTime });
+    setHasChanges(true);
   };
 
   return (
@@ -93,17 +98,15 @@ export default function EditPage() {
         {/* Header */}
         <div className="mb-6">
           <h1 className="text-3xl font-bold text-white mb-2">Edit Mode</h1>
-          <p className="text-sm text-slate-500">Manage all your data in one place</p>
+          <p className="text-sm text-slate-500">Manage time slots, goals, and tasks</p>
         </div>
 
         {/* Tabs */}
         <div className="flex gap-2 mb-6 overflow-x-auto pb-2">
           {[
-            // { id: 'dashboard' as EditTab, label: 'Life Routines', icon: '💪' },
+            { id: 'timeslots' as EditTab, label: 'Time Slots', icon: '🕐' },
             { id: 'goals' as EditTab, label: 'Goals', icon: '🎯' },
             { id: 'tasks' as EditTab, label: 'Tasks', icon: '✅' },
-            { id: 'routines' as EditTab, label: 'Daily Routines', icon: '🌅' },
-            { id: 'sleep' as EditTab, label: 'Sleep & Wake', icon: '🌙' },
           ].map((tab) => (
             <button
               key={tab.id}
@@ -122,15 +125,219 @@ export default function EditPage() {
 
         {/* Content Area */}
         <div className="min-h-[500px]">
-          {/* DASHBOARD TAB */}
+          {/* TIME SLOTS TAB */}
+          {activeTab === 'timeslots' && (
+            <div className="space-y-4">
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="text-2xl font-bold text-white">Edit Time Slots</h2>
+                <button
+                  onClick={addNewTimeSlot}
+                  className="px-4 py-2 bg-violet-600 hover:bg-violet-700 text-white rounded-lg text-sm font-medium transition-all"
+                >
+                  + Add Time Slot
+                </button>
+              </div>
 
+              {editingSlots.length === 0 ? (
+                <div className="text-center py-12 bg-slate-900/50 border border-slate-800 rounded-xl">
+                  <div className="text-5xl mb-4">🕐</div>
+                  <p className="text-slate-400 mb-4">No time slots yet. Add your first one!</p>
+                </div>
+              ) : (
+                editingSlots.map((slot) => (
+                  <div
+                    key={slot.id}
+                    className="p-4 bg-slate-900/50 border border-slate-800 rounded-xl"
+                    style={{ borderLeftWidth: '4px', borderLeftColor: slot.color }}
+                  >
+                    {/* Slot Header */}
+                    <div className="flex items-center gap-3 mb-4">
+                      <input
+                        type="text"
+                        value={slot.name}
+                        onChange={(e) => {
+                          setEditingSlots(
+                            editingSlots.map((s) => (s.id === slot.id ? { ...s, name: e.target.value } : s))
+                          );
+                          setHasChanges(true);
+                        }}
+                        className="flex-1 px-3 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white font-semibold focus:outline-none focus:border-violet-500"
+                      />
+
+                      <select
+                        value={slot.type}
+                        onChange={(e) => {
+                          const newType = e.target.value as TimeSlotType;
+                          setEditingSlots(
+                            editingSlots.map((s) =>
+                              s.id === slot.id ? { ...s, type: newType, color: TIME_SLOT_COLORS[newType] } : s
+                            )
+                          );
+                          setHasChanges(true);
+                        }}
+                        className="px-3 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white focus:outline-none focus:border-violet-500"
+                      >
+                        {Object.entries(TIME_SLOT_LABELS).map(([key, label]) => (
+                          <option key={key} value={key}>
+                            {label}
+                          </option>
+                        ))}
+                      </select>
+
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="time"
+                          value={slot.startTime}
+                          onChange={(e) => {
+                            setEditingSlots(
+                              editingSlots.map((s) => (s.id === slot.id ? { ...s, startTime: e.target.value } : s))
+                            );
+                            setHasChanges(true);
+                          }}
+                          className="px-3 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white focus:outline-none focus:border-violet-500"
+                        />
+                        <span className="text-slate-500">to</span>
+                        <input
+                          type="time"
+                          value={slot.endTime}
+                          onChange={(e) => {
+                            setEditingSlots(
+                              editingSlots.map((s) => (s.id === slot.id ? { ...s, endTime: e.target.value } : s))
+                            );
+                            setHasChanges(true);
+                          }}
+                          className="px-3 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white focus:outline-none focus:border-violet-500"
+                        />
+                      </div>
+
+                      <button
+                        onClick={() => {
+                          setEditingSlots(
+                            editingSlots.map((s) => (s.id === slot.id ? { ...s, isActive: !s.isActive } : s))
+                          );
+                          setHasChanges(true);
+                        }}
+                        className={`px-3 py-2 rounded-lg text-sm font-medium transition-all ${
+                          slot.isActive
+                            ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/50'
+                            : 'bg-slate-700 text-slate-400'
+                        }`}
+                      >
+                        {slot.isActive ? '✓ Active' : '○ Inactive'}
+                      </button>
+
+                      <button
+                        onClick={() => {
+                          if (confirm(`Delete "${slot.name}"?`)) {
+                            setEditingSlots(editingSlots.filter((s) => s.id !== slot.id));
+                            deleteTimeSlot(slot.id);
+                            setHasChanges(true);
+                          }
+                        }}
+                        className="px-3 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg text-sm transition-all"
+                      >
+                        🗑️
+                      </button>
+                    </div>
+
+                    {/* Goals in this slot */}
+                    <div className="space-y-2">
+                      <h4 className="text-sm font-medium text-slate-400 mb-2">
+                        Goals in this slot ({(slot.goalIds || []).length})
+                      </h4>
+
+                      {(slot.goalIds || []).length > 0 ? (
+                        <div className="space-y-2 pl-4 border-l-2 border-violet-500/50">
+                          {(slot.goalIds || []).map((goalId) => {
+                            const goal = editingGoals.find((g) => g.id === goalId);
+                            if (!goal) return null;
+
+                            const goalTasks = editingTasks.filter((t) => t.goalId === goal.id);
+                            const completedTasks = goalTasks.filter((t) => t.isCompleted).length;
+
+                            return (
+                              <div key={goal.id} className="flex items-center justify-between p-3 bg-slate-800/50 rounded-lg">
+                                <div className="flex items-center gap-3">
+                                  <span>🎯</span>
+                                  <div>
+                                    <span className="text-white font-medium">{goal.title}</span>
+                                    <span className="text-sm text-slate-500 ml-2">
+                                      ({completedTasks}/{goalTasks.length} tasks)
+                                    </span>
+                                  </div>
+                                </div>
+                                <button
+                                  onClick={() => {
+                                    setEditingSlots(
+                                      editingSlots.map((s) =>
+                                        s.id === slot.id
+                                          ? { ...s, goalIds: (s.goalIds || []).filter((id) => id !== goal.id) }
+                                          : s
+                                      )
+                                    );
+                                    setHasChanges(true);
+                                  }}
+                                  className="text-red-400 hover:text-red-300 text-sm px-2"
+                                >
+                                  Remove
+                                </button>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      ) : (
+                        <p className="text-sm text-slate-500 italic pl-4">No goals assigned to this time slot</p>
+                      )}
+
+                      {/* Add Goal Dropdown */}
+                      {(() => {
+                        const unlinkedGoals = editingGoals.filter(
+                          (g) => !(slot.goalIds || []).includes(g.id) && !g.isArchived
+                        );
+                        return (
+                          unlinkedGoals.length > 0 && (
+                            <select
+                              onChange={(e) => {
+                                if (e.target.value) {
+                                  setEditingSlots(
+                                    editingSlots.map((s) =>
+                                      s.id === slot.id
+                                        ? { ...s, goalIds: [...(s.goalIds || []), e.target.value] }
+                                        : s
+                                    )
+                                  );
+                                  setHasChanges(true);
+                                  e.target.value = '';
+                                }
+                              }}
+                              className="w-full mt-2 px-3 py-2 bg-slate-800 border border-dashed border-slate-600 rounded-lg text-slate-400 focus:outline-none focus:border-violet-500"
+                              defaultValue=""
+                            >
+                              <option value="">+ Add a goal to this slot...</option>
+                              {unlinkedGoals.map((goal) => (
+                                <option key={goal.id} value={goal.id}>
+                                  🎯 {goal.title}
+                                </option>
+                              ))}
+                            </select>
+                          )
+                        );
+                      })()}
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+          )}
 
           {/* GOALS TAB */}
           {activeTab === 'goals' && (
             <div className="space-y-4">
               <h2 className="text-2xl font-bold text-white mb-4">Edit Goals</h2>
               {editingGoals.filter((g) => !g.isArchived).map((goal) => {
-                const currentStatus = goal.status || 'not_started';
+                const goalTasks = editingTasks.filter((t) => t.goalId === goal.id);
+                const totalMinutes = goalTasks.reduce((sum, t) => sum + t.estimatedMinutes, 0);
+
                 return (
                   <div key={goal.id} className="p-4 bg-slate-900/50 border border-slate-800 rounded-xl">
                     <div className="flex items-center gap-3 mb-3">
@@ -145,61 +352,12 @@ export default function EditPage() {
                         }}
                         className="flex-1 px-3 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white font-semibold focus:outline-none focus:border-violet-500"
                       />
-                      <select
-                        value={goal.level}
-                        onChange={(e) => {
-                          const newLevel = e.target.value as GoalLevel;
-                          const date = new Date();
-                          let newMetadata: GoalMetadata;
-                          
-                          switch (newLevel) {
-                            case 'yearly':
-                              newMetadata = { type: 'yearly', year: date.getFullYear() };
-                              break;
-                            case 'quarterly':
-                              newMetadata = { 
-                                type: 'quarterly', 
-                                year: date.getFullYear(), 
-                                quarter: Math.ceil((date.getMonth() + 1) / 3) as 1 | 2 | 3 | 4 
-                              };
-                              break;
-                            case 'monthly':
-                              newMetadata = { 
-                                type: 'monthly', 
-                                year: date.getFullYear(), 
-                                month: date.getMonth() + 1 
-                              };
-                              break;
-                            case 'weekly':
-                              // Calculate start of current week (Monday)
-                              const weekStart = new Date(date);
-                              weekStart.setDate(date.getDate() - date.getDay() + 1);
-                              newMetadata = { 
-                                type: 'weekly', 
-                                weekStartDate: weekStart.toISOString().split('T')[0] 
-                              };
-                              break;
-                            default:
-                              newMetadata = { type: 'uncategorized' };
-                          }
-
-                          setEditingGoals(
-                            editingGoals.map((g) => (g.id === goal.id ? { ...g, level: newLevel, metadata: newMetadata } : g))
-                          );
-                          setHasChanges(true);
-                        }}
-                        className="px-3 py-2 bg-slate-800 border border-slate-600 rounded-lg text-sm font-medium text-slate-300 focus:outline-none focus:border-violet-500"
-                      >
-                        <option value="uncategorized">Unknown Level</option>
-                        <option value="yearly">📅 Yearly</option>
-                        <option value="quarterly">📊 Quarterly</option>
-                        <option value="monthly">🌙 Monthly</option>
-                        <option value="weekly">📆 Weekly</option>
-                      </select>
+                      <span className="text-sm text-slate-500">{formatDuration(totalMinutes)} total</span>
                       <button
                         onClick={() => {
                           if (confirm(`Delete goal "${goal.title}"?`)) {
                             setEditingGoals(editingGoals.filter((g) => g.id !== goal.id));
+                            deleteGoal(goal.id);
                             setHasChanges(true);
                           }
                         }}
@@ -208,43 +366,32 @@ export default function EditPage() {
                         Delete
                       </button>
                     </div>
-                    
+
                     {/* Status Selection */}
                     <div className="flex items-center gap-3 mb-3">
                       <label className="text-sm text-slate-400">Status:</label>
                       <div className="flex gap-2">
                         {(['not_started', 'in_progress', 'completed'] as const).map((status) => {
-                          const isActive = currentStatus === status;
+                          const isActive = goal.status === status;
                           const config = {
                             not_started: { icon: '🟡', label: 'Not Started', bg: 'bg-amber-500/20', border: 'border-amber-500' },
                             in_progress: { icon: '🔵', label: 'In Progress', bg: 'bg-blue-500/20', border: 'border-blue-500' },
                             completed: { icon: '🟢', label: 'Completed', bg: 'bg-emerald-500/20', border: 'border-emerald-500' },
                           }[status];
-                          
+
                           return (
                             <button
                               key={status}
                               type="button"
                               onClick={() => {
-                                const now = new Date().toISOString();
                                 setEditingGoals(
-                                  editingGoals.map((g) => {
-                                    if (g.id !== goal.id) return g;
-                                    const updates: Partial<Goal> = { status };
-                                    if (status === 'in_progress' && !g.startedAt) {
-                                      updates.startedAt = now;
-                                    }
-                                    if (status === 'completed' && !g.completedAt) {
-                                      updates.completedAt = now;
-                                    }
-                                    return { ...g, ...updates };
-                                  })
+                                  editingGoals.map((g) => (g.id === goal.id ? { ...g, status } : g))
                                 );
                                 setHasChanges(true);
                               }}
                               className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-all flex items-center gap-1.5 ${
-                                isActive 
-                                  ? `${config.bg} border ${config.border} text-white` 
+                                isActive
+                                  ? `${config.bg} border ${config.border} text-white`
                                   : 'bg-slate-800 text-slate-400 hover:bg-slate-700'
                               }`}
                             >
@@ -255,7 +402,7 @@ export default function EditPage() {
                         })}
                       </div>
                     </div>
-                    
+
                     <textarea
                       value={goal.description || ''}
                       onChange={(e) => {
@@ -295,25 +442,32 @@ export default function EditPage() {
                       }}
                       className="flex-1 px-3 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white font-semibold focus:outline-none focus:border-violet-500"
                     />
-                    {task.isRepeating && (
+
+                    {/* Duration */}
+                    <div className="flex items-center gap-2">
                       <input
                         type="number"
-                        value={task.requiredCount}
+                        min={5}
+                        max={480}
+                        value={task.estimatedMinutes}
                         onChange={(e) => {
                           setEditingTasks(
                             editingTasks.map((t) =>
-                              t.id === task.id ? { ...t, requiredCount: parseInt(e.target.value) || 1 } : t
+                              t.id === task.id ? { ...t, estimatedMinutes: parseInt(e.target.value) || 30 } : t
                             )
                           );
                           setHasChanges(true);
                         }}
                         className="w-20 px-3 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white text-center focus:outline-none focus:border-violet-500"
                       />
-                    )}
+                      <span className="text-sm text-slate-500">min</span>
+                    </div>
+
                     <button
                       onClick={() => {
                         if (confirm(`Delete task "${task.title}"?`)) {
                           setEditingTasks(editingTasks.filter((t) => t.id !== task.id));
+                          deleteTask(task.id);
                           setHasChanges(true);
                         }
                       }}
@@ -341,319 +495,7 @@ export default function EditPage() {
               )}
             </div>
           )}
-
-          {/* ROUTINES TAB */}
-          {activeTab === 'routines' && (
-            <div className="space-y-4">
-              <div className="flex items-center justify-between mb-4">
-                <h2 className="text-2xl font-bold text-white">Edit Daily Routines</h2>
-                <button
-                  onClick={() => {
-                    const newRoutine: RoutineTemplate = {
-                      id: `routine-${Date.now()}`,
-                      name: 'New Routine',
-                      type: 'morning',
-                      startTime: '09:00',
-                      endTime: '10:00',
-                      goalIds: [],
-                      isActive: true,
-                      createdAt: new Date().toISOString(),
-                    };
-                    setEditingRoutines([...editingRoutines, newRoutine]);
-                    setHasChanges(true);
-                  }}
-                  className="px-4 py-2 bg-violet-600 hover:bg-violet-700 text-white rounded-lg text-sm font-medium transition-all"
-                >
-                  + Add Routine
-                </button>
-              </div>
-              
-              {editingRoutines.length === 0 ? (
-                <div className="text-center py-12 bg-slate-900/50 border border-slate-800 rounded-xl">
-                  <div className="text-5xl mb-4">🌅</div>
-                  <p className="text-slate-400 mb-4">No routines yet. Add your first daily routine!</p>
-                </div>
-              ) : (
-                editingRoutines.map((routine) => (
-                  <div key={routine.id} className="p-4 bg-slate-900/50 border border-slate-800 rounded-xl">
-                    {/* Routine Header */}
-                    <div className="flex items-center gap-3 mb-4">
-                      <input
-                        type="text"
-                        value={routine.name}
-                        onChange={(e) => {
-                          setEditingRoutines(
-                            editingRoutines.map((r) => (r.id === routine.id ? { ...r, name: e.target.value } : r))
-                          );
-                          setHasChanges(true);
-                        }}
-                        className="flex-1 px-3 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white font-semibold focus:outline-none focus:border-violet-500"
-                      />
-                      
-                      {/* Type Selector */}
-                      <select
-                        value={routine.type}
-                        onChange={(e) => {
-                          setEditingRoutines(
-                            editingRoutines.map((r) => (r.id === routine.id ? { ...r, type: e.target.value as RoutineTemplate['type'] } : r))
-                          );
-                          setHasChanges(true);
-                        }}
-                        className="px-3 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white focus:outline-none focus:border-violet-500"
-                      >
-                        <option value="morning">🌅 Morning</option>
-                        <option value="work">💼 Work</option>
-                        <option value="evening">🌆 Evening</option>
-                        <option value="leisure">🎮 Leisure</option>
-                      </select>
-                      
-                      {/* Time Range */}
-                      <div className="flex items-center gap-2">
-                        <input
-                          type="time"
-                          value={routine.startTime}
-                          onChange={(e) => {
-                            setEditingRoutines(
-                              editingRoutines.map((r) => (r.id === routine.id ? { ...r, startTime: e.target.value } : r))
-                            );
-                            setHasChanges(true);
-                          }}
-                          className="px-3 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white focus:outline-none focus:border-violet-500"
-                        />
-                        <span className="text-slate-500">to</span>
-                        <input
-                          type="time"
-                          value={routine.endTime}
-                          onChange={(e) => {
-                            setEditingRoutines(
-                              editingRoutines.map((r) => (r.id === routine.id ? { ...r, endTime: e.target.value } : r))
-                            );
-                            setHasChanges(true);
-                          }}
-                          className="px-3 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white focus:outline-none focus:border-violet-500"
-                        />
-                      </div>
-                      
-                      {/* Toggle Active */}
-                      <button
-                        onClick={() => {
-                          setEditingRoutines(
-                            editingRoutines.map((r) => (r.id === routine.id ? { ...r, isActive: !r.isActive } : r))
-                          );
-                          setHasChanges(true);
-                        }}
-                        className={`px-3 py-2 rounded-lg text-sm font-medium transition-all ${
-                          routine.isActive 
-                            ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/50' 
-                            : 'bg-slate-700 text-slate-400'
-                        }`}
-                      >
-                        {routine.isActive ? '✓ Active' : '○ Inactive'}
-                      </button>
-                      
-                      {/* Delete Routine */}
-                      <button
-                        onClick={() => {
-                          if (confirm(`Delete routine "${routine.name}"?`)) {
-                            setEditingRoutines(editingRoutines.filter((r) => r.id !== routine.id));
-                            setHasChanges(true);
-                          }
-                        }}
-                        className="px-3 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg text-sm transition-all"
-                      >
-                        🗑️
-                      </button>
-                    </div>
-                    
-                    {/* Goals in this time slot */}
-                    <div className="space-y-2">
-                      <h4 className="text-sm font-medium text-slate-400 mb-2">
-                        Goals in this time slot ({(routine.goalIds || []).length})
-                      </h4>
-                      
-                      {(routine.goalIds || []).length > 0 ? (
-                        <div className="space-y-2 pl-4 border-l-2 border-violet-500/50">
-                          {(routine.goalIds || []).map((goalId) => {
-                            const goal = editingGoals.find((g) => g.id === goalId);
-                            if (!goal) return null;
-                            
-                            const goalTasks = editingTasks.filter((t) => t.goalId === goal.id);
-                            const completedTasks = goalTasks.filter((t) => t.isCompleted).length;
-                            const statusConfig = {
-                              not_started: { icon: '🟡' },
-                              in_progress: { icon: '🔵' },
-                              completed: { icon: '🟢' },
-                            }[(goal.status || 'not_started') as 'not_started' | 'in_progress' | 'completed'];
-                            
-                            return (
-                              <div key={goal.id} className="flex items-center justify-between p-3 bg-slate-800/50 rounded-lg">
-                                <div className="flex items-center gap-3">
-                                  <span>{statusConfig.icon}</span>
-                                  <div>
-                                    <span className="text-white font-medium">{goal.title}</span>
-                                    <span className="text-sm text-slate-500 ml-2">
-                                      ({completedTasks}/{goalTasks.length} tasks)
-                                    </span>
-                                  </div>
-                                </div>
-                                <button
-                                  onClick={() => {
-                                    setEditingRoutines(
-                                      editingRoutines.map((r) => 
-                                        r.id === routine.id
-                                          ? { ...r, goalIds: (r.goalIds || []).filter((id) => id !== goal.id) }
-                                          : r
-                                      )
-                                    );
-                                    setHasChanges(true);
-                                  }}
-                                  className="text-red-400 hover:text-red-300 text-sm px-2"
-                                >
-                                  Remove
-                                </button>
-                              </div>
-                            );
-                          })}
-                        </div>
-                      ) : (
-                        <p className="text-sm text-slate-500 italic pl-4">No goals assigned to this time slot</p>
-                      )}
-                      
-                      {/* Add Goal Dropdown */}
-                      {(() => {
-                        const unlinkedGoals = editingGoals.filter((g) => 
-                          !(routine.goalIds || []).includes(g.id) && !g.isArchived
-                        );
-                        return unlinkedGoals.length > 0 && (
-                          <select
-                            onChange={(e) => {
-                              if (e.target.value) {
-                                setEditingRoutines(
-                                  editingRoutines.map((r) => 
-                                    r.id === routine.id
-                                      ? { ...r, goalIds: [...(r.goalIds || []), e.target.value] }
-                                      : r
-                                  )
-                                );
-                                setHasChanges(true);
-                                e.target.value = '';
-                              }
-                            }}
-                            className="w-full mt-2 px-3 py-2 bg-slate-800 border border-dashed border-slate-600 rounded-lg text-slate-400 focus:outline-none focus:border-violet-500"
-                            defaultValue=""
-                          >
-                            <option value="">+ Add a goal to this time slot...</option>
-                            {unlinkedGoals.map((goal) => (
-                              <option key={goal.id} value={goal.id}>
-                                🎯 {goal.title} ({goal.level})
-                              </option>
-                            ))}
-                          </select>
-                        );
-                      })()}
-                    </div>
-                  </div>
-                ))
-              )}
-            </div>
-          )}
-
-
-          {/* SLEEP TAB */}
-          {activeTab === 'sleep' && (
-            <div className="space-y-4">
-              <h2 className="text-2xl font-bold text-white mb-4">Edit Today&apos;s Sleep & Wake</h2>
-              <div className="p-6 bg-slate-900/50 border border-slate-800 rounded-xl">
-                {(() => {
-                  const today = new Date().toISOString().split('T')[0];
-                  const todayLog = sleepWakeLogs.find(l => l.date === today);
-                  
-                  return (
-                    <div className="space-y-6">
-                      <div className="flex items-center justify-between">
-                        <h3 className="text-lg font-semibold text-white">Date: {today}</h3>
-                        <span className="text-xs text-slate-500 bg-slate-800 px-2 py-1 rounded">
-                          Only today&apos;s data is editable
-                        </span>
-                      </div>
-                      
-                      {/* Wake Up Time */}
-                      <div className="space-y-2">
-                        <label className="block text-sm text-slate-400">Wake Up Time</label>
-                        <div className="flex gap-4">
-                          <input
-                            type="time"
-                            defaultValue={todayLog?.wakeUpTime || ''}
-                            onChange={(e) => {
-                              // We use the store action to update directly as this is a specific log type
-                              // For simplicity in this edit mode, we can just update the record
-                              if (e.target.value) {
-                                // Calculate minutes ago is tricky here since we are setting absolute time
-                                // So we'll need a way to just update the time string directly in the store
-                                // BUT the user asked to restrict editing to today and valid times
-                                // The current store `recordWakeUp` takes "minutesAgo".
-                                // We might need a direct update or careful calculation.
-                                
-                                // Let's calculate deviation from NOW to pass to recordWakeUp?
-                                // No, recordWakeUp creates a new entry if not exists.
-                                // If we want to EDIT specific time, we need a store action for it or use the existing structure.
-                                // Let's compute 'minutesAgo' relative to NOW to match the input time.
-                                
-                                const [hours, minutes] = e.target.value.split(':').map(Number);
-                                const now = new Date();
-                                const targetTime = new Date();
-                                targetTime.setHours(hours, minutes, 0, 0);
-                                
-                                // If target is in future? shouldn't happen for wake up usually but possible if editing for later?
-                                // If target is 8:00 AM and now is 12:00 PM, minutesAgo = 240.
-                                let diff = Math.round((now.getTime() - targetTime.getTime()) / 60000);
-                                if (diff < 0) diff = 0; // prevent future wake up logging if logic forbids it?
-                                
-                                recordWakeUp(diff, todayLog?.wakeUpMood);
-                              }
-                            }}
-                            className="px-4 py-3 bg-slate-700 border border-slate-600 rounded-lg text-white focus:outline-none focus:border-violet-500"
-                          />
-                        </div>
-                      </div>
-
-                      {/* Sleep Time */}
-                      <div className="space-y-2">
-                        <label className="block text-sm text-slate-400">Sleep Time (Going to Bed)</label>
-                        <div className="flex gap-4">
-                          <div className="flex-1">
-                             {todayLog?.sleepTime ? (
-                               <div className="flex items-center gap-4">
-                                  <span className="text-xl font-mono text-white">{todayLog.sleepTime}</span>
-                                  <button
-                                    onClick={() => recordSleep()} 
-                                    className="text-sm px-3 py-1 bg-indigo-500/20 text-indigo-400 rounded hover:bg-indigo-500/30"
-                                  >
-                                    Update to Now
-                                  </button>
-                               </div>
-                             ) : (
-                               <button
-                                  onClick={() => recordSleep()}
-                                  className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg transition-all"
-                               >
-                                  Record Sleep Now
-                               </button>
-                             )}
-                             <p className="text-xs text-slate-500 mt-2">
-                               * Sleep time is recorded as the moment you click the button.
-                             </p>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  );
-                })()}
-              </div>
-            </div>
-          )}
         </div>
-
 
         {/* Action Buttons */}
         <div className="fixed bottom-20 left-0 right-0 bg-slate-900/95 backdrop-blur-xl border-t border-slate-800 p-4 z-50">

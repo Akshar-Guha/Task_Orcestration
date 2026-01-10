@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { useMemo } from 'react';
 import { useAppStore } from '@/lib/store';
-import { ActivityEntry } from '@/lib/types';
+import { TimelineEvent } from '@/lib/types';
 
 // Get all days in the last year
 function getLast365Days() {
@@ -18,41 +18,38 @@ function getLast365Days() {
 }
 
 export default function ProfilePage() {
-  const { activities, getSleepStats } = useAppStore();
+  const { timelineEvents, getSleepStats, productivityLogs } = useAppStore();
   const sleepStats = getSleepStats();
   
-  // Group activities by date
-  const activityByDate = useMemo(() => {
-    const grouped: Record<string, ActivityEntry[]> = {};
-    activities.forEach((activity) => {
-      const date = activity.timestamp.split('T')[0];
+  // Group timeline events by date (replacing activities)
+  const eventsByDate = useMemo(() => {
+    const grouped: Record<string, TimelineEvent[]> = {};
+    (timelineEvents || []).forEach((event) => {
+      const date = event.timestamp.split('T')[0];
       if (!grouped[date]) grouped[date] = [];
-      grouped[date].push(activity);
+      grouped[date].push(event);
     });
     return grouped;
-  }, [activities]);
+  }, [timelineEvents]);
   
-  // Calculate completion percentage for a date
+  // Calculate completion percentage for a date using productivity logs
   const getCompletionPercentage = (date: string) => {
-    const dayActivities = activityByDate[date] || [];
-    if (dayActivities.length === 0) return 0;
+    const dayLog = (productivityLogs || []).find(l => l.date === date);
+    const dayEvents = eventsByDate[date] || [];
     
-    // Count task completions and increments
-    const completions = dayActivities.filter(a => 
-      a.type === 'task_completed' || a.type === 'task_incremented'
-    ).length;
+    if (dayLog && dayLog.productiveMinutes > 0) {
+      // Use productivity percentage (capped at 100)
+      return Math.min(100, Math.round((dayLog.productiveMinutes / (8 * 60)) * 100));
+    }
     
-    // Count total task-related activities
-    const totalTaskActivities = dayActivities.filter(a =>
-      a.type === 'task_completed' || 
-      a.type === 'task_incremented' ||
-      a.type === 'task_created'
-    ).length;
+    if (dayEvents.length === 0) return 0;
     
-    if (totalTaskActivities === 0) return 0;
+    // Count task completions
+    const completions = dayEvents.filter(e => e.eventType === 'task_completed').length;
+    const creations = dayEvents.filter(e => e.eventType === 'task_created').length;
     
-    // Calculate percentage
-    return Math.round((completions / totalTaskActivities) * 100);
+    if (completions + creations === 0) return 0;
+    return Math.round((completions / (completions + creations)) * 100);
   };
   
   // Get color based on completion percentage
@@ -62,9 +59,6 @@ export default function ProfilePage() {
     if (percentage < 100) return 'bg-yellow-500 border border-yellow-400'; // Yellow: Medium (50%+)
     return 'bg-emerald-500 border border-emerald-400'; // Green: High (100%)
   };
-  
-  // Streak calculation removed as replaced by Sleep Streak
-  // const currentStreak = ...
   
   // Build calendar grid (52 weeks x 7 days)
   const days = getLast365Days();
@@ -95,9 +89,6 @@ export default function ProfilePage() {
       weeks.push(currentWeek);
     }
   });
-  
-  // Legacy stats removed
-  // const totalActivity = ...
   
   return (
     <div className="min-h-screen bg-slate-950 pb-24">
@@ -146,7 +137,7 @@ export default function ProfilePage() {
         </div>
         
         {/* GitHub-style Contribution Graph - Full Width */}
-        <div className="p-8 bg-slate-900/50 border border-slate-800 rounded-xl">
+        <div className="mt-6 p-8 bg-slate-900/50 border border-slate-800 rounded-xl">
           <h2 className="text-xl font-bold text-white mb-6">365-Day Activity Map</h2>
           
           <div className="flex items-start gap-3">
@@ -174,7 +165,7 @@ export default function ProfilePage() {
                       
                       const percentage = getCompletionPercentage(day);
                       const date = new Date(day);
-                      const activities = activityByDate[day] || [];
+                      const dayEvents = eventsByDate[day] || [];
                       
                       return (
                         <div
@@ -182,7 +173,7 @@ export default function ProfilePage() {
                           className={`w-4 h-4 rounded-sm transition-all hover:ring-2 hover:ring-violet-400 hover:scale-150 cursor-pointer ${
                             getColor(percentage)
                           }`}
-                          title={`${date.toLocaleDateString()}\n${percentage}% completion\n${activities.length} activities`}
+                          title={`${date.toLocaleDateString()}\n${percentage}% completion\n${dayEvents.length} events`}
                         />
                       );
                     })}

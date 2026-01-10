@@ -1,8 +1,25 @@
 'use client';
 
-import { supabase } from './supabase';
+import { createClient, SupabaseClient } from '@supabase/supabase-js';
 
 const DEVICE_TOKEN_KEY = 'device_trust_token';
+
+// Lazy-loaded Supabase client (only created when needed at runtime)
+let _supabaseClient: SupabaseClient | null = null;
+
+function getSupabase(): SupabaseClient {
+  if (!_supabaseClient) {
+    const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+    const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+    
+    if (!url || !key) {
+      throw new Error('Supabase environment variables not configured');
+    }
+    
+    _supabaseClient = createClient(url, key);
+  }
+  return _supabaseClient;
+}
 
 /**
  * Get device token from localStorage
@@ -29,10 +46,20 @@ export function clearDeviceToken(): void {
 }
 
 /**
- * Generate a new device token
+ * Generate a new device token (with fallback for older browsers)
  */
 export function generateDeviceToken(): string {
-  return crypto.randomUUID();
+  // Use crypto.randomUUID if available (modern browsers)
+  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+    return crypto.randomUUID();
+  }
+  
+  // Fallback: generate UUID v4 manually
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
+    const r = (Math.random() * 16) | 0;
+    const v = c === 'x' ? r : (r & 0x3) | 0x8;
+    return v.toString(16);
+  });
 }
 
 /**
@@ -54,6 +81,7 @@ export async function validatePin(pin: string): Promise<boolean> {
  */
 export async function registerDevice(token: string): Promise<boolean> {
   try {
+    const supabase = getSupabase();
     const { error } = await supabase
       .from('authorized_devices')
       .insert({ device_token: token });
@@ -74,6 +102,7 @@ export async function registerDevice(token: string): Promise<boolean> {
  */
 export async function isDeviceAuthorized(token: string): Promise<boolean> {
   try {
+    const supabase = getSupabase();
     const { data, error } = await supabase
       .from('authorized_devices')
       .select('id')
@@ -102,6 +131,7 @@ export async function isDeviceAuthorized(token: string): Promise<boolean> {
  */
 export async function revokeAllSessions(): Promise<boolean> {
   try {
+    const supabase = getSupabase();
     const { error } = await supabase
       .from('authorized_devices')
       .delete()
