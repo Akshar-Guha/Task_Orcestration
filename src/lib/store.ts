@@ -40,6 +40,9 @@ interface AppState {
   // Sleep/Wake
   sleepWakeLogs: SleepWakeLog[];
   
+  // Daily Focus
+  dailyFocusGoalId: string | null;
+  
   // Settings
   userSettings: UserSettings;
   lastInteraction: string | null;
@@ -52,6 +55,9 @@ interface AppState {
   completeGoal: (id: string) => void;
   deleteGoal: (id: string) => void;
   archiveGoal: (id: string) => void;
+  setDailyFocusGoal: (goalId: string | null) => void;
+  getGoalsByPriority: () => Goal[];
+  getBlockedGoals: (goalId: string) => Goal[];
   
   // ========== TASK ACTIONS ==========
   addTask: (input: CreateTaskInput) => string;
@@ -145,6 +151,7 @@ export const useAppStore = create<AppState>()(
       timelineEvents: [],
       timelineDailySummaries: [],
       sleepWakeLogs: [],
+      dailyFocusGoalId: null,
       lastInteraction: null,
       lastAppOpen: null,
       
@@ -165,6 +172,9 @@ export const useAppStore = create<AppState>()(
           level: input.level,
           metadata: input.metadata,
           status: 'not_started',
+          priority: input.priority || 2, // Default to Important
+          dependsOn: input.dependsOn,
+          unlocks: input.unlocks,
           timeSlotId: input.timeSlotId,
           createdAt: getNow(),
           isArchived: false,
@@ -255,6 +265,22 @@ export const useAppStore = create<AppState>()(
       
       archiveGoal: (id) => {
         get().updateGoal(id, { isArchived: true });
+      },
+      
+      setDailyFocusGoal: (goalId) => {
+        set({ dailyFocusGoalId: goalId });
+        get().trackInteraction();
+      },
+      
+      getGoalsByPriority: () => {
+        const goals = get().goals.filter(g => !g.isArchived);
+        return goals.sort((a, b) => (a.priority || 2) - (b.priority || 2));
+      },
+      
+      getBlockedGoals: (goalId) => {
+        // Find goals that depend on the given goal
+        const goals = get().goals.filter(g => !g.isArchived);
+        return goals.filter(g => g.dependsOn?.includes(goalId));
       },
       
       // ========== TASK ACTIONS ==========

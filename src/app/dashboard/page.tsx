@@ -90,6 +90,40 @@ export default function DashboardPage() {
         </div>
       </div>
 
+      {/* Today's Focus Goal */}
+      {(() => {
+        const focusGoalId = useAppStore.getState().dailyFocusGoalId;
+        const focusGoal = focusGoalId ? goals.find(g => g.id === focusGoalId) : null;
+        const focusTasks = focusGoal ? getTasksForGoalLocal(focusGoal.id) : [];
+        const completedFocusTasks = focusTasks.filter(t => t.isCompleted).length;
+        
+        return focusGoal ? (
+          <div className="p-4 bg-gradient-to-r from-amber-900/30 to-slate-900/50 border-2 border-amber-500/50 rounded-xl">
+            <div className="flex items-center gap-2 mb-3">
+              <span className="text-xl">⭐</span>
+              <span className="text-sm font-semibold text-amber-400 uppercase tracking-wider">Today&apos;s Focus</span>
+            </div>
+            <h3 className="text-lg font-bold text-white mb-2">{focusGoal.title}</h3>
+            <div className="flex items-center gap-4 text-sm text-slate-400">
+              <span>{completedFocusTasks}/{focusTasks.length} tasks</span>
+              <span className="text-amber-400 font-semibold">
+                {focusTasks.length > 0 ? Math.round((completedFocusTasks / focusTasks.length) * 100) : 0}% complete
+              </span>
+            </div>
+          </div>
+        ) : (
+          <Link 
+            href="/edit"
+            className="block p-4 bg-slate-900/30 border-2 border-dashed border-slate-700 rounded-xl hover:border-amber-500/50 transition-colors"
+          >
+            <div className="flex items-center gap-2 text-slate-400">
+              <span className="text-xl">⭐</span>
+              <span className="text-sm">Set a Focus Goal for today →</span>
+            </div>
+          </Link>
+        );
+      })()}
+
       {/* Sleep/Wake Button */}
       <SleepButton />
 
@@ -143,7 +177,7 @@ export default function DashboardPage() {
                     </Link>
                   </div>
                 ) : (
-                  slotGoals.map((goal) => {
+                  slotGoals.sort((a, b) => (a.priority || 2) - (b.priority || 2)).map((goal) => {
                     const goalTasks = getTasksForGoalLocal(goal.id);
                     const goalCompletedMinutes = goalTasks
                       .filter((t) => t.isCompleted)
@@ -153,6 +187,10 @@ export default function DashboardPage() {
                       <div key={goal.id} className="space-y-2">
                         {/* Goal Header */}
                         <div className="flex items-center gap-2 pl-2 border-l-2 border-violet-500/50">
+                          <span className={`w-2 h-2 rounded-full ${
+                            goal.priority === 1 ? 'bg-red-500' :
+                            goal.priority === 3 ? 'bg-green-500' : 'bg-yellow-500'
+                          }`} title={goal.priority === 1 ? 'Critical' : goal.priority === 3 ? 'Nice-to-have' : 'Important'} />
                           <span className="text-lg">🎯</span>
                           <div className="flex-1">
                             <span className="font-medium text-white">{goal.title}</span>

@@ -426,6 +426,158 @@ export default function PlannerPage() {
             </div>
           </div>
         </div>
+
+        {/* Goal Dependency Graph */}
+        <div className="mt-6 p-6 bg-gradient-to-br from-slate-900 to-slate-950 border border-slate-700 rounded-xl">
+          <h3 className="text-lg font-bold text-white mb-2">🔗 Goal Dependencies</h3>
+          <p className="text-sm text-slate-500 mb-6">See which goals unlock others. Complete foundation goals first to unblock dependent goals.</p>
+          
+          {(() => {
+            const activeGoals = goals.filter(g => !g.isArchived);
+            const goalsWithDeps = activeGoals.filter(g => g.dependsOn?.length || g.unlocks?.length);
+            const rootGoals = activeGoals.filter(g => !g.dependsOn?.length);
+            
+            if (goalsWithDeps.length === 0) {
+              return (
+                <div className="text-center py-8">
+                  <div className="text-4xl mb-3">🔗</div>
+                  <p className="text-slate-400 mb-2">No dependencies set yet</p>
+                  <p className="text-xs text-slate-500">Edit a goal to add &quot;depends on&quot; or &quot;unlocks&quot; relationships</p>
+                  <Link 
+                    href="/edit"
+                    className="inline-block mt-4 px-4 py-2 bg-violet-600 hover:bg-violet-700 text-white rounded-lg text-sm transition-colors"
+                  >
+                    Set Up Dependencies →
+                  </Link>
+                </div>
+              );
+            }
+            
+            return (
+              <div className="space-y-6">
+                {/* Priority Legend */}
+                <div className="flex items-center gap-6 text-xs text-slate-400">
+                  <div className="flex items-center gap-2">
+                    <span className="w-3 h-3 rounded-full bg-red-500" />
+                    <span>Critical</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="w-3 h-3 rounded-full bg-yellow-500" />
+                    <span>Important</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="w-3 h-3 rounded-full bg-green-500" />
+                    <span>Nice-to-have</span>
+                  </div>
+                  <div className="flex items-center gap-2 ml-auto">
+                    <span className="text-slate-500">→</span>
+                    <span>unlocks</span>
+                  </div>
+                </div>
+                
+                {/* Goal Graph */}
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {activeGoals.sort((a, b) => (a.priority || 2) - (b.priority || 2)).map((goal) => {
+                    const dependsOnGoals = activeGoals.filter(g => goal.dependsOn?.includes(g.id));
+                    const unlocksGoals = activeGoals.filter(g => goal.unlocks?.includes(g.id));
+                    const isBlocked = dependsOnGoals.some(g => g.status !== 'completed');
+                    const goalTasks = getTasksForGoal(goal.id);
+                    const completedTasks = goalTasks.filter(t => t.isCompleted).length;
+                    
+                    return (
+                      <div 
+                        key={goal.id}
+                        className={`p-4 rounded-xl border-2 transition-all ${
+                          goal.status === 'completed' 
+                            ? 'bg-emerald-500/10 border-emerald-500/50' 
+                            : isBlocked
+                              ? 'bg-slate-800/50 border-slate-700 opacity-60'
+                              : 'bg-slate-800/30 border-slate-700 hover:border-violet-500/50'
+                        }`}
+                      >
+                        {/* Goal Header */}
+                        <div className="flex items-start gap-3 mb-3">
+                          <span className={`w-3 h-3 rounded-full mt-1.5 ${
+                            goal.priority === 1 ? 'bg-red-500' :
+                            goal.priority === 3 ? 'bg-green-500' : 'bg-yellow-500'
+                          }`} />
+                          <div className="flex-1">
+                            <div className="font-medium text-white">{goal.title}</div>
+                            <div className="text-xs text-slate-500">
+                              {completedTasks}/{goalTasks.length} tasks • {goal.status.replace('_', ' ')}
+                            </div>
+                          </div>
+                          {goal.status === 'completed' && <span className="text-emerald-400">✓</span>}
+                          {isBlocked && goal.status !== 'completed' && <span className="text-amber-400" title="Blocked by dependencies">🔒</span>}
+                        </div>
+                        
+                        {/* Dependencies */}
+                        {dependsOnGoals.length > 0 && (
+                          <div className="mb-2">
+                            <div className="text-[10px] text-slate-500 uppercase tracking-wider mb-1">Depends on:</div>
+                            <div className="flex flex-wrap gap-1">
+                              {dependsOnGoals.map(g => (
+                                <span 
+                                  key={g.id}
+                                  className={`text-xs px-2 py-0.5 rounded ${
+                                    g.status === 'completed' 
+                                      ? 'bg-emerald-500/20 text-emerald-400' 
+                                      : 'bg-amber-500/20 text-amber-400'
+                                  }`}
+                                >
+                                  {g.status === 'completed' ? '✓ ' : '◐ '}{g.title}
+                                </span>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                        
+                        {/* Unlocks */}
+                        {unlocksGoals.length > 0 && (
+                          <div>
+                            <div className="text-[10px] text-slate-500 uppercase tracking-wider mb-1">Unlocks:</div>
+                            <div className="flex flex-wrap gap-1">
+                              {unlocksGoals.map(g => (
+                                <span 
+                                  key={g.id}
+                                  className="text-xs px-2 py-0.5 rounded bg-violet-500/20 text-violet-400"
+                                >
+                                  → {g.title}
+                                </span>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+                
+                {/* Insights */}
+                {(() => {
+                  const blockedCount = activeGoals.filter(g => 
+                    g.status !== 'completed' && 
+                    g.dependsOn?.some(depId => {
+                      const depGoal = activeGoals.find(og => og.id === depId);
+                      return depGoal && depGoal.status !== 'completed';
+                    })
+                  ).length;
+                  const unlocksCount = activeGoals.filter(g => g.unlocks?.length).length;
+                  
+                  return blockedCount > 0 && (
+                    <div className="p-4 bg-amber-500/10 border border-amber-500/30 rounded-lg">
+                      <div className="text-amber-400 font-medium">💡 Insight</div>
+                      <div className="text-sm text-slate-300 mt-1">
+                        {blockedCount} goal{blockedCount > 1 ? 's are' : ' is'} blocked waiting on dependencies. 
+                        Complete foundation goals to unblock {unlocksCount > 0 ? 'and unlock more progress' : 'them'}.
+                      </div>
+                    </div>
+                  );
+                })()}
+              </div>
+            );
+          })()}
+        </div>
       </div>
     </div>
   );

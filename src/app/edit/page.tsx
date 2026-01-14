@@ -403,6 +403,165 @@ export default function EditPage() {
                       </div>
                     </div>
 
+                    {/* Priority Selection */}
+                    <div className="flex items-center gap-3 mb-3">
+                      <label className="text-sm text-slate-400">Priority:</label>
+                      <div className="flex gap-2">
+                        {([1, 2, 3] as const).map((priority) => {
+                          const isActive = (goal.priority || 2) === priority;
+                          const config = {
+                            1: { color: 'bg-red-500', label: 'Critical', textColor: 'text-red-400' },
+                            2: { color: 'bg-yellow-500', label: 'Important', textColor: 'text-yellow-400' },
+                            3: { color: 'bg-green-500', label: 'Nice-to-have', textColor: 'text-green-400' },
+                          }[priority];
+
+                          return (
+                            <button
+                              key={priority}
+                              type="button"
+                              onClick={() => {
+                                setEditingGoals(
+                                  editingGoals.map((g) => (g.id === goal.id ? { ...g, priority } : g))
+                                );
+                                setHasChanges(true);
+                              }}
+                              className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-all flex items-center gap-1.5 ${
+                                isActive
+                                  ? `${config.color}/20 border border-current ${config.textColor}`
+                                  : 'bg-slate-800 text-slate-400 hover:bg-slate-700'
+                              }`}
+                            >
+                              <span className={`w-2 h-2 rounded-full ${config.color}`} />
+                              <span>{config.label}</span>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+
+                    {/* Set as Focus Goal */}
+                    <div className="flex items-center gap-3 mb-3">
+                      <button
+                        onClick={() => {
+                          useAppStore.getState().setDailyFocusGoal(goal.id);
+                          setHasChanges(true);
+                        }}
+                        className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-all flex items-center gap-1.5 ${
+                          useAppStore.getState().dailyFocusGoalId === goal.id
+                            ? 'bg-amber-500/20 border border-amber-500 text-amber-400'
+                            : 'bg-slate-800 text-slate-400 hover:bg-amber-500/10 hover:text-amber-400'
+                        }`}
+                      >
+                        <span>⭐</span>
+                        <span>{useAppStore.getState().dailyFocusGoalId === goal.id ? 'Today\'s Focus' : 'Set as Today\'s Focus'}</span>
+                      </button>
+                    </div>
+
+                    {/* Dependencies */}
+                    <div className="mb-3 p-3 bg-slate-800/50 rounded-lg">
+                      <div className="text-xs text-slate-500 uppercase tracking-wider mb-2">Dependencies</div>
+                      
+                      {/* Depends On */}
+                      <div className="mb-2">
+                        <label className="text-xs text-slate-400 block mb-1">This goal depends on:</label>
+                        <select
+                          onChange={(e) => {
+                            if (e.target.value) {
+                              const newDeps = [...(goal.dependsOn || []), e.target.value];
+                              setEditingGoals(
+                                editingGoals.map((g) => (g.id === goal.id ? { ...g, dependsOn: newDeps } : g))
+                              );
+                              setHasChanges(true);
+                              e.target.value = '';
+                            }
+                          }}
+                          className="w-full px-2 py-1 bg-slate-700 border border-slate-600 rounded text-sm text-white"
+                          defaultValue=""
+                        >
+                          <option value="">+ Add dependency...</option>
+                          {editingGoals
+                            .filter(g => g.id !== goal.id && !g.isArchived && !(goal.dependsOn || []).includes(g.id))
+                            .map(g => (
+                              <option key={g.id} value={g.id}>{g.title}</option>
+                            ))}
+                        </select>
+                        {(goal.dependsOn || []).length > 0 && (
+                          <div className="flex flex-wrap gap-1 mt-1">
+                            {(goal.dependsOn || []).map(depId => {
+                              const depGoal = editingGoals.find(g => g.id === depId);
+                              return depGoal && (
+                                <span key={depId} className="inline-flex items-center gap-1 px-2 py-0.5 bg-amber-500/20 text-amber-400 text-xs rounded">
+                                  {depGoal.title}
+                                  <button
+                                    onClick={() => {
+                                      setEditingGoals(
+                                        editingGoals.map(g => g.id === goal.id 
+                                          ? { ...g, dependsOn: (g.dependsOn || []).filter(d => d !== depId) } 
+                                          : g
+                                        )
+                                      );
+                                      setHasChanges(true);
+                                    }}
+                                    className="hover:text-white"
+                                  >×</button>
+                                </span>
+                              );
+                            })}
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Unlocks */}
+                      <div>
+                        <label className="text-xs text-slate-400 block mb-1">This goal unlocks:</label>
+                        <select
+                          onChange={(e) => {
+                            if (e.target.value) {
+                              const newUnlocks = [...(goal.unlocks || []), e.target.value];
+                              setEditingGoals(
+                                editingGoals.map((g) => (g.id === goal.id ? { ...g, unlocks: newUnlocks } : g))
+                              );
+                              setHasChanges(true);
+                              e.target.value = '';
+                            }
+                          }}
+                          className="w-full px-2 py-1 bg-slate-700 border border-slate-600 rounded text-sm text-white"
+                          defaultValue=""
+                        >
+                          <option value="">+ Add unlocks...</option>
+                          {editingGoals
+                            .filter(g => g.id !== goal.id && !g.isArchived && !(goal.unlocks || []).includes(g.id))
+                            .map(g => (
+                              <option key={g.id} value={g.id}>{g.title}</option>
+                            ))}
+                        </select>
+                        {(goal.unlocks || []).length > 0 && (
+                          <div className="flex flex-wrap gap-1 mt-1">
+                            {(goal.unlocks || []).map(unlockId => {
+                              const unlockGoal = editingGoals.find(g => g.id === unlockId);
+                              return unlockGoal && (
+                                <span key={unlockId} className="inline-flex items-center gap-1 px-2 py-0.5 bg-violet-500/20 text-violet-400 text-xs rounded">
+                                  → {unlockGoal.title}
+                                  <button
+                                    onClick={() => {
+                                      setEditingGoals(
+                                        editingGoals.map(g => g.id === goal.id 
+                                          ? { ...g, unlocks: (g.unlocks || []).filter(u => u !== unlockId) } 
+                                          : g
+                                        )
+                                      );
+                                      setHasChanges(true);
+                                    }}
+                                    className="hover:text-white"
+                                  >×</button>
+                                </span>
+                              );
+                            })}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
                     <textarea
                       value={goal.description || ''}
                       onChange={(e) => {

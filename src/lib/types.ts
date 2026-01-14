@@ -31,6 +31,11 @@ export interface Goal {
   metadata: GoalMetadata;
   status: GoalStatus;
   
+  // Priority & Dependencies
+  priority: 1 | 2 | 3;          // 1=Critical, 2=Important, 3=Nice-to-have
+  dependsOn?: string[];         // Goal IDs this blocks on
+  unlocks?: string[];           // Goal IDs this enables
+  
   // Time slot assignment (optional)
   timeSlotId?: string;
   
@@ -46,7 +51,7 @@ export interface Goal {
     completedTasks: number;
     daysToComplete: number;
     activeDays: number;
-    totalMinutesSpent: number;  // NEW: Total time invested
+    totalMinutesSpent: number;
     tasks: Array<{ id: string; title: string; completedAt?: string; duration?: number }>;
   };
   
@@ -236,7 +241,10 @@ export interface CreateGoalInput {
   description?: string;
   level: GoalLevel;
   metadata: GoalMetadata;
-  timeSlotId?: string;  // NEW: Optional time slot assignment
+  timeSlotId?: string;
+  priority?: 1 | 2 | 3;     // Default 2 (Important)
+  dependsOn?: string[];     // Goal IDs this blocks on
+  unlocks?: string[];       // Goal IDs this enables
 }
 
 export interface CreateTaskInput {

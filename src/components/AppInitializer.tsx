@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useAppStore } from '@/lib/store';
 import { WakeUpModal } from './sleep/WakeUpModal';
+import { RoutineNotificationScheduler } from '@/lib/routineNotifications';
 
 export function AppInitializer() {
   const [showWakeUpModal, setShowWakeUpModal] = useState(false);
@@ -33,6 +34,9 @@ export function AppInitializer() {
     
     // Track interaction
     store.trackInteraction();
+    
+    // Load from cloud on startup
+    store.loadFromCloud().catch(console.error);
   }, []);
   
   return (
@@ -40,6 +44,7 @@ export function AppInitializer() {
       {showWakeUpModal && (
         <WakeUpModal onClose={() => setShowWakeUpModal(false)} />
       )}
+      <RoutineNotificationScheduler />
     </>
   );
 }
