@@ -71,6 +71,9 @@ export interface Task {
   estimatedMinutes: number;     // How long task should take
   actualMinutes?: number;       // How long it actually took (optional)
   
+  // Daily reset feature
+  isDaily: boolean;             // If true, resets on wake-up
+  
   // Completion state
   isCompleted: boolean;
   completedAt?: string;
@@ -79,6 +82,7 @@ export interface Task {
   createdAt: string;
   isArchived: boolean;
 }
+
 
 // ========================================
 // PRODUCTIVITY TRACKING (NEW)
@@ -96,14 +100,18 @@ export interface TaskCompletion {
 
 // Daily productivity summary
 export interface ProductivityLog {
-  id: string;
+  id?: string;
   date: string;               // "2026-01-10" (unique key)
   productiveMinutes: number;  // Sum of completed task durations
   totalWakingMinutes?: number; // From sleep tracking (for %)
   completions: TaskCompletion[];
-  createdAt: string;
-  updatedAt: string;
+  wakeTime?: string;          // ISO timestamp of wake-up
+  sleepTime?: string;         // ISO timestamp of sleep
+  mood?: MoodLevel;           // Mood at wake-up
+  createdAt?: string;
+  updatedAt?: string;
 }
+
 
 // Productivity stats helper
 export interface ProductivityStats {
@@ -236,6 +244,7 @@ export interface CreateTaskInput {
   description?: string;
   estimatedMinutes: number;  // REQUIRED now
   goalId?: string;
+  isDaily?: boolean;  // Default true - resets on wake-up
 }
 
 export interface CreateTimeSlotInput {

@@ -93,6 +93,11 @@ interface AppState {
   getTimelineEvents: (limit?: number) => TimelineEvent[];
   getTimelineEventsForGoal: (goalId: string) => TimelineEvent[];
   
+  // ========== SYNC ==========
+  syncToCloud: () => Promise<{ success: boolean; error?: string }>;
+  loadFromCloud: () => Promise<{ success: boolean; error?: string }>;
+  resetDailyTasks: (previousDate?: string) => Promise<void>;
+  
   // ========== UTILITY ==========
   trackInteraction: () => void;
   trackAppOpen: () => void;
@@ -260,6 +265,7 @@ export const useAppStore = create<AppState>()(
           description: input.description,
           goalId: input.goalId,
           estimatedMinutes: input.estimatedMinutes || get().userSettings.defaultTaskDuration,
+          isDaily: input.isDaily !== false, // Default to true for daily reset
           isCompleted: false,
           createdAt: getNow(),
           isArchived: false,
@@ -674,6 +680,77 @@ export const useAppStore = create<AppState>()(
         ];
         
         defaultSlots.forEach((slot) => get().addTimeSlot(slot));
+      },
+      
+      // ========== SYNC ==========
+      
+      syncToCloud: async () => {
+        try {
+          const { pushAllToSupabase } = await import('./supabaseSync');
+          const state = get();
+          return await pushAllToSupabase(
+            state.goals,
+            state.tasks,
+            state.timeSlots,
+            state.productivityLogs
+          );
+        } catch (err) {
+          console.error('[Store] Sync failed:', err);
+          return { success: false, error: String(err) };
+        }
+      },
+      
+      loadFromCloud: async () => {
+        try {
+          const { fetchAllFromSupabase } = await import('./supabaseSync');
+          const cloudData = await fetchAllFromSupabase();
+          
+          // Merge cloud data with local (cloud wins for conflicts)
+          set((state) => {
+            const mergedGoals = [...cloudData.goals];
+            const mergedTasks = [...cloudData.tasks];
+            const mergedTimeSlots = cloudData.timeSlots.length > 0 ? cloudData.timeSlots : state.timeSlots;
+            const mergedProductivityLogs = [...cloudData.productivityLogs];
+            
+            return {
+              goals: mergedGoals,
+              tasks: mergedTasks,
+              timeSlots: mergedTimeSlots,
+              productivityLogs: mergedProductivityLogs,
+            };
+          });
+          
+          console.log('[Store] Loaded from cloud:', cloudData);
+          return { success: true };
+        } catch (err) {
+          console.error('[Store] Load from cloud failed:', err);
+          return { success: false, error: String(err) };
+        }
+      },
+      
+      resetDailyTasks: async (previousDate?: string) => {
+        const dateToArchive = previousDate || getToday();
+        const state = get();
+        
+        // 1. Save previous day data to Supabase before resetting
+        try {
+          const { saveArchiveBeforeReset } = await import('./supabaseSync');
+          await saveArchiveBeforeReset(state.tasks, dateToArchive);
+        } catch (err) {
+          console.error('[Store] Failed to archive before reset:', err);
+        }
+        
+        // 2. Reset all daily tasks (isCompleted = false)
+        set((state) => ({
+          tasks: state.tasks.map((t) => 
+            t.isDaily ? { ...t, isCompleted: false, completedAt: undefined, actualMinutes: undefined } : t
+          ),
+        }));
+        
+        get().logTimelineEvent('productivity_logged', undefined, undefined, 
+          `Daily tasks reset after wake-up`);
+        
+        console.log('[Store] Daily tasks reset for new day');
       },
       
       clearAll: () => {
