@@ -10,7 +10,8 @@ export default function DashboardPage() {
   const timeSlots = useAppStore((state) => state.timeSlots);
   const goals = useAppStore((state) => state.goals);
   const tasks = useAppStore((state) => state.tasks);
-  const productivityLogs = useAppStore((state) => state.productivityLogs);
+
+  const dailyFocusGoalId = useAppStore((state) => state.dailyFocusGoalId);
   
   const completeTask = useAppStore((state) => state.completeTask);
   const initializeDefaultTimeSlots = useAppStore((state) => state.initializeDefaultTimeSlots);
@@ -90,39 +91,7 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      {/* Today's Focus Goal */}
-      {(() => {
-        const focusGoalId = useAppStore.getState().dailyFocusGoalId;
-        const focusGoal = focusGoalId ? goals.find(g => g.id === focusGoalId) : null;
-        const focusTasks = focusGoal ? getTasksForGoalLocal(focusGoal.id) : [];
-        const completedFocusTasks = focusTasks.filter(t => t.isCompleted).length;
-        
-        return focusGoal ? (
-          <div className="p-4 bg-gradient-to-r from-amber-900/30 to-slate-900/50 border-2 border-amber-500/50 rounded-xl">
-            <div className="flex items-center gap-2 mb-3">
-              <span className="text-xl">⭐</span>
-              <span className="text-sm font-semibold text-amber-400 uppercase tracking-wider">Today&apos;s Focus</span>
-            </div>
-            <h3 className="text-lg font-bold text-white mb-2">{focusGoal.title}</h3>
-            <div className="flex items-center gap-4 text-sm text-slate-400">
-              <span>{completedFocusTasks}/{focusTasks.length} tasks</span>
-              <span className="text-amber-400 font-semibold">
-                {focusTasks.length > 0 ? Math.round((completedFocusTasks / focusTasks.length) * 100) : 0}% complete
-              </span>
-            </div>
-          </div>
-        ) : (
-          <Link 
-            href="/edit"
-            className="block p-4 bg-slate-900/30 border-2 border-dashed border-slate-700 rounded-xl hover:border-amber-500/50 transition-colors"
-          >
-            <div className="flex items-center gap-2 text-slate-400">
-              <span className="text-xl">⭐</span>
-              <span className="text-sm">Set a Focus Goal for today →</span>
-            </div>
-          </Link>
-        );
-      })()}
+
 
       {/* Sleep/Wake Button */}
       <SleepButton />
@@ -177,23 +146,49 @@ export default function DashboardPage() {
                     </Link>
                   </div>
                 ) : (
-                  slotGoals.sort((a, b) => (a.priority || 2) - (b.priority || 2)).map((goal) => {
+                  slotGoals.sort((a, b) => {
+                    // Sort: Focus Goal first, then Priority (1>2>3), then created date
+                    if (a.id === dailyFocusGoalId) return -1;
+                    if (b.id === dailyFocusGoalId) return 1;
+                    
+                    const pA = a.priority || 2;
+                    const pB = b.priority || 2;
+                    if (pA !== pB) return pA - pB;
+                    
+                    return 0;
+                  }).map((goal) => {
                     const goalTasks = getTasksForGoalLocal(goal.id);
                     const goalCompletedMinutes = goalTasks
                       .filter((t) => t.isCompleted)
                       .reduce((sum, t) => sum + t.estimatedMinutes, 0);
+                    
+                    const isFocus = goal.id === dailyFocusGoalId;
 
                     return (
-                      <div key={goal.id} className="space-y-2">
+                      <div 
+                        key={goal.id} 
+                        className={`space-y-2 rounded-xl transition-all ${
+                          isFocus 
+                            ? 'p-3 bg-amber-500/10 border border-amber-500/50 shadow-[0_0_15px_rgba(245,158,11,0.15)]' 
+                            : ''
+                        }`}
+                      >
                         {/* Goal Header */}
                         <div className="flex items-center gap-2 pl-2 border-l-2 border-violet-500/50">
+                          {isFocus && <span className="text-amber-400 text-lg animate-pulse">⭐</span>}
+                          
                           <span className={`w-2 h-2 rounded-full ${
                             goal.priority === 1 ? 'bg-red-500' :
                             goal.priority === 3 ? 'bg-green-500' : 'bg-yellow-500'
                           }`} title={goal.priority === 1 ? 'Critical' : goal.priority === 3 ? 'Nice-to-have' : 'Important'} />
-                          <span className="text-lg">🎯</span>
+                          
+                          {!isFocus && <span className="text-lg">🎯</span>}
+                          
                           <div className="flex-1">
-                            <span className="font-medium text-white">{goal.title}</span>
+                            <span className={`font-medium ${isFocus ? 'text-amber-100 font-bold text-lg' : 'text-white'}`}>
+                              {goal.title}
+                            </span>
+                            {isFocus && <span className="ml-2 text-[10px] text-amber-500 uppercase tracking-widest font-bold border border-amber-500/30 px-1 rounded">Today&apos;s Focus</span>}
                             <span className="text-xs text-slate-500 ml-2">
                               ({formatDuration(goalCompletedMinutes)} spent)
                             </span>
@@ -209,7 +204,7 @@ export default function DashboardPage() {
                         </div>
 
                         {/* Tasks */}
-                        <div className="pl-6 space-y-1">
+                        <div className={`pl-6 space-y-1 ${isFocus ? 'mt-1' : ''}`}>
                           {goalTasks.length === 0 ? (
                             <p className="text-sm text-slate-600 italic">No tasks yet</p>
                           ) : (
@@ -220,7 +215,7 @@ export default function DashboardPage() {
                                 onClick={() => handleTaskClick(task.id)}
                                 className={`w-full flex items-center gap-3 p-2 rounded-lg transition-all hover:bg-slate-800/50 ${
                                   task.isCompleted ? 'opacity-60' : ''
-                                }`}
+                                } ${isFocus && !task.isCompleted ? 'bg-amber-900/10 hover:bg-amber-900/20' : ''}`}
                               >
                                 <span className={`w-5 h-5 rounded border-2 flex items-center justify-center ${
                                   task.isCompleted
