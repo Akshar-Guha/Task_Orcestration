@@ -5,15 +5,19 @@ import { useMemo } from 'react';
 import { useAppStore } from '@/lib/store';
 import { TimelineEvent } from '@/lib/types';
 
-// Get all days in the last year
+// Get all days from Jan 1, 2026 up to today (max 365 days)
 function getLast365Days() {
   const days = [];
+  const startDate = new Date('2026-01-01');
   const today = new Date();
-  for (let i = 364; i >= 0; i--) {
-    const date = new Date(today);
-    date.setDate(date.getDate() - i);
-    days.push(date.toISOString().split('T')[0]);
+  
+  // Start from Jan 1, 2026 and go up to today
+  const currentDate = new Date(startDate);
+  while (currentDate <= today && days.length < 365) {
+    days.push(currentDate.toISOString().split('T')[0]);
+    currentDate.setDate(currentDate.getDate() + 1);
   }
+  
   return days;
 }
 

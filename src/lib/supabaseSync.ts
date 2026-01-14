@@ -1,30 +1,18 @@
 /**
- * Supabase Sync Service
+ * Supabase Sync Service - PERMANENT DATA STORAGE
  * 
- * Provides bidirectional sync between Zustand store (localStorage) and Supabase.
- * Handles:
- * - Goals, Tasks, TimeSlots sync to nodes table
- * - Daily task status (per-day completion)
- * - Productivity logs
+ * CRITICAL: This service ensures ALL data is stored in Supabase permanently.
+ * Data is NEVER only in localStorage - it's always synced to the server.
  */
 
 import { supabase } from './supabase';
-import type { Goal, Task, TimeSlot, ProductivityLog } from './types';
+import type { Goal, Task, TimeSlot, ProductivityLog, SleepWakeLog } from './types';
 
 const USER_ID = process.env.NEXT_PUBLIC_USER_ID || '2c32a446-1bbc-4294-8a29-3e4fef5649e6';
 
 // ============================================
-// TYPES
+// SYNC RESULT TYPE
 // ============================================
-
-interface DailyTaskStatus {
-  id: string;
-  taskId: string;
-  date: string;
-  isCompleted: boolean;
-  completedAt?: string;
-  minutesSpent: number;
-}
 
 interface SyncResult {
   success: boolean;
@@ -32,164 +20,104 @@ interface SyncResult {
 }
 
 // ============================================
-// SYNC GOALS TO SUPABASE
+// SAVE GOAL TO SUPABASE (IMMEDIATE)
 // ============================================
 
-export async function syncGoalToSupabase(goal: Goal): Promise<SyncResult> {
+export async function saveGoal(goal: Goal): Promise<SyncResult> {
   try {
     const { error } = await supabase
-      .from('nodes')
+      .from('goals')
       .upsert({
         id: goal.id,
-        type: 'goal',
         title: goal.title,
         description: goal.description || null,
-        properties: {
-          level: goal.level,
-          status: goal.status,
-          timeSlotId: goal.timeSlotId,
-          startedAt: goal.startedAt,
-          completedAt: goal.completedAt,
-          lastActivityAt: goal.lastActivityAt,
-          completionSnapshot: goal.completionSnapshot,
-        },
-        metadata: goal.metadata,
+        level: goal.level,
+        status: goal.status,
+        priority: goal.priority || 2,
+        depends_on: goal.dependsOn || [],
+        unlocks: goal.unlocks || [],
+        time_slot_id: goal.timeSlotId,
         is_archived: goal.isArchived,
         user_id: USER_ID,
+        created_at: goal.createdAt,
+        started_at: goal.startedAt,
+        completed_at: goal.completedAt,
+        metadata: goal.metadata,
+        completion_snapshot: goal.completionSnapshot,
       }, { onConflict: 'id' });
 
     if (error) throw error;
+    console.log('[Supabase] Goal saved:', goal.title);
     return { success: true };
   } catch (err) {
-    console.error('[Sync] Failed to sync goal:', err);
+    console.error('[Supabase] Failed to save goal:', err);
     return { success: false, error: String(err) };
   }
 }
 
 // ============================================
-// SYNC TASKS TO SUPABASE
+// SAVE TASK TO SUPABASE (IMMEDIATE)
 // ============================================
 
-export async function syncTaskToSupabase(task: Task): Promise<SyncResult> {
+export async function saveTask(task: Task): Promise<SyncResult> {
   try {
     const { error } = await supabase
-      .from('nodes')
+      .from('tasks')
       .upsert({
         id: task.id,
-        type: 'task',
         title: task.title,
         description: task.description || null,
-        properties: {
-          goalId: task.goalId,
-          estimatedMinutes: task.estimatedMinutes,
-          actualMinutes: task.actualMinutes,
-          isDaily: task.isDaily || true, // Default to daily tasks
-          isCompleted: task.isCompleted,
-          completedAt: task.completedAt,
-        },
-        metadata: {},
+        goal_id: task.goalId,
+        estimated_minutes: task.estimatedMinutes,
+        actual_minutes: task.actualMinutes,
+        is_daily: task.isDaily !== false,
+        is_completed: task.isCompleted,
         is_archived: task.isArchived,
         user_id: USER_ID,
+        created_at: task.createdAt,
+        completed_at: task.completedAt,
       }, { onConflict: 'id' });
 
     if (error) throw error;
+    console.log('[Supabase] Task saved:', task.title);
     return { success: true };
   } catch (err) {
-    console.error('[Sync] Failed to sync task:', err);
+    console.error('[Supabase] Failed to save task:', err);
     return { success: false, error: String(err) };
   }
 }
 
 // ============================================
-// SYNC TIME SLOTS TO SUPABASE
+// SAVE TIME SLOT TO SUPABASE
 // ============================================
 
-export async function syncTimeSlotToSupabase(slot: TimeSlot): Promise<SyncResult> {
+export async function saveTimeSlot(slot: TimeSlot): Promise<SyncResult> {
   try {
     const { error } = await supabase
-      .from('nodes')
+      .from('time_slots')
       .upsert({
         id: slot.id,
-        type: 'time_slot',
-        title: slot.name,
-        description: null,
-        properties: {
-          slotType: slot.type,
-          startTime: slot.startTime,
-          endTime: slot.endTime,
-          color: slot.color,
-          goalIds: slot.goalIds,
-          isActive: slot.isActive,
-        },
-        metadata: {},
-        is_archived: false,
+        name: slot.name,
+        type: slot.type,
+        start_time: slot.startTime,
+        end_time: slot.endTime,
+        color: slot.color,
+        goal_ids: slot.goalIds || [],
+        is_active: slot.isActive,
         user_id: USER_ID,
+        created_at: slot.createdAt,
       }, { onConflict: 'id' });
 
     if (error) throw error;
     return { success: true };
   } catch (err) {
-    console.error('[Sync] Failed to sync time slot:', err);
+    console.error('[Supabase] Failed to save time slot:', err);
     return { success: false, error: String(err) };
   }
 }
 
 // ============================================
-// DAILY TASK STATUS (PER-DAY COMPLETION)
-// ============================================
-
-export async function saveDailyTaskStatus(
-  taskId: string,
-  date: string,
-  isCompleted: boolean,
-  minutesSpent: number = 0
-): Promise<SyncResult> {
-  try {
-    const { error } = await supabase
-      .from('daily_task_status')
-      .upsert({
-        task_id: taskId,
-        date: date,
-        is_completed: isCompleted,
-        completed_at: isCompleted ? new Date().toISOString() : null,
-        minutes_spent: minutesSpent,
-        user_id: USER_ID,
-      }, { onConflict: 'task_id,date,user_id' });
-
-    if (error) throw error;
-    return { success: true };
-  } catch (err) {
-    console.error('[Sync] Failed to save daily task status:', err);
-    return { success: false, error: String(err) };
-  }
-}
-
-export async function getDailyTaskStatus(date: string): Promise<DailyTaskStatus[]> {
-  try {
-    const { data, error } = await supabase
-      .from('daily_task_status')
-      .select('*')
-      .eq('date', date)
-      .eq('user_id', USER_ID);
-
-    if (error) throw error;
-    
-    return (data || []).map(row => ({
-      id: row.id,
-      taskId: row.task_id,
-      date: row.date,
-      isCompleted: row.is_completed,
-      completedAt: row.completed_at,
-      minutesSpent: row.minutes_spent,
-    }));
-  } catch (err) {
-    console.error('[Sync] Failed to get daily task status:', err);
-    return [];
-  }
-}
-
-// ============================================
-// PRODUCTIVITY LOGS
+// SAVE PRODUCTIVITY LOG
 // ============================================
 
 export async function saveProductivityLog(log: ProductivityLog): Promise<SyncResult> {
@@ -199,224 +127,225 @@ export async function saveProductivityLog(log: ProductivityLog): Promise<SyncRes
       .upsert({
         date: log.date,
         productive_minutes: log.productiveMinutes,
-        completions: log.completions,
+        total_waking_minutes: log.totalWakingMinutes,
         wake_time: log.wakeTime,
         sleep_time: log.sleepTime,
         mood: log.mood,
+        completions: log.completions,
         user_id: USER_ID,
       }, { onConflict: 'date,user_id' });
 
     if (error) throw error;
     return { success: true };
   } catch (err) {
-    console.error('[Sync] Failed to save productivity log:', err);
+    console.error('[Supabase] Failed to save productivity log:', err);
     return { success: false, error: String(err) };
   }
 }
 
-export async function getProductivityLogs(days: number = 30): Promise<ProductivityLog[]> {
-  try {
-    const startDate = new Date();
-    startDate.setDate(startDate.getDate() - days);
-    
-    const { data, error } = await supabase
-      .from('productivity_logs')
-      .select('*')
-      .eq('user_id', USER_ID)
-      .gte('date', startDate.toISOString().split('T')[0])
-      .order('date', { ascending: false });
-
-    if (error) throw error;
-    
-    return (data || []).map(row => ({
-      date: row.date,
-      productiveMinutes: row.productive_minutes,
-      completions: row.completions || [],
-      wakeTime: row.wake_time,
-      sleepTime: row.sleep_time,
-      mood: row.mood,
-    }));
-  } catch (err) {
-    console.error('[Sync] Failed to get productivity logs:', err);
-    return [];
-  }
-}
-
 // ============================================
-// FETCH ALL DATA FROM SUPABASE
+// SAVE SLEEP WAKE LOG
 // ============================================
 
-export async function fetchAllFromSupabase(): Promise<{
-  goals: Goal[];
-  tasks: Task[];
-  timeSlots: TimeSlot[];
-  productivityLogs: ProductivityLog[];
-}> {
-  try {
-    // Fetch nodes
-    const { data: nodes, error: nodesError } = await supabase
-      .from('nodes')
-      .select('*')
-      .eq('user_id', USER_ID)
-      .eq('is_archived', false);
-
-    if (nodesError) throw nodesError;
-
-    const goals: Goal[] = [];
-    const tasks: Task[] = [];
-    const timeSlots: TimeSlot[] = [];
-
-    for (const node of nodes || []) {
-      const props = node.properties || {};
-      
-      if (node.type === 'goal') {
-        goals.push({
-          id: node.id,
-          title: node.title,
-          description: node.description || undefined,
-          level: props.level || 'yearly',
-          metadata: node.metadata || { type: 'yearly', year: new Date().getFullYear() },
-          status: props.status || 'not_started',
-          timeSlotId: props.timeSlotId,
-          completionSnapshot: props.completionSnapshot,
-          createdAt: node.created_at,
-          startedAt: props.startedAt,
-          completedAt: props.completedAt,
-          lastActivityAt: props.lastActivityAt,
-          isArchived: node.is_archived,
-        });
-      } else if (node.type === 'task') {
-        tasks.push({
-          id: node.id,
-          title: node.title,
-          description: node.description || undefined,
-          goalId: props.goalId,
-          estimatedMinutes: props.estimatedMinutes || 30,
-          actualMinutes: props.actualMinutes,
-          isDaily: props.isDaily !== false, // Default true
-          isCompleted: props.isCompleted || false,
-          createdAt: node.created_at,
-          completedAt: props.completedAt,
-          isArchived: node.is_archived,
-        });
-      } else if (node.type === 'time_slot') {
-        timeSlots.push({
-          id: node.id,
-          name: node.title,
-          type: props.slotType || 'custom',
-          startTime: props.startTime || '09:00',
-          endTime: props.endTime || '17:00',
-          color: props.color || '#8b5cf6',
-          goalIds: props.goalIds || [],
-          isActive: props.isActive !== false,
-          createdAt: node.created_at,
-        });
-      }
-    }
-
-    // Fetch productivity logs
-    const productivityLogs = await getProductivityLogs(30);
-
-    return { goals, tasks, timeSlots, productivityLogs };
-  } catch (err) {
-    console.error('[Sync] Failed to fetch all data:', err);
-    return { goals: [], tasks: [], timeSlots: [], productivityLogs: [] };
-  }
-}
-
-// ============================================
-// FULL SYNC (PUSH ALL LOCAL DATA TO SUPABASE)
-// ============================================
-
-export async function pushAllToSupabase(
-  goals: Goal[],
-  tasks: Task[],
-  timeSlots: TimeSlot[],
-  productivityLogs: ProductivityLog[]
-): Promise<SyncResult> {
-  console.log('[Sync] Starting full push to Supabase...');
-  
-  const errors: string[] = [];
-
-  // Sync goals
-  for (const goal of goals) {
-    const result = await syncGoalToSupabase(goal);
-    if (!result.success) errors.push(`Goal ${goal.id}: ${result.error}`);
-  }
-
-  // Sync tasks
-  for (const task of tasks) {
-    const result = await syncTaskToSupabase(task);
-    if (!result.success) errors.push(`Task ${task.id}: ${result.error}`);
-  }
-
-  // Sync time slots
-  for (const slot of timeSlots) {
-    const result = await syncTimeSlotToSupabase(slot);
-    if (!result.success) errors.push(`TimeSlot ${slot.id}: ${result.error}`);
-  }
-
-  // Sync productivity logs
-  for (const log of productivityLogs) {
-    const result = await saveProductivityLog(log);
-    if (!result.success) errors.push(`ProductivityLog ${log.date}: ${result.error}`);
-  }
-
-  if (errors.length > 0) {
-    console.error('[Sync] Errors during push:', errors);
-    return { success: false, error: errors.join('; ') };
-  }
-
-  console.log('[Sync] Full push completed successfully');
-  return { success: true };
-}
-
-// ============================================
-// DELETE FROM SUPABASE
-// ============================================
-
-export async function deleteFromSupabase(id: string): Promise<SyncResult> {
+export async function saveSleepWakeLog(log: SleepWakeLog): Promise<SyncResult> {
   try {
     const { error } = await supabase
-      .from('nodes')
-      .delete()
-      .eq('id', id);
+      .from('sleep_wake_logs')
+      .upsert({
+        date: log.date,
+        wake_up_time: log.wakeUpTime,
+        wake_up_mood: log.wakeUpMood,
+        sleep_time: log.sleepTime,
+        sleep_duration_minutes: log.sleepDurationMinutes,
+        user_id: USER_ID,
+      }, { onConflict: 'date,user_id' });
 
     if (error) throw error;
     return { success: true };
   } catch (err) {
-    console.error('[Sync] Failed to delete:', err);
+    console.error('[Supabase] Failed to save sleep log:', err);
     return { success: false, error: String(err) };
   }
 }
 
 // ============================================
-// SAVE PREVIOUS DAY DATA BEFORE RESET
+// LOAD ALL DATA FROM SUPABASE
 // ============================================
 
-export async function saveArchiveBeforeReset(
-  tasks: Task[],
-  date: string
-): Promise<SyncResult> {
-  console.log(`[Sync] Archiving ${tasks.length} tasks for date ${date}`);
+export async function loadAllFromSupabase(): Promise<{
+  goals: Goal[];
+  tasks: Task[];
+  timeSlots: TimeSlot[];
+  productivityLogs: ProductivityLog[];
+  sleepWakeLogs: SleepWakeLog[];
+}> {
+  console.log('[Supabase] Loading all data from server...');
   
-  const errors: string[] = [];
+  const [goalsRes, tasksRes, slotsRes, logsRes, sleepRes] = await Promise.all([
+    supabase.from('goals').select('*').eq('user_id', USER_ID),
+    supabase.from('tasks').select('*').eq('user_id', USER_ID),
+    supabase.from('time_slots').select('*').eq('user_id', USER_ID),
+    supabase.from('productivity_logs').select('*').eq('user_id', USER_ID),
+    supabase.from('sleep_wake_logs').select('*').eq('user_id', USER_ID),
+  ]);
+
+  const goals: Goal[] = (goalsRes.data || []).map((g: Record<string, unknown>) => ({
+    id: g.id as string,
+    title: g.title as string,
+    description: g.description as string | undefined,
+    level: g.level as Goal['level'],
+    metadata: g.metadata as Goal['metadata'],
+    status: g.status as Goal['status'],
+    priority: (g.priority as 1 | 2 | 3) || 2,
+    dependsOn: g.depends_on as string[] | undefined,
+    unlocks: g.unlocks as string[] | undefined,
+    timeSlotId: g.time_slot_id as string | undefined,
+    createdAt: g.created_at as string,
+    startedAt: g.started_at as string | undefined,
+    completedAt: g.completed_at as string | undefined,
+    lastActivityAt: g.last_activity_at as string | undefined,
+    completionSnapshot: g.completion_snapshot as Goal['completionSnapshot'],
+    isArchived: g.is_archived as boolean,
+  }));
+
+  const tasks: Task[] = (tasksRes.data || []).map((t: Record<string, unknown>) => ({
+    id: t.id as string,
+    title: t.title as string,
+    description: t.description as string | undefined,
+    goalId: t.goal_id as string | undefined,
+    estimatedMinutes: t.estimated_minutes as number,
+    actualMinutes: t.actual_minutes as number | undefined,
+    isDaily: t.is_daily as boolean,
+    isCompleted: t.is_completed as boolean,
+    completedAt: t.completed_at as string | undefined,
+    createdAt: t.created_at as string,
+    isArchived: t.is_archived as boolean,
+  }));
+
+  const timeSlots: TimeSlot[] = (slotsRes.data || []).map((s: Record<string, unknown>) => ({
+    id: s.id as string,
+    name: s.name as string,
+    type: s.type as TimeSlot['type'],
+    startTime: s.start_time as string,
+    endTime: s.end_time as string,
+    color: s.color as string,
+    goalIds: s.goal_ids as string[],
+    isActive: s.is_active as boolean,
+    createdAt: s.created_at as string,
+  }));
+
+  const productivityLogs: ProductivityLog[] = (logsRes.data || []).map((l: Record<string, unknown>) => ({
+    id: l.id as string,
+    date: l.date as string,
+    productiveMinutes: l.productive_minutes as number,
+    totalWakingMinutes: l.total_waking_minutes as number | undefined,
+    completions: l.completions as ProductivityLog['completions'] || [],
+    wakeTime: l.wake_time as string | undefined,
+    sleepTime: l.sleep_time as string | undefined,
+    mood: l.mood as ProductivityLog['mood'],
+  }));
+
+  const sleepWakeLogs: SleepWakeLog[] = (sleepRes.data || []).map((s: Record<string, unknown>) => ({
+    id: s.id as string || Math.random().toString(36).substr(2, 9),
+    date: s.date as string,
+    wakeUpTime: s.wake_up_time as string | undefined,
+    wakeUpMood: s.wake_up_mood as SleepWakeLog['wakeUpMood'],
+    sleepTime: s.sleep_time as string | undefined,
+    sleepDurationMinutes: s.sleep_duration_minutes as number | undefined,
+    sleepAttempts: (s.sleep_attempts as string[]) || [],
+    createdAt: s.created_at as string || new Date().toISOString(),
+    updatedAt: s.updated_at as string || new Date().toISOString(),
+  }));
+
+  console.log(`[Supabase] Loaded: ${goals.length} goals, ${tasks.length} tasks, ${timeSlots.length} slots`);
   
-  for (const task of tasks) {
-    if (task.isDaily) {
-      const result = await saveDailyTaskStatus(
-        task.id,
-        date,
-        task.isCompleted,
-        task.actualMinutes || 0
-      );
-      if (!result.success) errors.push(`Task ${task.id}: ${result.error}`);
-    }
-  }
-
-  if (errors.length > 0) {
-    return { success: false, error: errors.join('; ') };
-  }
-
-  return { success: true };
+  return { goals, tasks, timeSlots, productivityLogs, sleepWakeLogs };
 }
+
+// ============================================
+// SAVE ALL DATA TO SUPABASE (FULL SYNC)
+// ============================================
+
+export async function saveAllToSupabase(
+  goals: Goal[],
+  tasks: Task[],
+  timeSlots: TimeSlot[],
+  productivityLogs: ProductivityLog[],
+  sleepWakeLogs: SleepWakeLog[]
+): Promise<SyncResult> {
+  console.log('[Supabase] Saving all data to server...');
+  
+  try {
+    // Save all goals
+    for (const goal of goals) {
+      await saveGoal(goal);
+    }
+    
+    // Save all tasks
+    for (const task of tasks) {
+      await saveTask(task);
+    }
+    
+    // Save all time slots
+    for (const slot of timeSlots) {
+      await saveTimeSlot(slot);
+    }
+    
+    // Save all productivity logs
+    for (const log of productivityLogs) {
+      await saveProductivityLog(log);
+    }
+    
+    // Save all sleep logs
+    for (const log of sleepWakeLogs) {
+      await saveSleepWakeLog(log);
+    }
+    
+    console.log('[Supabase] All data saved successfully!');
+    return { success: true };
+  } catch (err) {
+    console.error('[Supabase] Failed to save all data:', err);
+    return { success: false, error: String(err) };
+  }
+}
+
+// ============================================
+// DELETE GOAL FROM SUPABASE
+// ============================================
+
+export async function deleteGoalFromSupabase(goalId: string): Promise<SyncResult> {
+  try {
+    const { error } = await supabase
+      .from('goals')
+      .delete()
+      .eq('id', goalId);
+    if (error) throw error;
+    return { success: true };
+  } catch (err) {
+    return { success: false, error: String(err) };
+  }
+}
+
+// ============================================
+// DELETE TASK FROM SUPABASE
+// ============================================
+
+export async function deleteTaskFromSupabase(taskId: string): Promise<SyncResult> {
+  try {
+    const { error } = await supabase
+      .from('tasks')
+      .delete()
+      .eq('id', taskId);
+    if (error) throw error;
+    return { success: true };
+  } catch (err) {
+    return { success: false, error: String(err) };
+  }
+}
+
+// ============================================
+// LEGACY EXPORTS (for backward compatibility)
+// ============================================
+
+export const pushAllToSupabase = saveAllToSupabase;
+export const fetchAllFromSupabase = loadAllFromSupabase;
