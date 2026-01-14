@@ -11,7 +11,7 @@ export default function DashboardPage() {
   const goals = useAppStore((state) => state.goals);
   const tasks = useAppStore((state) => state.tasks);
 
-  const dailyFocusGoalId = useAppStore((state) => state.dailyFocusGoalId);
+  const focusGoalIds = useAppStore((state) => state.focusGoalIds);
   
   const completeTask = useAppStore((state) => state.completeTask);
   const initializeDefaultTimeSlots = useAppStore((state) => state.initializeDefaultTimeSlots);
@@ -148,8 +148,11 @@ export default function DashboardPage() {
                 ) : (
                   slotGoals.sort((a, b) => {
                     // Sort: Focus Goal first, then Priority (1>2>3), then created date
-                    if (a.id === dailyFocusGoalId) return -1;
-                    if (b.id === dailyFocusGoalId) return 1;
+                    const isFocusA = (focusGoalIds || []).includes(a.id);
+                    const isFocusB = (focusGoalIds || []).includes(b.id);
+                    
+                    if (isFocusA && !isFocusB) return -1;
+                    if (!isFocusA && isFocusB) return 1;
                     
                     const pA = a.priority || 2;
                     const pB = b.priority || 2;
@@ -162,7 +165,7 @@ export default function DashboardPage() {
                       .filter((t) => t.isCompleted)
                       .reduce((sum, t) => sum + t.estimatedMinutes, 0);
                     
-                    const isFocus = goal.id === dailyFocusGoalId;
+                    const isFocus = (focusGoalIds || []).includes(goal.id);
 
                     return (
                       <div 
@@ -188,7 +191,7 @@ export default function DashboardPage() {
                             <span className={`font-medium ${isFocus ? 'text-amber-100 font-bold text-lg' : 'text-white'}`}>
                               {goal.title}
                             </span>
-                            {isFocus && <span className="ml-2 text-[10px] text-amber-500 uppercase tracking-widest font-bold border border-amber-500/30 px-1 rounded">Today&apos;s Focus</span>}
+                            {isFocus && <span className="ml-2 text-[10px] text-amber-500 uppercase tracking-widest font-bold border border-amber-500/30 px-1 rounded">Priority Focus</span>}
                             <span className="text-xs text-slate-500 ml-2">
                               ({formatDuration(goalCompletedMinutes)} spent)
                             </span>

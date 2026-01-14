@@ -41,7 +41,7 @@ interface AppState {
   sleepWakeLogs: SleepWakeLog[];
   
   // Daily Focus
-  dailyFocusGoalId: string | null;
+  focusGoalIds: string[];
   
   // Settings
   userSettings: UserSettings;
@@ -55,7 +55,7 @@ interface AppState {
   completeGoal: (id: string) => void;
   deleteGoal: (id: string) => void;
   archiveGoal: (id: string) => void;
-  setDailyFocusGoal: (goalId: string | null) => void;
+  toggleFocusGoal: (goalId: string) => void;
   getGoalsByPriority: () => Goal[];
   getBlockedGoals: (goalId: string) => Goal[];
   
@@ -151,7 +151,7 @@ export const useAppStore = create<AppState>()(
       timelineEvents: [],
       timelineDailySummaries: [],
       sleepWakeLogs: [],
-      dailyFocusGoalId: null,
+      focusGoalIds: [],
       lastInteraction: null,
       lastAppOpen: null,
       
@@ -275,8 +275,15 @@ export const useAppStore = create<AppState>()(
         get().updateGoal(id, { isArchived: true });
       },
       
-      setDailyFocusGoal: (goalId) => {
-        set({ dailyFocusGoalId: goalId });
+      toggleFocusGoal: (goalId) => {
+        set((state) => {
+          const current = state.focusGoalIds || [];
+          if (current.includes(goalId)) {
+            return { focusGoalIds: current.filter(id => id !== goalId) };
+          } else {
+            return { focusGoalIds: [...current, goalId] };
+          }
+        });
         get().trackInteraction();
       },
       

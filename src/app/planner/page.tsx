@@ -424,28 +424,27 @@ export default function PlannerPage() {
           </div>
         </div>
 
-        {/* Goal Strategy & Roadmap */}
-        <div className="mt-8 space-y-6">
-          <h3 className="text-xl font-bold text-white flex items-center gap-2">
-            🗺️ Strategic Roadmap
+        {/* Goal Dependency Map */}
+        <div className="mt-8">
+          <h3 className="text-xl font-bold text-white flex items-center gap-2 mb-2">
+            🔗 Dependency Map
           </h3>
+          <p className="text-slate-400 text-sm mb-6">
+             Visualizing how your goals connect.
+          </p>
           
           {(() => {
             const activeGoals = goals.filter(g => !g.isArchived);
-            // Only show goals involved in dependencies
-            const strategicGoals = activeGoals.filter(g => g.dependsOn?.length || g.unlocks?.length);
+            const goalsWithDeps = activeGoals.filter(g => g.dependsOn?.length || g.unlocks?.length);
             
-            if (strategicGoals.length === 0) {
+            if (goalsWithDeps.length === 0) {
               return (
                 <div className="p-8 bg-slate-900/50 border border-slate-800 rounded-xl text-center">
                   <div className="text-4xl mb-4">🔗</div>
-                  <h4 className="text-slate-300 font-medium mb-2">No Goal links found</h4>
-                  <p className="text-slate-500 text-sm mb-4">
-                    Link goals together to create a roadmap. For example: &quot;Learn React&quot; unlocks &quot;Build App&quot;.
-                  </p>
+                  <h4 className="text-slate-300 font-medium mb-2">No dependencies set</h4>
                   <Link 
                     href="/edit"
-                    className="inline-flex items-center gap-2 px-4 py-2 bg-violet-600 hover:bg-violet-700 text-white rounded-lg text-sm transition-colors"
+                    className="inline-flex items-center gap-2 px-4 py-2 bg-violet-600 hover:bg-violet-700 text-white rounded-lg text-sm transition-colors mt-2"
                   >
                     <span>Connect Goals</span>
                     <span>→</span>
@@ -454,100 +453,102 @@ export default function PlannerPage() {
               );
             }
 
-            // Split into:
-            // 1. Unlocks Others (High Leverage) - Not blocked, unlocks things
-            // 2. Blocked (Waiting) - Depends on uncompleted things
-            // 3. End Goals - Depends on things, unlocks nothing
-            
-            const isBlocked = (g: typeof activeGoals[0]) => 
-              g.dependsOn?.some(depId => {
-                const dep = activeGoals.find(d => d.id === depId);
-                return dep && dep.status !== 'completed';
-              });
-
-            const highLeverage = strategicGoals.filter(g => !isBlocked(g) && g.unlocks?.length && g.status !== 'completed');
-            const blocked = strategicGoals.filter(g => isBlocked(g) && g.status !== 'completed');
-            const completed = strategicGoals.filter(g => g.status === 'completed');
-
-            const RenderGoalCard = ({ goal, type }: { goal: typeof activeGoals[0], type: 'leverage' | 'blocked' | 'done' }) => {
-              const unlocksList = activeGoals.filter(g => goal.unlocks?.includes(g.id));
-              const blockedByList = activeGoals.filter(g => goal.dependsOn?.includes(g.id) && g.status !== 'completed');
-
-              return (
-                <div className={`p-4 rounded-xl border ${
-                  type === 'leverage' ? 'bg-violet-900/10 border-violet-500/30' : 
-                  type === 'blocked' ? 'bg-slate-900/50 border-slate-800 opacity-75' :
-                  'bg-emerald-900/10 border-emerald-500/30'
-                }`}>
-                  <div className="flex items-start justify-between">
-                    <div>
-                      <div className="flex items-center gap-2">
-                        {type === 'leverage' && <span title="Unlocks others">🚀</span>}
-                        {type === 'blocked' && <span title="Blocked">🔒</span>}
-                        {type === 'done' && <span>✓</span>}
-                        <h4 className={`font-medium ${type === 'done' ? 'text-slate-400 line-through' : 'text-white'}`}>
-                          {goal.title}
-                        </h4>
-                        <span className={`w-2 h-2 rounded-full ${
-                            goal.priority === 1 ? 'bg-red-500' :
-                            goal.priority === 3 ? 'bg-green-500' : 'bg-yellow-500'
-                        }`} />
+            return (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                {goalsWithDeps.sort((a, b) => (a.priority || 2) - (b.priority || 2)).map((goal) => {
+                  const dependsOnGoals = activeGoals.filter(g => goal.dependsOn?.includes(g.id));
+                  const unlocksGoals = activeGoals.filter(g => goal.unlocks?.includes(g.id));
+                  const isBlocked = dependsOnGoals.some(g => g.status !== 'completed');
+                  const goalTasks = getTasksForGoal(goal.id);
+                  const completedTasks = goalTasks.filter(t => t.isCompleted).length;
+                  
+                  return (
+                    <div 
+                      key={goal.id}
+                      className={`relative p-5 rounded-2xl border transition-all ${
+                        goal.status === 'completed' 
+                          ? 'bg-emulator-900/20 border-emerald-500/30' 
+                          : isBlocked
+                            ? 'bg-slate-900/80 border-slate-800 opacity-80'
+                            : 'bg-slate-900 border-slate-700 hover:border-violet-500/50'
+                      }`}
+                    >
+                      {/* Status Badge */}
+                      <div className="absolute top-4 right-4">
+                        {goal.status === 'completed' ? (
+                           <span className="text-emerald-400 text-lg">✓</span>
+                        ) : isBlocked ? (
+                           <span className="text-amber-500 text-lg" title="Blocked">🔒</span>
+                        ) : null}
                       </div>
-                      
-                      <div className="mt-2 space-y-1">
-                        {type === 'leverage' && unlocksList.length > 0 && (
-                          <div className="text-xs text-slate-400">
-                            <span className="text-violet-400 font-medium">Unlocks:</span> {unlocksList.map(g => g.title).join(', ')}
-                          </div>
-                        )}
-                        {type === 'blocked' && blockedByList.length > 0 && (
-                          <div className="text-xs text-slate-400">
-                            <span className="text-red-400 font-medium">Waiting for:</span> {blockedByList.map(g => g.title).join(', ')}
-                          </div>
-                        )}
-                        <div className="text-[10px] text-slate-500 mt-2">
-                          {getTasksForGoal(goal.id).filter(t => t.isCompleted).length}/{getTasksForGoal(goal.id).length} tasks
+
+                      {/* Header */}
+                      <div className="pr-8 mb-4">
+                        <div className="flex items-center gap-2 mb-1">
+                          <span className={`w-2 h-2 rounded-full ${
+                             goal.priority === 1 ? 'bg-red-500' :
+                             goal.priority === 3 ? 'bg-green-500' : 'bg-yellow-500'
+                          }`} />
+                          <h4 className={`font-bold text-lg ${
+                            goal.status === 'completed' ? 'text-slate-400 line-through' : 'text-white'
+                          }`}>
+                            {goal.title}
+                          </h4>
+                        </div>
+                        <div className="text-xs text-slate-500 pl-4">
+                          {completedTasks}/{goalTasks.length} tasks completed
                         </div>
                       </div>
+                      
+                      {/* Connections */}
+                      <div className="space-y-3 pt-3 border-t border-slate-800/50">
+                        {/* Dependencies */}
+                        {dependsOnGoals.length > 0 && (
+                          <div>
+                            <div className="text-[10px] text-slate-500 uppercase tracking-wider mb-1.5 font-semibold">Blocked By</div>
+                            <div className="flex flex-wrap gap-2">
+                              {dependsOnGoals.map(g => (
+                                <span 
+                                  key={g.id}
+                                  className={`text-xs px-2 py-1 rounded-md flex items-center gap-1.5 ${
+                                    g.status === 'completed' 
+                                      ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' 
+                                      : 'bg-amber-500/10 text-amber-400 border border-amber-500/20'
+                                  }`}
+                                >
+                                  <span className="w-1.5 h-1.5 rounded-full bg-current" />
+                                  {g.title}
+                                </span>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                        
+                        {/* Unlocks */}
+                        {unlocksGoals.length > 0 && (
+                          <div>
+                            <div className="text-[10px] text-slate-500 uppercase tracking-wider mb-1.5 font-semibold">Unlocks</div>
+                            <div className="flex flex-wrap gap-2">
+                              {unlocksGoals.map(g => (
+                                <span 
+                                  key={g.id}
+                                  className="text-xs px-2 py-1 rounded-md bg-violet-500/10 text-violet-300 border border-violet-500/20 flex items-center gap-1.5"
+                                >
+                                  <span>🚀</span>
+                                  {g.title}
+                                </span>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+
+                        {dependsOnGoals.length === 0 && unlocksGoals.length === 0 && (
+                           <div className="text-xs text-slate-600 italic">Independent Goal</div>
+                        )}
+                      </div>
                     </div>
-                    
-                    <Link href={`/edit`} className="text-xs text-slate-600 hover:text-white px-2 py-1 rounded hover:bg-slate-800">
-                      Edit
-                    </Link>
-                  </div>
-                </div>
-              );
-            };
-
-            return (
-              <div className="grid gap-6 md:grid-cols-2">
-                {/* Left Col: Actionable Now */}
-                <div className="space-y-4">
-                  <h4 className="text-violet-400 text-sm font-bold uppercase tracking-wider">🚀 Ready to Advance</h4>
-                  {highLeverage.length === 0 ? (
-                    <p className="text-sm text-slate-500 italic">No available strategic goals. Complete some tasks!</p>
-                  ) : (
-                    highLeverage.map(g => <RenderGoalCard key={g.id} goal={g} type="leverage" />)
-                  )}
-                  
-                  {completed.length > 0 && (
-                    <>
-                      <div className="h-4"></div>
-                      <h4 className="text-emerald-500/70 text-sm font-bold uppercase tracking-wider">Completed</h4>
-                      {completed.map(g => <RenderGoalCard key={g.id} goal={g} type="done" />)}
-                    </>
-                  )}
-                </div>
-
-                {/* Right Col: Blocked */}
-                <div className="space-y-4">
-                  <h4 className="text-amber-500/70 text-sm font-bold uppercase tracking-wider">⏳ Waiting on Dependencies</h4>
-                  {blocked.length === 0 ? (
-                    <p className="text-sm text-slate-500 italic">Nothing is blocked! You are free to work on anything.</p>
-                  ) : (
-                    blocked.map(g => <RenderGoalCard key={g.id} goal={g} type="blocked" />)
-                  )}
-                </div>
+                  );
+                })}
               </div>
             );
           })()}

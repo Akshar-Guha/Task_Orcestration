@@ -3,8 +3,8 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAppStore } from '@/lib/store';
-import type { Goal, Task, TimeSlot, GoalLevel, GoalMetadata, TimeSlotType } from '@/lib/types';
-import { TIME_SLOT_LABELS, TIME_SLOT_COLORS, DURATION_OPTIONS, formatDuration } from '@/lib/types';
+import type { Goal, Task, TimeSlot, TimeSlotType } from '@/lib/types';
+import { TIME_SLOT_LABELS, TIME_SLOT_COLORS, formatDuration } from '@/lib/types';
 
 type EditTab = 'timeslots' | 'goals' | 'tasks';
 
@@ -21,8 +21,8 @@ export default function EditPage() {
     addTimeSlot,
     updateTimeSlot,
     deleteTimeSlot,
-    addGoalToTimeSlot,
-    removeGoalFromTimeSlot,
+    focusGoalIds,
+    toggleFocusGoal,
   } = useAppStore();
 
   const [activeTab, setActiveTab] = useState<EditTab>('timeslots');
@@ -352,6 +352,41 @@ export default function EditPage() {
                         }}
                         className="flex-1 px-3 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white font-semibold focus:outline-none focus:border-violet-500"
                       />
+                      
+                      {/* Time Slot Reassignment */}
+                      <select
+                        value={editingSlots.find(s => (s.goalIds || []).includes(goal.id))?.id || ''}
+                        onChange={(e) => {
+                          const newSlotId = e.target.value;
+                          const currentSlot = editingSlots.find(s => (s.goalIds || []).includes(goal.id));
+                          
+                          // Remove from old slot
+                          let newSlots = [...editingSlots];
+                          if (currentSlot) {
+                            newSlots = newSlots.map(s => s.id === currentSlot.id 
+                              ? { ...s, goalIds: (s.goalIds || []).filter(id => id !== goal.id) }
+                              : s
+                            );
+                          }
+                          
+                          // Add to new slot
+                          if (newSlotId) {
+                            newSlots = newSlots.map(s => s.id === newSlotId
+                              ? { ...s, goalIds: [...(s.goalIds || []), goal.id] }
+                              : s
+                            );
+                          }
+                          
+                          setEditingSlots(newSlots);
+                          setHasChanges(true);
+                        }}
+                        className="px-2 py-2 bg-slate-800 border border-slate-600 rounded-lg text-xs text-slate-300 max-w-[150px]"
+                      >
+                        <option value="">Unassigned</option>
+                        {editingSlots.map(s => (
+                          <option key={s.id} value={s.id}>{s.name}</option>
+                        ))}
+                      </select>
                       <span className="text-sm text-slate-500">{formatDuration(totalMinutes)} total</span>
                       <button
                         onClick={() => {
@@ -439,21 +474,21 @@ export default function EditPage() {
                       </div>
                     </div>
 
-                    {/* Set as Focus Goal */}
+                    {/* Priority Focus Toggle */}
                     <div className="flex items-center gap-3 mb-3">
                       <button
                         onClick={() => {
-                          useAppStore.getState().setDailyFocusGoal(goal.id);
-                          setHasChanges(true);
+                          toggleFocusGoal(goal.id);
+                          // For focus, we don't setHasChanges because it updates store immediately
                         }}
                         className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-all flex items-center gap-1.5 ${
-                          useAppStore.getState().dailyFocusGoalId === goal.id
+                          (focusGoalIds || []).includes(goal.id)
                             ? 'bg-amber-500/20 border border-amber-500 text-amber-400'
                             : 'bg-slate-800 text-slate-400 hover:bg-amber-500/10 hover:text-amber-400'
                         }`}
                       >
                         <span>⭐</span>
-                        <span>{useAppStore.getState().dailyFocusGoalId === goal.id ? 'Today\'s Focus' : 'Set as Today\'s Focus'}</span>
+                        <span>{(focusGoalIds || []).includes(goal.id) ? 'Priority Focused' : 'Set as Priority'}</span>
                       </button>
                     </div>
 
@@ -634,7 +669,41 @@ export default function EditPage() {
                     >
                       Delete
                     </button>
-                  </div>
+                    </div>
+
+                    <div className="flex items-center gap-4 mb-3">
+                      {/* Is Daily Toggle */}
+                      <label className="flex items-center gap-2 cursor-pointer bg-slate-800 px-3 py-1.5 rounded-lg border border-slate-700">
+                        <input
+                          type="checkbox"
+                          checked={task.isDaily}
+                          onChange={(e) => {
+                            setEditingTasks(
+                              editingTasks.map((t) => (t.id === task.id ? { ...t, isDaily: e.target.checked } : t))
+                            );
+                            setHasChanges(true);
+                          }}
+                          className="w-4 h-4 rounded border-slate-600 text-violet-600 focus:ring-violet-500 bg-slate-700"
+                        />
+                        <span className="text-sm text-slate-300">Daily Task</span>
+                      </label>
+
+                      {/* Goal Reassignment */}
+                      <select
+                        value={task.goalId}
+                        onChange={(e) => {
+                          setEditingTasks(
+                            editingTasks.map((t) => (t.id === task.id ? { ...t, goalId: e.target.value } : t))
+                          );
+                          setHasChanges(true);
+                        }}
+                        className="px-3 py-1.5 bg-slate-800 border border-slate-700 rounded-lg text-sm text-slate-300 max-w-[200px]"
+                      >
+                        {editingGoals.filter(g => !g.isArchived).map(g => (
+                          <option key={g.id} value={g.id}>{g.title}</option>
+                        ))}
+                      </select>
+                    </div>
                   <textarea
                     value={task.description || ''}
                     onChange={(e) => {
