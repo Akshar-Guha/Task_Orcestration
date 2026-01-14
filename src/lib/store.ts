@@ -76,6 +76,7 @@ interface AppState {
   recordSleep: () => void;
   getTodaySleepLog: () => SleepWakeLog | null;
   getSleepStats: () => SleepStats;
+  getSleepLogs: (days?: number) => SleepWakeLog[];
   
   // ========== COMPUTED ==========
   getGoalsForTimeSlot: (timeSlotId: string) => Goal[];
@@ -583,6 +584,10 @@ export const useAppStore = create<AppState>()(
           sleepDebtMinutes: Math.max(0, (8 * 60 - avgDuration) * logs.length),
           streakDays: logs.length,
         };
+      },
+      
+      getSleepLogs: (days = 30) => {
+        return get().sleepWakeLogs.slice(-days);
       },
       
       // ========== COMPUTED ==========
