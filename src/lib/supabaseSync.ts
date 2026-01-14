@@ -8,7 +8,12 @@
 import { supabase } from './supabase';
 import type { Goal, Task, TimeSlot, ProductivityLog, SleepWakeLog } from './types';
 
-const USER_ID = process.env.NEXT_PUBLIC_USER_ID || '2c32a446-1bbc-4294-8a29-3e4fef5649e6';
+const FALLBACK_USER_ID = '2c32a446-1bbc-4294-8a29-3e4fef5649e6';
+
+async function getUserId(): Promise<string> {
+  const { data: { user } } = await supabase.auth.getUser();
+  return user?.id || FALLBACK_USER_ID;
+}
 
 // ============================================
 // SYNC RESULT TYPE
@@ -38,7 +43,7 @@ export async function saveGoal(goal: Goal): Promise<SyncResult> {
         unlocks: goal.unlocks || [],
         time_slot_id: goal.timeSlotId,
         is_archived: goal.isArchived,
-        user_id: USER_ID,
+        user_id: await getUserId(),
         created_at: goal.createdAt,
         started_at: goal.startedAt,
         completed_at: goal.completedAt,
@@ -73,7 +78,7 @@ export async function saveTask(task: Task): Promise<SyncResult> {
         is_daily: task.isDaily !== false,
         is_completed: task.isCompleted,
         is_archived: task.isArchived,
-        user_id: USER_ID,
+        user_id: await getUserId(),
         created_at: task.createdAt,
         completed_at: task.completedAt,
       }, { onConflict: 'id' });
@@ -104,7 +109,7 @@ export async function saveTimeSlot(slot: TimeSlot): Promise<SyncResult> {
         color: slot.color,
         goal_ids: slot.goalIds || [],
         is_active: slot.isActive,
-        user_id: USER_ID,
+        user_id: await getUserId(),
         created_at: slot.createdAt,
       }, { onConflict: 'id' });
 
@@ -132,7 +137,7 @@ export async function saveProductivityLog(log: ProductivityLog): Promise<SyncRes
         sleep_time: log.sleepTime,
         mood: log.mood,
         completions: log.completions,
-        user_id: USER_ID,
+        user_id: await getUserId(),
       }, { onConflict: 'date,user_id' });
 
     if (error) throw error;
@@ -157,7 +162,7 @@ export async function saveSleepWakeLog(log: SleepWakeLog): Promise<SyncResult> {
         wake_up_mood: log.wakeUpMood,
         sleep_time: log.sleepTime,
         sleep_duration_minutes: log.sleepDurationMinutes,
-        user_id: USER_ID,
+        user_id: await getUserId(),
       }, { onConflict: 'date,user_id' });
 
     if (error) throw error;
@@ -181,12 +186,14 @@ export async function loadAllFromSupabase(): Promise<{
 }> {
   console.log('[Supabase] Loading all data from server...');
   
+  const uid = await getUserId();
+
   const [goalsRes, tasksRes, slotsRes, logsRes, sleepRes] = await Promise.all([
-    supabase.from('goals').select('*').eq('user_id', USER_ID),
-    supabase.from('tasks').select('*').eq('user_id', USER_ID),
-    supabase.from('time_slots').select('*').eq('user_id', USER_ID),
-    supabase.from('productivity_logs').select('*').eq('user_id', USER_ID),
-    supabase.from('sleep_wake_logs').select('*').eq('user_id', USER_ID),
+    supabase.from('goals').select('*').eq('user_id', uid),
+    supabase.from('tasks').select('*').eq('user_id', uid),
+    supabase.from('time_slots').select('*').eq('user_id', uid),
+    supabase.from('productivity_logs').select('*').eq('user_id', uid),
+    supabase.from('sleep_wake_logs').select('*').eq('user_id', uid),
   ]);
 
   const goals: Goal[] = (goalsRes.data || []).map((g: Record<string, unknown>) => ({
