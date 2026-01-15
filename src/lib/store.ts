@@ -756,27 +756,24 @@ export const useAppStore = create<AppState>()(
           const { loadAllFromSupabase } = await import('./supabaseSync');
           const cloudData = await loadAllFromSupabase();
           
-          // Merge cloud data with local (cloud wins for conflicts)
-          set((state) => {
-            const mergedGoals = cloudData.goals.length > 0 ? cloudData.goals : state.goals;
-            const mergedTasks = cloudData.tasks.length > 0 ? cloudData.tasks : state.tasks;
-            const mergedTimeSlots = cloudData.timeSlots.length > 0 ? cloudData.timeSlots : state.timeSlots;
-            const mergedProductivityLogs = cloudData.productivityLogs.length > 0 ? cloudData.productivityLogs : state.productivityLogs;
-            const mergedSleepLogs = cloudData.sleepWakeLogs.length > 0 ? cloudData.sleepWakeLogs : state.sleepWakeLogs;
+          // CRITICAL: Cloud is the source of truth. Simply replace with cloud data.
+          // Local data is only a cache - cloud data is permanent storage.
+          set(() => {
+            console.log(`[Store] Loading from cloud: ${cloudData.goals.length} goals, ${cloudData.tasks.length} tasks`);
             
             return {
-              goals: mergedGoals,
-              tasks: mergedTasks,
-              timeSlots: mergedTimeSlots,
-              productivityLogs: mergedProductivityLogs,
-              sleepWakeLogs: mergedSleepLogs,
+              goals: cloudData.goals,
+              tasks: cloudData.tasks,
+              timeSlots: cloudData.timeSlots,
+              productivityLogs: cloudData.productivityLogs,
+              sleepWakeLogs: cloudData.sleepWakeLogs,
             };
           });
           
-          console.log('[Store] Loaded from cloud:', cloudData);
+          console.log('[Store] ✓ Cloud data loaded successfully');
           return { success: true };
         } catch (err) {
-          console.error('[Store] Load from cloud failed:', err);
+          console.error('[Store] ✗ Load from cloud failed:', err);
           return { success: false, error: String(err) };
         }
       },

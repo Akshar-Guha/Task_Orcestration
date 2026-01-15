@@ -30,7 +30,12 @@ interface SyncResult {
 
 export async function saveGoal(goal: Goal): Promise<SyncResult> {
   try {
-    const { error } = await supabase
+    console.log('[Supabase] Attempting to save goal:', goal.title, 'ID:', goal.id);
+    
+    const userId = await getUserId();
+    console.log('[Supabase] Using user_id:', userId);
+    
+    const { error, data } = await supabase
       .from('goals')
       .upsert({
         id: goal.id,
@@ -43,19 +48,27 @@ export async function saveGoal(goal: Goal): Promise<SyncResult> {
         unlocks: goal.unlocks || [],
         time_slot_id: goal.timeSlotId,
         is_archived: goal.isArchived,
-        user_id: await getUserId(),
+        user_id: userId,
         created_at: goal.createdAt,
         started_at: goal.startedAt,
         completed_at: goal.completedAt,
         metadata: goal.metadata,
         completion_snapshot: goal.completionSnapshot,
-      }, { onConflict: 'id' });
+      }, { onConflict: 'id' })
+      .select();
 
-    if (error) throw error;
-    console.log('[Supabase] Goal saved:', goal.title);
+    if (error) {
+      console.error('[Supabase] ✗ Save failed:', error);
+      console.error('[Supabase] Error details:', JSON.stringify(error, null, 2));
+      throw error;
+    }
+    
+    console.log('[Supabase] ✓ Goal saved successfully:', goal.title);
+    console.log('[Supabase] Response data:', data);
     return { success: true };
   } catch (err) {
-    console.error('[Supabase] Failed to save goal:', err);
+    console.error('[Supabase] ✗✗ CRITICAL: Failed to save goal:', err);
+    console.error('[Supabase] Goal object:', JSON.stringify(goal, null, 2));
     return { success: false, error: String(err) };
   }
 }
@@ -66,7 +79,11 @@ export async function saveGoal(goal: Goal): Promise<SyncResult> {
 
 export async function saveTask(task: Task): Promise<SyncResult> {
   try {
-    const { error } = await supabase
+    console.log('[Supabase] Attempting to save task:', task.title, 'ID:', task.id);
+    
+    const userId = await getUserId();
+    
+    const { error, data } = await supabase
       .from('tasks')
       .upsert({
         id: task.id,
@@ -78,16 +95,21 @@ export async function saveTask(task: Task): Promise<SyncResult> {
         is_daily: task.isDaily !== false,
         is_completed: task.isCompleted,
         is_archived: task.isArchived,
-        user_id: await getUserId(),
+        user_id: userId,
         created_at: task.createdAt,
         completed_at: task.completedAt,
-      }, { onConflict: 'id' });
+      }, { onConflict: 'id' })
+      .select();
 
-    if (error) throw error;
-    console.log('[Supabase] Task saved:', task.title);
+    if (error) {
+      console.error('[Supabase] ✗ Task save failed:', error);
+      throw error;
+    }
+    
+    console.log('[Supabase] ✓ Task saved:', task.title);
     return { success: true };
   } catch (err) {
-    console.error('[Supabase] Failed to save task:', err);
+    console.error('[Supabase] ✗✗ CRITICAL: Failed to save task:', err);
     return { success: false, error: String(err) };
   }
 }
