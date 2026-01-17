@@ -1,234 +1,328 @@
-# DEPLOYMENT GUIDE - Data Persistence Fix
+# 🦅 Oracle Cloud Deployment Guide (2025 UI)
 
-## Summary of Changes
-
-This fix resolves the critical issue where **all data vanished when opening the application the next day**.
-
-### What Was Fixed:
-
-1. **✅ Data Loading Race Condition** - Modified `AppInitializer.tsx` to load cloud data BEFORE localStorage
-2. **✅ Error Visibility** - Added error banner to show when cloud sync fails
-3. **⚠️ RLS Policies** - Created SQL script that must be run manually in Supabase
+Step-by-step guide with **exact button names and locations** for the current Oracle Cloud Console.
 
 ---
 
-## Deployment Steps
+## � Phase 1: Create Oracle Cloud Account
 
-### Step 1: Run the SQL Script in Supabase (CRITICAL)
-
-> [!IMPORTANT]
-> You MUST run this SQL script or data will NOT save properly!
-
-1. Open your Supabase Dashboard: https://supabase.com/dashboard
-2. Select your project
-3. Click on "SQL Editor" in the left sidebar
-4. Click "New Query"
-5. Open the file: `FIX_DATABASE_RLS.sql` in this directory
-6. Copy the ENTIRE contents of that file
-7. Paste into the Supabase SQL Editor
-8. Click "Run" or press Ctrl+Enter
-9. Verify you see success message: "✓ RLS policies created successfully!"
-
-**Why this is required:**
-- Your app uses a fallback user ID for single-user mode
-- Row Level Security (RLS) blocks access unless explicitly allowed
-- The SQL script creates policies that allow your fallback user to save data
+1. Go to: **https://www.oracle.com/cloud/free/**
+2. Click **"Start for free"**
+3. Fill in:
+   - Email → Your email
+   - Country → India (or your country)
+   - First/Last name
+4. Verify email (check inbox, click link)
+5. Set password (must be complex)
+6. **Home Region**: Select **India South (Hyderabad)** or closest to you
+   > ⚠️ You cannot change this later!
+7. Add payment method (credit/debit card for verification only - you won't be charged)
+8. Complete signup
 
 ---
 
-### Step 2: Deploy to Vercel
+## 🖥️ Phase 2: Create the Virtual Machine
 
-The code changes have already been made and built successfully. Now deploy:
+### Step 2.1: Navigate to Instances
+1. Log in at: **https://cloud.oracle.com/**
+2. Click the **☰ hamburger menu** (3 horizontal lines, top-left corner)
+3. Scroll down, click **Compute**
+4. Click **Instances**
 
-```powershell
-# Make sure you're in the project directory
-cd S:\\projects\\Task_Orcestration\\goal-tracker-web
+### Step 2.2: Click Create Instance
+1. Click the blue **"Create instance"** button
 
-# Deploy to Vercel
-vercel --prod
-```
+### Step 2.3: Name Your Instance
+1. Under **"Name"**: Type `goal-tracker-backend`
+2. **Compartment**: Leave as default (root)
 
-Or use the Vercel GitHub integration if you prefer:
+### Step 2.4: Placement (Skip)
+- Leave defaults, no changes needed
 
-```powershell
-# Commit changes
-git add .
-git commit -m "fix: resolve data persistence issue - load cloud data first"
-git push origin main
-```
+### Step 2.5: Image and Shape (IMPORTANT!)
 
-Vercel will auto-deploy if GitHub integration is set up.
+This is the most important section.
+
+**Change the Operating System:**
+1. Find the **"Image and shape"** section
+2. Click **"Edit"** (right side of section header)
+3. Click **"Change image"**
+4. In the popup:
+   - Find **"Canonical Ubuntu"** in the list
+   - Click it to expand
+   - Select **"Canonical Ubuntu 22.04"**
+   - Check the box next to it
+5. Click **"Select image"** (bottom right)
+
+**Change the Shape (Get the FREE powerful one):**
+1. Still in Image and shape, click **"Change shape"**
+2. In the popup:
+   - **Instance type**: Click **"Virtual machine"** (should be selected)
+   - **Shape series**: Click **"Ampere"** (ARM processor - this is FREE tier!)
+   - You'll see **"VM.Standard.A1.Flex"** appear
+   - **Number of OCPUs**: Drag slider to **4**
+   - **Amount of memory (GB)**: Drag slider to **24**
+   > 📝 This gives you 4 CPUs and 24GB RAM - completely free forever!
+3. Click **"Select shape"**
+
+### Step 2.6: Networking
+
+1. Find **"Primary VNIC information"** section
+2. For **"Virtual cloud network"**:
+   - If empty, click **"Create new virtual cloud network"**
+   - Name: `goal-tracker-vcn`
+3. For **"Subnet"**:
+   - If empty, click **"Create new public subnet"**
+   - Name: `goal-tracker-subnet`
+4. **IMPORTANT**: Check ✅ **"Assign a public IPv4 address"**
+   > Without this, you can't connect to the server!
+
+### Step 2.7: SSH Keys (Your Password File)
+
+1. Find **"Add SSH keys"** section
+2. Select **"Generate a key pair for me"**
+3. Click **"Save private key"** → A `.key` file downloads
+4. Click **"Save public key"** → A `.pub` file downloads (optional backup)
+5. **KEEP THESE FILES SAFE!** Move to: `C:\Users\YourName\.ssh\`
+   > ⚠️ If you lose the private key, you lose access forever!
+
+### Step 2.8: Boot Volume (Optional)
+
+1. Find **"Boot volume"** section
+2. You can increase **"Boot volume size (GB)"** to `100` or `200` if needed
+   > Free tier allows up to 200GB total
+
+### Step 2.9: Create!
+
+1. Scroll to bottom
+2. Click blue **"Create"** button
+3. Wait 2-5 minutes for status to change from **🟡 PROVISIONING** to **🟢 RUNNING**
+
+### Step 2.10: Get Your IP Address
+
+1. Once RUNNING, look at the right side under **"Instance access"**
+2. Find **"Public IP address"**: e.g., `129.154.xxx.xxx`
+3. **Copy this IP** - you'll need it everywhere!
 
 ---
 
-### Step 3: Test the Deployment
+## 🔓 Phase 3: Open Firewall Ports
 
-After deploying, thoroughly test the fixes:
+Your server blocks all internet traffic by default. Let's open the doors.
 
-#### A. Test Cloud Data Loading
+### Step 3.1: Go to Security List
+1. On the Instance page, scroll down to **"Primary VNIC"** section
+2. Click on the **Subnet** name (blue link like `subnet-2024...`)
+3. On the Subnet page, find **"Security Lists"**
+4. Click on the security list (like `Default Security List for goal-tracker-vcn`)
 
-1. Open browser DevTools (F12) → Console tab
-2. Navigate to your deployed app
-3. **Expected console output:**
-   ```
-   [AppInit] Starting app initialization...
-   [AppInit] STEP 1: Loading data from cloud (Supabase)...
-   [Supabase] Loading all data from server...
-   [Supabase] Loaded: X goals, Y tasks, Z slots
-   [Store] ✓ Cloud data loaded successfully
-   [AppInit] ✓ Cloud data loaded successfully
-   ```
-
-4. **If you see an error:**
-   - Red banner at top of page
-   - Console error: `[AppInit] ✗ Cloud load failed: ...`
-   - **Action:** Check if you ran the SQL script in Step 1
-
-#### B. Test Data Creation \u0026 Persistence
-
-1. **Create a test goal:**
-   - Go to dashboard
-   - Create a goal called "Test  Persistence"
-   - Check console for: `[Supabase] ✓ Goal saved successfully`
+### Step 3.2: Add Ingress Rules
+1. Click **"Add Ingress Rules"**
+2. Fill in:
    
-2. **Test same-session persistence:**
-   - Refresh the page (F5)
-   - Goal should still be there
-   
-3. **Test new-session persistence:**
-   - Close browser completely
-   - Re-open and navigate to app
-   - Goal should still be there
-   
-4. **Test overnight persistence:**
-   - Create several goals/tasks
-   - Close browser
-   - Open app the next day
-   - **ALL data should be present** ✅
+   | Field | Value |
+   |-------|-------|
+   | Source Type | CIDR |
+   | Source CIDR | `0.0.0.0/0` |
+   | IP Protocol | TCP |
+   | Destination Port Range | `80,443,11434,42110` |
+   | Description | Web, Ollama, Khoj |
 
-#### C. Verify No RLS Errors
+3. Click **"Add Ingress Rules"**
 
-Check the browser console for any errors containing:
-- ❌ `new row violates row-level security policy`
-- ❌ `[Supabase] ✗ Save failed`
-
-If you see these, the SQL script in Step 1 was not run correctly.
+> **What these ports do:**
+> - 80: HTTP (web)
+> - 443: HTTPS (secure web)
+> - 11434: Ollama (AI model server)
+> - 42110: Khoj (search engine)
 
 ---
 
-## Troubleshooting
+## 💻 Phase 4: Connect to Your Server
 
-### Issue: Red error banner appears
+### Windows Users (PowerShell)
 
-**Error:** "Failed to load data from cloud: [error message]"
-
-**Solutions:**
-1. Check Supabase credentials in `.env.local` are correct
-2. Verify Supabase project is running (not paused)
-3. Check browser console for specific error details
-4. Ensure RLS policies were created (run SQL script)
-
-### Issue: Data still vanishes
-
-**Check these in order:**
-
-1. **Verify RLS policies exist:**
-   - Go to Supabase SQL Editor
-   - Run:
-     ```sql
-     SELECT tablename, policyname
-     FROM pg_policies
-     WHERE schemaname = 'public'
-     AND policyname LIKE '%Fallback%';
-     ```
-   - Should return 6 rows (one for each table)
-
-2. **Check browser console:**
-   - Look for `[Supabase] ✗ Save failed: ...` errors
-   - The error message will tell you exactly what's wrong
-
-3. **Verify environment variables:**
-   - Ensure `.env.local` has NEXT_PUBLIC_USER_ID set
-   - Should be: `2c32a446-1bbc-4294-8a29-3e4fef5649e6`
-
-4. **Test manual insert:**
-   - In Supabase SQL Editor, run:
-     ```sql
-     INSERT INTO goals (id, user_id, title, level, status)
-     VALUES (
-       gen_random_uuid(),
-       '2c32a446-1bbc-4294-8a29-3e4fef5649e6'::uuid,
-       'Manual Test Goal',
-       'ad_hoc',
-       'not_started'
-     );
-     ```
-   - If this fails with RLS error → SQL script wasn't run correctly
-   - If this succeeds → Issue is in app code, check console errors
-
-### Issue: Build fails on Vercel
-
-**Solution:**
-- The build passed locally (verified)
-- Clear Vercel build cache and rebuild
-- Check Vercel environment variables match `.env.local`
-
----
-
-## Files Changed
-
-Only ONE file was modified:
-- **src/components/AppInitializer.tsx** - Fixed data loading order
-
-Files created for reference:
-- **FIX_DATABASE_RLS.sql** - Manual SQL script
-- **walkthrough.md** - Detailed documentation
-- **implementation_plan.md** - Technical plan
-
----
-
-## Monitoring After Deployment
-
-For the next few days, monitor:
-
-1. **Browser console** - Look for any unexpected errors
-2. **User feedback** - Ask if data is persisting across sessions
-3. **Supabase dashboard** - Check if data is being written to tables
-
-If issues persist, check the [walkthrough.md](file:///C:/Users/aksha/.gemini/antigravity/brain/802e2d84-54d8-4a9e-8b25-0c88d82072ca/walkthrough.md) for detailed debugging steps.
-
----
-
-## Success Criteria
-
-✅ No red error banner on app load  
-✅ Console shows: "[AppInit] ✓ Cloud data loaded successfully"  
-✅ Goals/tasks persist after page refresh  
-✅ Goals/tasks persist after browser restart  
-✅ Goals/tasks persist overnight  
-✅ No RLS errors in browser console  
-✅ No "Save failed" errors in console
-
----
-
-## Rollback Plan
-
-If the fix causes issues:
-
-1. **Revert code changes:**
+1. Open **PowerShell** (search in Start menu)
+2. Navigate to your key folder:
    ```powershell
-   git revert HEAD
-   git push origin main
+   cd C:\Users\YourName\.ssh
    ```
+3. Fix permissions on key file (required once):
+   ```powershell
+   icacls oracle.key /reset
+   icacls oracle.key /grant:r "$($env:USERNAME):R"
+   icacls oracle.key /inheritance:r
+   ```
+4. Connect:
+   ```powershell
+   ssh -i oracle.key ubuntu@YOUR_IP_ADDRESS
+   ```
+   Replace `YOUR_IP_ADDRESS` with the IP you copied earlier.
 
-2. **Or manually revert AppInitializer.tsx:**
-   - Restore previous version from git history
-   - The old version loaded cloud data asynchronously (line 39)
-
-3. **RLS policies are safe:**
-   - The SQL script only ADDS policies, doesn't remove existing ones
-   - If needed, policies can be dropped manually in SQL Editor
+5. Type `yes` when asked about fingerprint
+6. You're in when you see: `ubuntu@goal-tracker-backend:~$`
 
 ---
 
-**End of Deployment Guide**
+## 🛠️ Phase 5: Install Everything on Server
+
+Copy-paste these commands into your terminal. Wait for each to finish before running the next.
+
+### 5.1: Update System
+```bash
+sudo apt update && sudo apt upgrade -y
+```
+
+### 5.2: Install Required Packages
+```bash
+sudo apt install -y curl wget git python3-pip python3-venv nginx iptables-persistent
+```
+> Press Enter for any prompts about saving iptables rules
+
+### 5.3: Open Linux Firewall
+```bash
+sudo iptables -I INPUT -p tcp --dport 80 -j ACCEPT
+sudo iptables -I INPUT -p tcp --dport 443 -j ACCEPT
+sudo iptables -I INPUT -p tcp --dport 11434 -j ACCEPT
+sudo iptables -I INPUT -p tcp --dport 42110 -j ACCEPT
+sudo netfilter-persistent save
+```
+
+---
+
+## 🤖 Phase 6: Install Ollama (AI Engine)
+
+### 6.1: Install Ollama
+```bash
+curl -fsSL https://ollama.com/install.sh | sh
+```
+
+### 6.2: Download AI Models
+```bash
+ollama pull qwen2.5:7b
+ollama pull nomic-embed-text
+```
+> This takes 10-20 minutes depending on internet speed
+
+### 6.3: Make Ollama Listen on All Networks
+```bash
+sudo mkdir -p /etc/systemd/system/ollama.service.d
+sudo tee /etc/systemd/system/ollama.service.d/override.conf > /dev/null <<EOF
+[Service]
+Environment="OLLAMA_HOST=0.0.0.0:11434"
+Environment="OLLAMA_ORIGINS=*"
+EOF
+sudo systemctl daemon-reload
+sudo systemctl restart ollama
+```
+
+### 6.4: Test Ollama
+Open your browser: `http://YOUR_IP:11434`
+
+You should see: **"Ollama is running"**
+
+---
+
+## 🔍 Phase 7: Install Khoj (Search Engine)
+
+### 7.1: Setup Python Environment
+```bash
+mkdir -p ~/khoj && cd ~/khoj
+python3 -m venv venv
+source venv/bin/activate
+pip install --upgrade pip
+pip install khoj-assistant
+```
+
+### 7.2: Create Auto-Start Service
+```bash
+sudo tee /etc/systemd/system/khoj.service > /dev/null <<EOF
+[Unit]
+Description=Khoj Search Engine
+After=network.target ollama.service
+
+[Service]
+Type=simple
+User=ubuntu
+WorkingDirectory=/home/ubuntu/khoj
+ExecStart=/home/ubuntu/khoj/venv/bin/khoj --host 0.0.0.0 --port 42110
+Restart=always
+RestartSec=10
+Environment="KHOJ_TELEMETRY_DISABLE=true"
+
+[Install]
+WantedBy=multi-user.target
+EOF
+```
+
+### 7.3: Start Khoj
+```bash
+sudo systemctl daemon-reload
+sudo systemctl enable khoj
+sudo systemctl start khoj
+```
+
+### 7.4: Test Khoj
+Open your browser: `http://YOUR_IP:42110`
+
+You should see the Khoj web interface.
+
+---
+
+## 🔗 Phase 8: Update Your App Configuration
+
+### Local Development (.env.local)
+```env
+OLLAMA_BASE_URL=http://YOUR_IP:11434
+KHOJ_BASE_URL=http://YOUR_IP:42110
+```
+
+### Vercel Production
+1. Go to: **https://vercel.com/dashboard**
+2. Click your project
+3. Go to **Settings** → **Environment Variables**
+4. Update:
+   - `OLLAMA_BASE_URL` = `http://YOUR_IP:11434`
+   - `KHOJ_BASE_URL` = `http://YOUR_IP:42110`
+5. Redeploy your app
+
+---
+
+## ✅ Phase 9: Verify Everything Works
+
+| Service | Test URL | Expected Result |
+|---------|----------|-----------------|
+| Ollama | `http://YOUR_IP:11434` | "Ollama is running" |
+| Khoj | `http://YOUR_IP:42110` | Khoj web interface |
+| AI Test | `http://YOUR_IP:11434/api/tags` | JSON with model list |
+
+---
+
+## 🔧 Useful Commands
+
+```bash
+# Check if services are running
+sudo systemctl status ollama
+sudo systemctl status khoj
+
+# View logs
+sudo journalctl -u ollama -f
+sudo journalctl -u khoj -f
+
+# Restart services
+sudo systemctl restart ollama
+sudo systemctl restart khoj
+```
+
+---
+
+## 💰 Cost Summary
+
+| Resource | Oracle Free Tier |
+|----------|------------------|
+| 4 OCPU + 24GB RAM | ✅ FREE |
+| 200GB Storage | ✅ FREE |
+| 10TB/month Transfer | ✅ FREE |
+| Public IP | ✅ FREE |
+
+**Total: $0/month forever** (as long as you use Ampere A1 shape)
