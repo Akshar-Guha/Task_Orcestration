@@ -11,11 +11,8 @@ interface WakeUpModalProps {
 export function WakeUpModal({ onClose }: WakeUpModalProps) {
   const { recordWakeUp, resetDailyTasks, syncToCloud } = useAppStore();
   
-  // Get current time as default
-  const now = new Date();
-  const defaultTime = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
-  
-  const [wakeTime, setWakeTime] = useState(defaultTime);
+  // Default to 7:00 AM (reasonable morning time) instead of current time
+  const [wakeTime, setWakeTime] = useState('07:00');
   const [mood, setMood] = useState<MoodLevel | undefined>();
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -26,6 +23,7 @@ export function WakeUpModal({ onClose }: WakeUpModalProps) {
     
     try {
       // Calculate adjusted minutes from selected time vs now
+      const now = new Date();
       const [hours, minutes] = wakeTime.split(':').map(Number);
       const selectedTime = new Date();
       selectedTime.setHours(hours, minutes, 0, 0);
