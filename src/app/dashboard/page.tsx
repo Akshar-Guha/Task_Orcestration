@@ -3,7 +3,6 @@
 import { useAppStore } from '@/lib/store';
 import { SleepButton } from '@/components/sleep/SleepButton';
 import { formatDuration, TIME_SLOT_LABELS } from '@/lib/types';
-import { InlineEdit } from '@/components/InlineEdit';
 import Link from 'next/link';
 
 export default function DashboardPage() {
@@ -15,8 +14,6 @@ export default function DashboardPage() {
   const focusGoalIds = useAppStore((state) => state.focusGoalIds);
   
   const completeTask = useAppStore((state) => state.completeTask);
-  const updateGoal = useAppStore((state) => state.updateGoal);
-  const updateTask = useAppStore((state) => state.updateTask);
   const initializeDefaultTimeSlots = useAppStore((state) => state.initializeDefaultTimeSlots);
   const getTodayProductivity = useAppStore((state) => state.getTodayProductivity);
 
@@ -190,15 +187,10 @@ export default function DashboardPage() {
                           
                           {!isFocus && <span className="text-lg">🎯</span>}
                           
-                          
                           <div className="flex-1">
-                            <InlineEdit
-                              value={goal.title}
-                              onSave={async (newTitle) => {
-                                await updateGoal(goal.id, { title: newTitle });
-                              }}
-                              className={`font-medium ${isFocus ? 'text-amber-100 font-bold text-lg' : 'text-white'}`}
-                            />
+                            <span className={`font-medium ${isFocus ? 'text-amber-100 font-bold text-lg' : 'text-white'}`}>
+                              {goal.title}
+                            </span>
                             {isFocus && <span className="ml-2 text-[10px] text-amber-500 uppercase tracking-widest font-bold border border-amber-500/30 px-1 rounded">Priority Focus</span>}
                             <span className="text-xs text-slate-500 ml-2">
                               ({formatDuration(goalCompletedMinutes)} spent)
@@ -228,31 +220,19 @@ export default function DashboardPage() {
                                   task.isCompleted ? 'opacity-60' : ''
                                 } ${isFocus && !task.isCompleted ? 'bg-amber-900/10 hover:bg-amber-900/20' : ''}`}
                               >
-                                <span className={`w-5 h-5 rounded border-2 flex items-center justify-center flex-shrink-0 ${
+                                <span className={`w-5 h-5 rounded border-2 flex items-center justify-center ${
                                   task.isCompleted
                                     ? 'bg-emerald-500 border-emerald-500 text-white'
                                     : 'border-slate-600'
                                 }`}>
                                   {task.isCompleted && '✓'}
                                 </span>
-                                <div 
-                                  className="flex-1 text-left"
-                                  onClick={(e) => {
-                                    e.stopPropagation(); // Prevent checkbox toggle when editing
-                                  }}
-                                >
-                                  <InlineEdit
-                                    value={task.title}
-                                    onSave={async (newTitle) => {
-                                      await updateTask(task.id, { title: newTitle });
-                                    }}
-                                    className={`text-sm ${
-                                      task.isCompleted ? 'text-slate-400 line-through' : 'text-white'
-                                    }`}
-                                    disabled={task.isCompleted}
-                                  />
-                                </div>
-                                <span className={`text-xs px-2 py-0.5 rounded flex-shrink-0 ${
+                                <span className={`flex-1 text-left text-sm ${
+                                  task.isCompleted ? 'text-slate-400 line-through' : 'text-white'
+                                }`}>
+                                  {task.title}
+                                </span>
+                                <span className={`text-xs px-2 py-0.5 rounded ${
                                   task.isCompleted
                                     ? 'bg-emerald-500/20 text-emerald-400'
                                     : 'bg-slate-700 text-slate-400'
