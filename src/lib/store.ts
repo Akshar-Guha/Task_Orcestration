@@ -1,8 +1,9 @@
 import { create } from 'zustand';
-import { persist } from 'zustand/middleware';
+// REMOVED: persist middleware - app is now 100% cloud-based for data preservation
 import type {
   Goal,
   Task,
+  TaskGoalLink,
   TimeSlot,
   TimelineEvent,
   TimelineEventType,
@@ -43,10 +44,15 @@ interface AppState {
   // Daily Focus
   focusGoalIds: string[];
   
+  // Task-Goal Links
+  links: TaskGoalLink[];
+  
   // Settings
   userSettings: UserSettings;
   lastInteraction: string | null;
   lastAppOpen: string | null;
+  lastSyncError: string | null;
+  lastCloudSync: string | null;
   
   // ========== GOAL ACTIONS ==========
   addGoal: (input: CreateGoalInput) => void;
@@ -65,6 +71,11 @@ interface AppState {
   updateTask: (id: string, updates: Partial<Task>) => void;
   deleteTask: (id: string) => void;
   archiveTask: (id: string) => void;
+  
+  // ========== TASK-GOAL LINK ACTIONS ==========
+  linkTaskToGoal: (taskId: string, goalId: string, weight: number) => void;
+  unlinkTask: (linkId: string) => void;
+  getLinksForGoal: (goalId: string) => TaskGoalLink[];
   
   // ========== TIME SLOT ACTIONS ==========
   addTimeSlot: (input: CreateTimeSlotInput) => void;
@@ -139,10 +150,15 @@ const getCurrentTime = () => {
 // ========================================
 // STORE IMPLEMENTATION
 // ========================================
+// 
+// DATA PRESERVATION PRIORITY:
+// - localStorage REMOVED entirely
+// - Supabase is the ONLY source of truth
+// - All data changes immediately sync to cloud
+// - No risk of stale localStorage corrupting cloud data
+//
 
-export const useAppStore = create<AppState>()(
-  persist(
-    (set, get) => ({
+export const useAppStore = create<AppState>()((set, get) => ({
       // Initial State
       goals: [],
       tasks: [],
@@ -152,6 +168,7 @@ export const useAppStore = create<AppState>()(
       timelineDailySummaries: [],
       sleepWakeLogs: [],
       focusGoalIds: [],
+      links: [],
       lastInteraction: null,
       lastAppOpen: null,
       
@@ -161,6 +178,9 @@ export const useAppStore = create<AppState>()(
         defaultTaskDuration: 30,
         wakingHoursPerDay: 16 * 60, // 16 hours in minutes
       },
+      
+      lastSyncError: null,
+      lastCloudSync: null,
       
       // ========== GOAL ACTIONS ==========
       
@@ -183,7 +203,14 @@ export const useAppStore = create<AppState>()(
         set((state) => ({ goals: [...state.goals, goal] }));
         
         // IMMEDIATELY save to Supabase (never lose data)
-        import('./supabaseSync').then(({ saveGoal }) => saveGoal(goal));
+        import('./supabaseSync').then(({ saveGoal }) => {
+          saveGoal(goal).then((result) => {
+            if (!result.success) {
+              console.error('[Store] Failed to sync goal to cloud:', result.error);
+              set({ lastSyncError: `Failed to sync goal: ${result.error}` });
+            }
+          });
+        });
         
         // If timeSlotId provided, add goal to that slot
         if (input.timeSlotId) {
@@ -201,7 +228,13 @@ export const useAppStore = create<AppState>()(
         // IMMEDIATELY save to Supabase
         const updatedGoal = get().goals.find(g => g.id === id);
         if (updatedGoal) {
-          import('./supabaseSync').then(({ saveGoal }) => saveGoal(updatedGoal));
+          import('./supabaseSync').then(({ saveGoal }) => {
+            saveGoal(updatedGoal).then((result) => {
+              if (!result.success) {
+                set({ lastSyncError: `Failed to sync goal update: ${result.error}` });
+              }
+            });
+          });
         }
         get().trackInteraction();
       },
@@ -263,11 +296,22 @@ export const useAppStore = create<AppState>()(
         set((state) => ({
           goals: state.goals.filter((g) => g.id !== id),
           tasks: state.tasks.filter((t) => t.goalId !== id),
+          links: state.links.filter((l) => l.goalId !== id),
           timeSlots: state.timeSlots.map((ts) => ({
             ...ts,
             goalIds: ts.goalIds.filter((gid) => gid !== id),
           })),
         }));
+        
+        // Sync deletion to Supabase
+        import('./supabaseSync').then(({ deleteGoalFromSupabase }) => {
+          deleteGoalFromSupabase(id).then((result) => {
+            if (!result.success) {
+              set({ lastSyncError: `Failed to sync goal deletion: ${result.error}` });
+            }
+          });
+        });
+        
         get().trackInteraction();
       },
       
@@ -316,7 +360,14 @@ export const useAppStore = create<AppState>()(
         set((state) => ({ tasks: [...state.tasks, task] }));
         
         // IMMEDIATELY save to Supabase (never lose data)
-        import('./supabaseSync').then(({ saveTask }) => saveTask(task));
+        import('./supabaseSync').then(({ saveTask }) => {
+          saveTask(task).then((result) => {
+            if (!result.success) {
+              console.error('[Store] Failed to sync task to cloud:', result.error);
+              set({ lastSyncError: `Failed to sync task: ${result.error}` });
+            }
+          });
+        });
         
         get().logTimelineEvent('task_created', task.goalId, task.id, `Created task: ${task.title} [${task.estimatedMinutes}m]`);
         get().trackInteraction();
@@ -337,6 +388,18 @@ export const useAppStore = create<AppState>()(
             t.id === id ? { ...t, isCompleted: !t.isCompleted, completedAt: isCompleting ? now : undefined } : t
           ),
         }));
+        
+        // Sync update to Supabase
+        const updatedTask = get().tasks.find((t) => t.id === id);
+        if (updatedTask) {
+          import('./supabaseSync').then(({ saveTask }) => {
+            saveTask(updatedTask).then((result) => {
+              if (!result.success) {
+                set({ lastSyncError: `Failed to sync task completion: ${result.error}` });
+              }
+            });
+          });
+        }
         
         // If completing (not uncompleting), log productivity
         if (isCompleting) {
@@ -424,12 +487,61 @@ export const useAppStore = create<AppState>()(
       },
       
       deleteTask: (id) => {
-        set((state) => ({ tasks: state.tasks.filter((t) => t.id !== id) }));
+        set((state) => ({
+          tasks: state.tasks.filter((t) => t.id !== id),
+          links: state.links.filter((l) => l.taskId !== id),
+        }));
+        
+        // Sync deletion to Supabase
+        import('./supabaseSync').then(({ deleteTaskFromSupabase }) => {
+          deleteTaskFromSupabase(id).then((result) => {
+            if (!result.success) {
+              set({ lastSyncError: `Failed to sync task deletion: ${result.error}` });
+            }
+          });
+        });
+        
         get().trackInteraction();
       },
       
       archiveTask: (id) => {
         get().updateTask(id, { isArchived: true });
+      },
+      
+      // ========== TASK-GOAL LINK ACTIONS ==========
+      
+      linkTaskToGoal: (taskId, goalId, weight) => {
+        const existingLink = get().links.find(
+          l => l.taskId === taskId && l.goalId === goalId
+        );
+        
+        if (existingLink) {
+          set((state) => ({
+            links: state.links.map(l =>
+              l.id === existingLink.id ? { ...l, contributionWeight: weight } : l
+            ),
+          }));
+        } else {
+          const newLink: TaskGoalLink = {
+            id: generateId(),
+            taskId,
+            goalId,
+            contributionWeight: weight,
+            createdAt: getNow(),
+          };
+          set((state) => ({ links: [...state.links, newLink] }));
+        }
+        
+        get().trackInteraction();
+      },
+      
+      unlinkTask: (linkId) => {
+        set((state) => ({ links: state.links.filter(l => l.id !== linkId) }));
+        get().trackInteraction();
+      },
+      
+      getLinksForGoal: (goalId) => {
+        return get().links.filter(l => l.goalId === goalId);
       },
       
       // ========== TIME SLOT ACTIONS ==========
@@ -738,16 +850,26 @@ export const useAppStore = create<AppState>()(
         try {
           const { saveAllToSupabase } = await import('./supabaseSync');
           const state = get();
-          return await saveAllToSupabase(
+          const result = await saveAllToSupabase(
             state.goals,
             state.tasks,
             state.timeSlots,
             state.productivityLogs,
             state.sleepWakeLogs
           );
+          
+          if (result.success) {
+            set({ lastSyncError: null, lastCloudSync: getNow() });
+          } else {
+            set({ lastSyncError: result.error || 'Sync failed', lastCloudSync: null });
+          }
+          
+          return result;
         } catch (err) {
           console.error('[Store] Sync failed:', err);
-          return { success: false, error: String(err) };
+          const errorMsg = String(err);
+          set({ lastSyncError: errorMsg, lastCloudSync: null });
+          return { success: false, error: errorMsg };
         }
       },
       
@@ -767,6 +889,9 @@ export const useAppStore = create<AppState>()(
               timeSlots: cloudData.timeSlots,
               productivityLogs: cloudData.productivityLogs,
               sleepWakeLogs: cloudData.sleepWakeLogs,
+              links: [],
+              lastSyncError: null,
+              lastCloudSync: getNow(),
             };
           });
           
@@ -774,7 +899,9 @@ export const useAppStore = create<AppState>()(
           return { success: true };
         } catch (err) {
           console.error('[Store] ✗ Load from cloud failed:', err);
-          return { success: false, error: String(err) };
+          const errorMsg = String(err);
+          set({ lastSyncError: errorMsg, lastCloudSync: null });
+          return { success: false, error: errorMsg };
         }
       },
       
@@ -809,12 +936,7 @@ export const useAppStore = create<AppState>()(
           timelineEvents: [],
           timelineDailySummaries: [],
           sleepWakeLogs: [],
+          links: [],
         });
       },
-    }),
-    {
-      name: 'goal-tracker-storage',
-      version: 2, // Increment to trigger migration if needed
-    }
-  )
-);
+}));

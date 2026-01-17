@@ -88,6 +88,15 @@ export interface Task {
   isArchived: boolean;
 }
 
+// TASK-GOAL LINK - Represents relationship between task and goal
+export interface TaskGoalLink {
+  id: string;
+  taskId: string;
+  goalId: string;
+  contributionWeight: number;  // 0-100, how much this task contributes to goal
+  createdAt: string;
+}
+
 
 // ========================================
 // PRODUCTIVITY TRACKING (NEW)

@@ -5,15 +5,26 @@ import { createMemory as apiCreateMemory, searchMemories as apiSearchMemories } 
 env.allowLocalModels = false;
 
 let embeddingPipeline: any = null;
+let pipelineInitFailed = false;
 
 /**
  * Initialize the embedding pipeline
  */
 export async function initEmbeddingPipeline() {
+  if (pipelineInitFailed) {
+    throw new Error('Embedding pipeline initialization previously failed');
+  }
+  
   if (!embeddingPipeline) {
-    // We use gte-small because it's 384 dimensions (matches our DB schema)
-    // and very lightweight (~30MB) for browsers/mobile.
-    embeddingPipeline = await pipeline('feature-extraction', 'Supabase/gte-small');
+    try {
+      // We use gte-small because it's 384 dimensions (matches our DB schema)
+      // and very lightweight (~30MB) for browsers/mobile.
+      embeddingPipeline = await pipeline('feature-extraction', 'Supabase/gte-small');
+    } catch (error) {
+      pipelineInitFailed = true;
+      console.warn('Failed to initialize embedding pipeline - AI memory features will be disabled:', error);
+      throw error;
+    }
   }
   return embeddingPipeline;
 }
@@ -31,6 +42,11 @@ export async function getEmbedding(text: string): Promise<number[]> {
  * Save a memory with a device-generated embedding
  */
 export async function saveMemory(content: string, metadata: Record<string, unknown> = {}) {
+  if (pipelineInitFailed) {
+    console.warn('Memory system disabled - skipping save');
+    return { success: false, error: 'Memory system unavailable' };
+  }
+  
   try {
     const embedding = await getEmbedding(content);
     return await apiCreateMemory(content, embedding, metadata);
@@ -44,6 +60,11 @@ export async function saveMemory(content: string, metadata: Record<string, unkno
  * Search memories using a device-generated query embedding
  */
 export async function searchMemories(query: string) {
+  if (pipelineInitFailed) {
+    console.warn('Memory system disabled - skipping search');
+    return { success: false, error: 'Memory system unavailable' };
+  }
+  
   try {
     const embedding = await getEmbedding(query);
     return await apiSearchMemories(embedding);
@@ -61,6 +82,11 @@ export async function saveAchievementMemory(
   description: string | undefined,
   metadata: { type: 'goal' | 'task'; id: string; timestamp: string }
 ) {
+  if (pipelineInitFailed) {
+    console.warn('Memory system disabled - skipping achievement memory');
+    return { success: false, error: 'Memory system unavailable' };
+  }
+  
   const content = description 
     ? `Completed ${metadata.type}: ${title} - ${description}`
     : `Completed ${metadata.type}: ${title}`;
