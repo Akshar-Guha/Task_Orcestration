@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { SyncStatus } from '@/components/SyncStatus';
 
 export default function DatabaseSettingsPage() {
   const [testing, setTesting] = useState(false);
@@ -109,6 +110,96 @@ export default function DatabaseSettingsPage() {
             </div>
           </div>
         )}
+      </div>
+
+      {/* Obsidian Restore */}
+      <div className="bg-slate-900/50 border border-slate-800 rounded-xl p-6">
+        <h3 className="text-lg font-semibold text-white mb-4">Restore from Obsidian</h3>
+        <div className="mb-6 flex items-center justify-between p-4 bg-slate-800/50 rounded-lg border border-slate-700">
+          <div>
+            <div className="text-sm font-medium text-white mb-1">Sync Status</div>
+            <div className="text-xs text-slate-400">Connection to GitHub vault</div>
+          </div>
+          <SyncStatus />
+        </div>
+
+        <p className="text-sm text-slate-400 mb-4">
+          Pull data from your GitHub-synced Obsidian vault. This will overwrite local data with the content from your vault.
+        </p>
+        
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <button
+            onClick={async () => {
+              if (!confirm('This will overwrite all local goals. Continue?')) return;
+              try {
+                setStatus('idle');
+                const res = await fetch('/api/obsidian/restore', {
+                  method: 'POST',
+                  body: JSON.stringify({ type: 'goals' }),
+                });
+                const data = await res.json();
+                if (data.success) {
+                  alert(`Restored ${data.restored} goals!`);
+                  window.location.reload();
+                } else {
+                  alert('Restore failed: ' + data.error);
+                }
+              } catch (e) {
+                alert('Restore failed: ' + String(e));
+              }
+            }}
+            className="px-4 py-3 bg-slate-800 hover:bg-slate-700 text-white rounded-lg font-medium transition-all"
+          >
+            Restore Goals
+          </button>
+          
+          <button
+            onClick={async () => {
+              if (!confirm('This will overwrite all local tasks. Continue?')) return;
+              try {
+                setStatus('idle');
+                const res = await fetch('/api/obsidian/restore', {
+                  method: 'POST',
+                  body: JSON.stringify({ type: 'tasks' }),
+                });
+                const data = await res.json();
+                if (data.success) {
+                  alert(`Restored ${data.restored} tasks!`);
+                  window.location.reload();
+                } else {
+                  alert('Restore failed: ' + data.error);
+                }
+              } catch (e) {
+                alert('Restore failed: ' + String(e));
+              }
+            }}
+            className="px-4 py-3 bg-slate-800 hover:bg-slate-700 text-white rounded-lg font-medium transition-all"
+          >
+            Restore Tasks
+          </button>
+          
+          <button
+            onClick={async () => {
+              if (!confirm('FULL RESTORE: This will overwrite EVERYTHING. Are you sure?')) return;
+              try {
+                setStatus('idle');
+                const res = await fetch('/api/obsidian/restore', { method: 'POST' });
+                const data = await res.json();
+                if (data.success) {
+                  alert(`Full restore complete! Synced: ${data.synced}, Failed: ${data.failed}`);
+                  window.location.reload();
+                } else {
+                  alert('Restore failed: ' + data.error);
+                }
+              } catch (e) {
+                alert('Restore failed: ' + String(e));
+              }
+            }}
+            className="px-4 py-3 bg-red-900/30 hover:bg-red-900/50 text-red-200 border border-red-900/50 rounded-lg font-medium transition-all"
+          >
+            Full Vault Restore
+          </button>
+        </div>
       </div>
 
       {/* Schema Info */}
