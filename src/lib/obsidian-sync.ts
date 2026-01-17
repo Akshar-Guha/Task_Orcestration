@@ -227,7 +227,7 @@ ${qaSection}
 function getGoalPath(goal: Goal): string {
   const folder = goal.status === 'completed' ? 'completed' 
     : goal.isArchived ? 'archive' : 'active';
-  return `goals/${folder}/${goal.id}.md`;
+  return `MTO/Goals/${folder}/${goal.id}.md`;
 }
 
 /**
@@ -235,7 +235,7 @@ function getGoalPath(goal: Goal): string {
  */
 function getTaskPath(task: Task): string {
   const folder = task.isCompleted ? 'completed' : 'active';
-  return `tasks/${folder}/${task.id}.md`;
+  return `MTO/Tasks/${folder}/${task.id}.md`;
 }
 
 /**
@@ -285,6 +285,23 @@ export async function syncTask(task: Task, action: 'upsert' | 'delete' = 'upsert
   const path = getTaskPath(task);
   const content = action === 'delete' ? null : taskToMarkdown(task);
   const message = `[MTO] ${action === 'delete' ? 'Delete' : task.isCompleted ? 'Complete' : 'Update'} task: ${task.title}`;
+
+  return await callSyncApi(path, action, content, message);
+}
+
+/**
+ * Sync a diary entry to Obsidian
+ */
+export async function syncDiaryEntry(
+  entry: DailyEntry,
+  answers?: QuestionAnswer[],
+  questions?: Question[],
+  action: 'upsert' | 'delete' = 'upsert'
+): Promise<boolean> {
+  const [year, month] = entry.date.split('-');
+  const path = `MTO/Diary/${year}/${month}/${entry.date}.md`;
+  const content = action === 'delete' ? null : diaryEntryToMarkdown(entry, answers, questions);
+  const message = `[MTO] ${action === 'delete' ? 'Delete' : 'Sync'} diary: ${entry.date}`;
 
   return await callSyncApi(path, action, content, message);
 }
@@ -376,7 +393,7 @@ export async function fullSync(
     for (const month of months) {
       const content = sleepLogToMarkdown(sleepLogs, month);
       const [year, monthNum] = month.split('-');
-      const path = `sleep/${year}/${monthNum}.md`;
+      const path = `MTO/Sleep/${year}/${monthNum}.md`;
       const success = await callSyncApi(path, 'upsert', content, `[MTO] Sync sleep log: ${month}`);
       
       if (success) synced++;

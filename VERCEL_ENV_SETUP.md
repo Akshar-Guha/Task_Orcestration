@@ -22,3 +22,14 @@ NEXT_PUBLIC_USER_ID=2c32a446-1bbc-4294-8a29-3e4fef5649e6
 7. **Redeploy** the app (Settings → Deployments → Latest → Redeploy)
 
 After redeployment (~1 min), the diary will work!
+
+## 🔗 GitHub/Obsidian Sync Variables
+
+Also add these for Obsidian sync:
+
+```
+GITHUB_TOKEN=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
+GITHUB_OWNER=Akshar-Guha
+GITHUB_REPO=Obsidian
+GITHUB_BRANCH=main
+```
