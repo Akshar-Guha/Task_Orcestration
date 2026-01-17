@@ -101,8 +101,8 @@ export default function EditPage() {
           <p className="text-sm text-slate-500">Manage time slots, goals, and tasks</p>
         </div>
 
-        {/* Tabs */}
-        <div className="flex gap-2 mb-6 overflow-x-auto pb-2">
+        {/* Tabs - Mobile Optimized */}
+        <div className="flex gap-2 mb-6 overflow-x-auto pb-2 -mx-4 px-4">
           {[
             { id: 'timeslots' as EditTab, label: 'Time Slots', icon: '🕐' },
             { id: 'goals' as EditTab, label: 'Goals', icon: '🎯' },
@@ -111,13 +111,14 @@ export default function EditPage() {
             <button
               key={tab.id}
               onClick={() => setActiveTab(tab.id)}
-              className={`px-6 py-3 rounded-lg font-medium transition-all flex items-center gap-2 whitespace-nowrap ${
+              className={`min-h-[44px] px-6 py-3 rounded-lg font-medium transition-all flex items-center gap-2 whitespace-nowrap ${
                 activeTab === tab.id
                   ? 'bg-violet-600 text-white'
                   : 'bg-slate-800 text-slate-400 hover:bg-slate-700'
               }`}
+              style={{ fontSize: '16px' }}
             >
-              <span>{tab.icon}</span>
+              <span className="text-xl">{tab.icon}</span>
               <span>{tab.label}</span>
             </button>
           ))}
@@ -128,11 +129,12 @@ export default function EditPage() {
           {/* TIME SLOTS TAB */}
           {activeTab === 'timeslots' && (
             <div className="space-y-4">
-              <div className="flex items-center justify-between mb-4">
+              <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-4 mb-4">
                 <h2 className="text-2xl font-bold text-white">Edit Time Slots</h2>
                 <button
                   onClick={addNewTimeSlot}
-                  className="px-4 py-2 bg-violet-600 hover:bg-violet-700 text-white rounded-lg text-sm font-medium transition-all"
+                  className="w-full sm:w-auto min-h-[44px] px-6 py-3 bg-violet-600 hover:bg-violet-700 text-white rounded-lg font-medium transition-all"
+                  style={{ fontSize: '16px' }}
                 >
                   + Add Time Slot
                 </button>
@@ -150,8 +152,9 @@ export default function EditPage() {
                     className="p-4 bg-slate-900/50 border border-slate-800 rounded-xl"
                     style={{ borderLeftWidth: '4px', borderLeftColor: slot.color }}
                   >
-                    {/* Slot Header */}
-                    <div className="flex items-center gap-3 mb-4">
+                    {/* Slot Header - Mobile Optimized */}
+                    <div className="space-y-3 mb-4">
+                      {/* Name Input - Full Width */}
                       <input
                         type="text"
                         value={slot.name}
@@ -161,9 +164,12 @@ export default function EditPage() {
                           );
                           setHasChanges(true);
                         }}
-                        className="flex-1 px-3 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white font-semibold focus:outline-none focus:border-violet-500"
+                        className="w-full min-h-[44px] px-4 py-3 bg-slate-700 border border-slate-600 rounded-lg text-white font-semibold focus:outline-none focus:border-violet-500"
+                        style={{ fontSize: '16px' }}
+                        placeholder="Time slot name"
                       />
 
+                      {/* Type Selector - Full Width */}
                       <select
                         value={slot.type}
                         onChange={(e) => {
@@ -175,7 +181,8 @@ export default function EditPage() {
                           );
                           setHasChanges(true);
                         }}
-                        className="px-3 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white focus:outline-none focus:border-violet-500"
+                        className="w-full min-h-[44px] px-4 py-3 bg-slate-700 border border-slate-600 rounded-lg text-white focus:outline-none focus:border-violet-500"
+                        style={{ fontSize: '16px' }}
                       >
                         {Object.entries(TIME_SLOT_LABELS).map(([key, label]) => (
                           <option key={key} value={key}>
@@ -184,60 +191,73 @@ export default function EditPage() {
                         ))}
                       </select>
 
-                      <div className="flex items-center gap-2">
-                        <input
-                          type="time"
-                          value={slot.startTime}
-                          onChange={(e) => {
-                            setEditingSlots(
-                              editingSlots.map((s) => (s.id === slot.id ? { ...s, startTime: e.target.value } : s))
-                            );
-                            setHasChanges(true);
-                          }}
-                          className="px-3 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white focus:outline-none focus:border-violet-500"
-                        />
-                        <span className="text-slate-500">to</span>
-                        <input
-                          type="time"
-                          value={slot.endTime}
-                          onChange={(e) => {
-                            setEditingSlots(
-                              editingSlots.map((s) => (s.id === slot.id ? { ...s, endTime: e.target.value } : s))
-                            );
-                            setHasChanges(true);
-                          }}
-                          className="px-3 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white focus:outline-none focus:border-violet-500"
-                        />
+                      {/* Time Inputs - Stack on Mobile */}
+                      <div className="grid grid-cols-2 gap-2">
+                        <div className="flex flex-col gap-1">
+                          <label className="text-xs text-slate-400 px-1">Start</label>
+                          <input
+                            type="time"
+                            value={slot.startTime}
+                            onChange={(e) => {
+                              setEditingSlots(
+                                editingSlots.map((s) => (s.id === slot.id ? { ...s, startTime: e.target.value } : s))
+                              );
+                              setHasChanges(true);
+                            }}
+                            className="w-full min-h-[44px] px-3 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white focus:outline-none focus:border-violet-500"
+                            style={{ fontSize: '16px' }}
+                          />
+                        </div>
+                        <div className="flex flex-col gap-1">
+                          <label className="text-xs text-slate-400 px-1">End</label>
+                          <input
+                            type="time"
+                            value={slot.endTime}
+                            onChange={(e) => {
+                              setEditingSlots(
+                                editingSlots.map((s) => (s.id === slot.id ? { ...s, endTime: e.target.value } : s))
+                              );
+                              setHasChanges(true);
+                            }}
+                            className="w-full min-h-[44px] px-3 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white focus:outline-none focus:border-violet-500"
+                            style={{ fontSize: '16px' }}
+                          />
+                        </div>
                       </div>
 
-                      <button
-                        onClick={() => {
-                          setEditingSlots(
-                            editingSlots.map((s) => (s.id === slot.id ? { ...s, isActive: !s.isActive } : s))
-                          );
-                          setHasChanges(true);
-                        }}
-                        className={`px-3 py-2 rounded-lg text-sm font-medium transition-all ${
-                          slot.isActive
-                            ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/50'
-                            : 'bg-slate-700 text-slate-400'
-                        }`}
-                      >
-                        {slot.isActive ? '✓ Active' : '○ Inactive'}
-                      </button>
-
-                      <button
-                        onClick={() => {
-                          if (confirm(`Delete "${slot.name}"?`)) {
-                            setEditingSlots(editingSlots.filter((s) => s.id !== slot.id));
-                            deleteTimeSlot(slot.id);
+                      {/* Action Buttons - Full Width on Mobile */}
+                      <div className="grid grid-cols-2 gap-2">
+                        <button
+                          onClick={() => {
+                            setEditingSlots(
+                              editingSlots.map((s) => (s.id === slot.id ? { ...s, isActive: !s.isActive } : s))
+                            );
                             setHasChanges(true);
-                          }
-                        }}
-                        className="px-3 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg text-sm transition-all"
-                      >
-                        🗑️
-                      </button>
+                          }}
+                          className={`min-h-[44px] px-4 py-3 rounded-lg font-medium transition-all ${
+                            slot.isActive
+                              ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/50'
+                              : 'bg-slate-700 text-slate-400'
+                          }`}
+                          style={{ fontSize: '16px' }}
+                        >
+                          {slot.isActive ? '✓ Active' : '○ Inactive'}
+                        </button>
+
+                        <button
+                          onClick={() => {
+                            if (confirm(`Delete "${slot.name}"?`)) {
+                              setEditingSlots(editingSlots.filter((s) => s.id !== slot.id));
+                              deleteTimeSlot(slot.id);
+                              setHasChanges(true);
+                            }
+                          }}
+                          className="min-h-[44px] px-4 py-3 bg-red-600 hover:bg-red-700 text-white rounded-lg font-medium transition-all"
+                          style={{ fontSize: '16px' }}
+                        >
+                          🗑️ Delete
+                        </button>
+                      </div>
                     </div>
 
                     {/* Goals in this slot */}
@@ -725,23 +745,26 @@ export default function EditPage() {
           )}
         </div>
 
-        {/* Action Buttons */}
-        <div className="fixed bottom-20 left-0 right-0 bg-slate-900/95 backdrop-blur-xl border-t border-slate-800 p-4 z-50">
-          <div className="max-w-6xl mx-auto flex gap-4 justify-end">
+        {/* Action Buttons - Mobile Optimized */}
+        <div className="fixed bottom-0 left-0 right-0 bg-slate-900/95 backdrop-blur-xl border-t border-slate-800 p-4 z-50"
+             style={{ paddingBottom: 'calc(1rem + env(safe-area-inset-bottom))' }}>
+          <div className="max-w-6xl mx-auto flex flex-col sm:flex-row gap-3 sm:justify-end">
             <button
               onClick={handleCancel}
-              className="px-6 py-3 bg-slate-800 hover:bg-slate-700 text-white rounded-xl font-medium transition-all"
+              className="w-full sm:w-auto min-h-[44px] px-6 py-3 bg-slate-800 hover:bg-slate-700 text-white rounded-xl font-medium transition-all order-2 sm:order-1"
+              style={{ fontSize: '16px' }}
             >
               Cancel
             </button>
             <button
               onClick={handleSave}
               disabled={!hasChanges}
-              className={`px-6 py-3 rounded-xl font-medium transition-all ${
+              className={`w-full sm:w-auto min-h-[44px] px-6 py-3 rounded-xl font-medium transition-all order-1 sm:order-2 ${
                 hasChanges
                   ? 'bg-violet-600 hover:bg-violet-700 text-white'
                   : 'bg-slate-800 text-slate-600 cursor-not-allowed'
               }`}
+              style={{ fontSize: '16px' }}
             >
               Save Changes
             </button>
