@@ -4,6 +4,7 @@ import { getCurrentUserId } from '@/lib/user';
 import { createDailyEntrySchema, updateDailyEntrySchema } from '@/lib/diary-schemas';
 import type { DailyEntryRow, DailyEntry } from '@/lib/diary-types';
 import type { MoodLevel, EnergyLevel } from '@/lib/diary-types';
+import { syncDiaryEntry } from '@/lib/obsidian-sync';
 
 // Initialize Supabase client
 const supabase = createClient(
@@ -146,6 +147,11 @@ export async function POST(request: NextRequest) {
       updatedAt: data.updated_at,
     };
 
+    // Sync to Obsidian (fire and forget to not block response)
+    syncDiaryEntry(entry).catch(err => 
+      console.error('[Diary API] Failed to sync new entry to Obsidian:', err)
+    );
+
     return NextResponse.json({ entry }, { status: 201 });
   } catch (error) {
     console.error('[Diary API] Unexpected error:', error);
@@ -220,6 +226,11 @@ export async function PUT(request: NextRequest) {
       updatedAt: data.updated_at,
     };
 
+    // Sync to Obsidian (fire and forget)
+    syncDiaryEntry(entry).catch(err => 
+      console.error('[Diary API] Failed to sync updated entry to Obsidian:', err)
+    );
+
     return NextResponse.json({ entry });
   } catch (error) {
     console.error('[Diary API] Unexpected error:', error);
@@ -242,6 +253,13 @@ export async function DELETE(request: NextRequest) {
       return NextResponse.json({ error: 'Entry ID is required' }, { status: 400 });
     }
 
+    // Get entry first so we know what to delete from Obsidian
+    const { data: entryData } = await supabase
+      .from('daily_entries')
+      .select('*')
+      .eq('id', id)
+      .single();
+
     const { error } = await supabase
       .from('daily_entries')
       .delete()
@@ -252,6 +270,26 @@ export async function DELETE(request: NextRequest) {
       console.error('[Diary API] Error deleting entry:', error);
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
+
+      // Sync delete to Obsidian
+      if (entryData) {
+        const entry: DailyEntry = {
+          id: entryData.id,
+          userId: entryData.user_id,
+          date: entryData.date,
+          mood: entryData.mood,
+          energyLevel: entryData.energy_level,
+          productivityData: {},
+          wins: [],
+          challenges: [],
+          createdAt: entryData.created_at,
+          updatedAt: entryData.updated_at,
+        };
+        
+        syncDiaryEntry(entry, undefined, undefined, 'delete').catch(err =>
+          console.error('[Diary API] Failed to sync delete to Obsidian:', err)
+        );
+      }
 
     return NextResponse.json({ success: true });
   } catch (error) {
