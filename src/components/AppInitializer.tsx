@@ -45,11 +45,13 @@ export function AppInitializer() {
       store.initializeDefaultTimeSlots();
       
       // Check if should show wake-up modal (4+ hour gap since last interaction)
+      // SKIP on /diary routes (separate journaling system)
+      const isDiaryRoute = window.location.pathname.startsWith('/diary');
       const now = new Date();
       const lastOpen = store.lastAppOpen;
       const fourHoursMs = 4 * 60 * 60 * 1000;
       
-      if (!lastOpen || (now.getTime() - new Date(lastOpen).getTime()) > fourHoursMs) {
+      if (!isDiaryRoute && (!lastOpen || (now.getTime() - new Date(lastOpen).getTime()) > fourHoursMs)) {
         // Check if we haven't already recorded wake-up today
         const today = now.toISOString().split('T')[0];
         const todayLog = store.sleepWakeLogs.find(log => log.date === today);
