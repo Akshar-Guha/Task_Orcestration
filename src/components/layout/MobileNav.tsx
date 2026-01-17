@@ -9,7 +9,7 @@ const NAV_ITEMS = [
   { label: 'Diary', icon: '📔', href: '/diary' },
   { label: 'Profile', icon: '👤', href: '/profile' },
   { label: 'Create', icon: '➕', href: '/create' },
-  { label: 'Map', icon: '🗺️', href: '/planner' },
+  { label: 'Settings', icon: '⚙️', href: '/settings/database' },
 ];
 
 export function MobileNav() {

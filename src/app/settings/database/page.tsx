@@ -112,6 +112,42 @@ export default function DatabaseSettingsPage() {
         )}
       </div>
 
+      {/* Sync to Obsidian */}
+      <div className="bg-slate-900/50 border border-slate-800 rounded-xl p-6">
+        <h3 className="text-lg font-semibold text-white mb-4">Sync to Obsidian</h3>
+        <p className="text-sm text-slate-400 mb-4">
+          Push all your goals and tasks to your GitHub-synced Obsidian vault as markdown files.
+        </p>
+        
+        <button
+          onClick={async () => {
+            setTesting(true);
+            setStatus('idle');
+            setMessage('');
+            try {
+              const res = await fetch('/api/obsidian/full-sync', { method: 'POST' });
+              const data = await res.json();
+              if (data.success) {
+                setStatus('success');
+                setMessage(`Synced ${data.results?.goals?.synced || 0} goals and ${data.results?.tasks?.synced || 0} tasks to Obsidian!`);
+              } else {
+                setStatus('error');
+                setMessage(data.error || 'Sync failed');
+              }
+            } catch (e) {
+              setStatus('error');
+              setMessage('Network error: ' + String(e));
+            } finally {
+              setTesting(false);
+            }
+          }}
+          disabled={testing}
+          className="w-full py-3 px-4 rounded-lg font-medium transition-all bg-gradient-to-r from-violet-500 to-cyan-500 text-white hover:opacity-90 disabled:opacity-50"
+        >
+          {testing ? '⏳ Syncing...' : '🔄 Sync All to Obsidian'}
+        </button>
+      </div>
+
       {/* Obsidian Restore */}
       <div className="bg-slate-900/50 border border-slate-800 rounded-xl p-6">
         <h3 className="text-lg font-semibold text-white mb-4">Restore from Obsidian</h3>

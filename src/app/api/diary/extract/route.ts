@@ -49,28 +49,55 @@ If information is not provided, omit that field from the response.`;
     const userPrompt = `Extract structured data from this journal entry:\n\n${text}`;
 
     // Call Ollama API
-    const response = await fetch(`${OLLAMA_BASE_URL}/api/generate`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        model: OLLAMA_MODEL,
-        prompt: userPrompt,
-        system: systemPrompt,
-        stream: false,
-        options: {
-          temperature: 0.3, // Lower temperature for more consistent extraction
-          num_predict: 1024,
+    let response;
+    try {
+      response = await fetch(`${OLLAMA_BASE_URL}/api/generate`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          model: OLLAMA_MODEL,
+          prompt: userPrompt,
+          system: systemPrompt,
+          stream: false,
+          options: {
+            temperature: 0.3, // Lower temperature for more consistent extraction
+            num_predict: 1024,
+          },
+        }),
+      });
+    } catch (fetchError) {
+      // Ollama not available - return a basic fallback extraction
+      console.log('[Extract] Ollama not available, using fallback extraction');
+      return NextResponse.json({
+        success: true,
+        extraction: {
+          mood: 3,      // Neutral mood as default
+          energyLevel: 5, // Middle energy as default
+          summary: text.slice(0, 200),
+          wins: [],
+          challenges: [],
         },
-      }),
-    });
+        fallback: true,
+        message: 'LLM not available, using basic extraction. Edit the details manually.',
+      });
+    }
 
     if (!response.ok) {
       const errorText = await response.text();
       console.error('[Ollama] API error:', errorText);
-      return NextResponse.json(
-        { error: 'Failed to connect to Ollama', details: errorText },
-        { status: 502 }
-      );
+      // Return fallback instead of erroring
+      return NextResponse.json({
+        success: true,
+        extraction: {
+          mood: 3,
+          energyLevel: 5,
+          summary: text.slice(0, 200),
+          wins: [],
+          challenges: [],
+        },
+        fallback: true,
+        message: 'LLM returned error, using basic extraction.',
+      });
     }
 
     const ollamaResponse = await response.json();
