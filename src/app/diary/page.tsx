@@ -4,6 +4,8 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import type { DailyEntry } from '@/lib/diary-types';
 
+import { DiaryNav } from '@/components/diary/DiaryNav';
+
 export default function DiaryPage() {
   const [entries, setEntries] = useState<DailyEntry[]>([]);
   const [loading, setLoading] = useState(true);
@@ -17,7 +19,19 @@ export default function DiaryPage() {
     try {
       setLoading(true);
       const res = await fetch('/api/diary?limit=30');
-      const data = await res.json();
+      
+      // Log the raw response for debugging
+      const text = await res.text();
+      console.log('[Diary] Raw response:', text.substring(0, 200));
+      
+      let data;
+      try {
+        data = JSON.parse(text);
+      } catch (parseError) {
+        console.error('[Diary] JSON parse failed:', parseError);
+        console.error('[Diary] Response text:', text);
+        throw new Error('API returned invalid JSON. Check console for details.');
+      }
       
       if (!res.ok) {
         throw new Error(data.error || 'Failed to fetch entries');
@@ -53,46 +67,18 @@ export default function DiaryPage() {
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900">
       {/* Header */}
       <header className="sticky top-0 z-10 backdrop-blur-xl bg-black/20 border-b border-white/10">
-        <div className="max-w-4xl mx-auto px-4 py-4">
-          <div className="flex items-center justify-between mb-3">
-            <div className="flex items-center gap-3">
-              <Link href="/dashboard" className="text-white/60 hover:text-white transition">
-                ← Back
-              </Link>
-              <h1 className="text-xl font-bold text-white">📔 Daily Diary</h1>
-            </div>
-            {!hasToday && (
-              <Link 
-                href={`/diary/new?date=${todayDate}`}
-                className="px-4 py-2 bg-gradient-to-r from-violet-600 to-purple-600 text-white rounded-lg font-medium hover:opacity-90 transition shadow-lg shadow-purple-500/20"
-              >
-                + Today&apos;s Entry
-              </Link>
-            )}
-          </div>
-          
-          {/* Quick Actions */}
-          <div className="flex gap-2">
+        <div className="max-w-4xl mx-auto px-4 py-4 flex items-center justify-between">
+          <h1 className="text-xl font-bold text-white">📔 Daily Diary</h1>
+          {!hasToday && (
             <Link 
-              href="/diary/search"
-              className="px-3 py-1.5 bg-white/5 text-white/70 text-sm rounded-lg hover:bg-white/10 transition"
+              href={`/diary/new?date=${todayDate}`}
+              className="px-4 py-2 bg-gradient-to-r from-violet-600 to-purple-600 text-white rounded-lg font-medium hover:opacity-90 transition shadow-lg shadow-purple-500/20"
             >
-              🔍 Search
+              + Today&apos;s Entry
             </Link>
-            <Link 
-              href="/diary/stats"
-              className="px-3 py-1.5 bg-white/5 text-white/70 text-sm rounded-lg hover:bg-white/10 transition"
-            >
-              📊 Stats
-            </Link>
-            <Link 
-              href="/diary/calendar"
-              className="px-3 py-1.5 bg-white/5 text-white/70 text-sm rounded-lg hover:bg-white/10 transition"
-            >
-              📅 Calendar
-            </Link>
-          </div>
+          )}
         </div>
+        <DiaryNav />
       </header>
 
       {/* Main Content */}
