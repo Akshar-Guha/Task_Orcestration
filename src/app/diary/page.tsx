@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import type { DailyEntry } from '@/lib/diary-types';
+import { getLocalDateString } from '@/lib/date-utils';
 
 import { DiaryNav } from '@/components/diary/DiaryNav';
 
@@ -11,8 +12,12 @@ export default function DiaryPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  const [todayDate, setTodayDate] = useState('');
+
   useEffect(() => {
     fetchEntries();
+    // Set date on client side to ensure local timezone matches user's device
+    setTodayDate(getLocalDateString());
   }, []);
 
   async function fetchEntries() {
@@ -45,8 +50,8 @@ export default function DiaryPage() {
     }
   }
 
-  const todayDate = new Date().toISOString().split('T')[0];
-  const hasToday = entries.some(e => e.date === todayDate);
+  // Calculate hasToday based on client-side todayDate
+  const hasToday = todayDate ? entries.some(e => e.date === todayDate) : false;
 
   // Mood emoji mapping
   const moodEmoji = (mood?: number) => {
