@@ -8,16 +8,28 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
 );
 
-// Configure web-push with VAPID keys
+// VAPID keys - checked at runtime, not build time
 const VAPID_PUBLIC_KEY = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY;
 const VAPID_PRIVATE_KEY = process.env.VAPID_PRIVATE_KEY;
 
-if (VAPID_PUBLIC_KEY && VAPID_PRIVATE_KEY) {
-  webpush.setVapidDetails(
-    'mailto:notifications@goal-tracker-web.vercel.app',
-    VAPID_PUBLIC_KEY,
-    VAPID_PRIVATE_KEY
-  );
+// Initialize web-push lazily (only when actually sending)
+let vapidConfigured = false;
+function ensureVapidConfigured(): boolean {
+  if (vapidConfigured) return true;
+  if (!VAPID_PUBLIC_KEY || !VAPID_PRIVATE_KEY) return false;
+  
+  try {
+    webpush.setVapidDetails(
+      'mailto:notifications@goal-tracker-web.vercel.app',
+      VAPID_PUBLIC_KEY,
+      VAPID_PRIVATE_KEY
+    );
+    vapidConfigured = true;
+    return true;
+  } catch (error) {
+    console.error('[Push Send] VAPID configuration failed:', error);
+    return false;
+  }
 }
 
 interface NotificationPayload {
@@ -45,7 +57,8 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Title and body required' }, { status: 400 });
     }
 
-    if (!VAPID_PUBLIC_KEY || !VAPID_PRIVATE_KEY) {
+    // Configure VAPID lazily (first request only)
+    if (!ensureVapidConfigured()) {
       return NextResponse.json({ error: 'VAPID keys not configured' }, { status: 500 });
     }
 
