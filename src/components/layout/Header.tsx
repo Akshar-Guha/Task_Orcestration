@@ -1,4 +1,4 @@
-'use client';
+import { SyncIndicator } from '@/components/SyncStatus';
 
 export function Header() {
   return (
@@ -9,6 +9,7 @@ export function Header() {
           <h1 className="text-lg font-semibold bg-gradient-to-r from-violet-400 to-cyan-400 bg-clip-text text-transparent">
             GoalTracker
           </h1>
+          <SyncIndicator />
         </div>
         
         <button 

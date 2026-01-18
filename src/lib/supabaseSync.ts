@@ -209,13 +209,30 @@ export async function loadAllFromSupabase(): Promise<{
   console.log('[Supabase] Loading all data from server...');
   
   const uid = await getUserId();
+  console.log('[Supabase] Loading data for user:', uid);
 
+  // Fetch all data with individual error handling
   const [goalsRes, tasksRes, slotsRes, logsRes, sleepRes] = await Promise.all([
-    supabase.from('goals').select('*').eq('user_id', uid),
-    supabase.from('tasks').select('*').eq('user_id', uid),
-    supabase.from('time_slots').select('*').eq('user_id', uid),
-    supabase.from('productivity_logs').select('*').eq('user_id', uid),
-    supabase.from('sleep_wake_logs').select('*').eq('user_id', uid),
+    supabase.from('goals').select('*').eq('user_id', uid).then(res => {
+      if (res.error) console.error('[Supabase] Goals fetch error:', res.error);
+      return res;
+    }),
+    supabase.from('tasks').select('*').eq('user_id', uid).then(res => {
+      if (res.error) console.error('[Supabase] Tasks fetch error:', res.error);
+      return res;
+    }),
+    supabase.from('time_slots').select('*').eq('user_id', uid).then(res => {
+      if (res.error) console.error('[Supabase] Time slots fetch error:', res.error);
+      return res;
+    }),
+    supabase.from('productivity_logs').select('*').eq('user_id', uid).then(res => {
+      if (res.error) console.error('[Supabase] Productivity logs fetch error:', res.error);
+      return res;
+    }),
+    supabase.from('sleep_wake_logs').select('*').eq('user_id', uid).then(res => {
+      if (res.error) console.error('[Supabase] Sleep logs fetch error:', res.error);
+      return res;
+    }),
   ]);
 
   const goals: Goal[] = (goalsRes.data || []).map((g: Record<string, unknown>) => ({
@@ -286,7 +303,7 @@ export async function loadAllFromSupabase(): Promise<{
     updatedAt: s.updated_at as string || new Date().toISOString(),
   }));
 
-  console.log(`[Supabase] Loaded: ${goals.length} goals, ${tasks.length} tasks, ${timeSlots.length} slots`);
+  console.log(`[Supabase] ✓ Loaded: ${goals.length} goals, ${tasks.length} tasks, ${timeSlots.length} slots, ${productivityLogs.length} logs, ${sleepWakeLogs.length} sleep logs`);
   
   return { goals, tasks, timeSlots, productivityLogs, sleepWakeLogs };
 }
@@ -368,6 +385,25 @@ export async function deleteTaskFromSupabase(taskId: string): Promise<SyncResult
     if (error) throw error;
     return { success: true };
   } catch (err) {
+    return { success: false, error: String(err) };
+  }
+}
+
+// ============================================
+// DELETE TIME SLOT FROM SUPABASE
+// ============================================
+
+export async function deleteTimeSlotFromSupabase(slotId: string): Promise<SyncResult> {
+  try {
+    const { error } = await supabase
+      .from('time_slots')
+      .delete()
+      .eq('id', slotId);
+    if (error) throw error;
+    console.log('[Supabase] ✓ Time slot deleted:', slotId);
+    return { success: true };
+  } catch (err) {
+    console.error('[Supabase] Failed to delete time slot:', err);
     return { success: false, error: String(err) };
   }
 }

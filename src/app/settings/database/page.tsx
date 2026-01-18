@@ -3,35 +3,48 @@
 import { useState } from 'react';
 import { SyncStatus } from '@/components/SyncStatus';
 
+interface DbTestResult {
+  success: boolean;
+  connection: boolean;
+  tables: Record<string, { exists: boolean; count?: number; error?: string }>;
+  auth: { anonymous: boolean; userId?: string };
+  rls: { enabled: boolean; canRead?: boolean; error?: string };
+  error?: string;
+}
+
 export default function DatabaseSettingsPage() {
   const [testing, setTesting] = useState(false);
   const [status, setStatus] = useState<'idle' | 'success' | 'error'>('idle');
   const [message, setMessage] = useState('');
+  const [dbResult, setDbResult] = useState<DbTestResult | null>(null);
 
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
 
   const testConnection = async () => {
     setTesting(true);
     setStatus('idle');
+    setDbResult(null);
     
     try {
-      const response = await fetch('/api/config/test-connection', {
-        method: 'POST',
+      const response = await fetch('/api/debug/db-test', {
+        method: 'GET',
         headers: { 'Content-Type': 'application/json' },
       });
       
-      const data = await response.json();
+      const data: DbTestResult = await response.json();
+      setDbResult(data);
       
-      if (data.success) {
+      if (data.success && data.connection) {
         setStatus('success');
-        setMessage('Successfully connected to Supabase!');
+        const tableCount = Object.values(data.tables).filter(t => t.exists).length;
+        setMessage(`Connected! ${tableCount} tables accessible`);
       } else {
         setStatus('error');
-        setMessage(data.message || 'Connection failed');
+        setMessage(data.error || 'Connection failed - check console for details');
       }
     } catch (error) {
       setStatus('error');
-      setMessage('Network error: Could not reach server');
+      setMessage('Network error: Could not reach server. Check if the app is deployed correctly.');
     } finally {
       setTesting(false);
     }
@@ -108,6 +121,27 @@ export default function DatabaseSettingsPage() {
               </span>
               <span className="font-medium">{message}</span>
             </div>
+          </div>
+        )}
+
+        {/* Table Details */}
+        {dbResult && dbResult.tables && (
+          <div className="mt-4 grid grid-cols-2 md:grid-cols-5 gap-2">
+            {Object.entries(dbResult.tables).map(([table, info]) => (
+              <div 
+                key={table} 
+                className={`p-3 rounded-lg text-center ${
+                  info.exists 
+                    ? 'bg-emerald-500/10 border border-emerald-500/30' 
+                    : 'bg-red-500/10 border border-red-500/30'
+                }`}
+              >
+                <div className="text-xs text-slate-500 mb-1">{table}</div>
+                <div className={`text-sm font-mono ${info.exists ? 'text-emerald-400' : 'text-red-400'}`}>
+                  {info.exists ? `${info.count || 0} rows` : 'Missing'}
+                </div>
+              </div>
+            ))}
           </div>
         )}
       </div>

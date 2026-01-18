@@ -97,11 +97,6 @@ export interface TaskGoalLink {
   createdAt: string;
 }
 
-
-// ========================================
-// PRODUCTIVITY TRACKING (NEW)
-// ========================================
-
 // Individual task completion record
 export interface TaskCompletion {
   id: string;

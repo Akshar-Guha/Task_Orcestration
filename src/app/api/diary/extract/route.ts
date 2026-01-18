@@ -65,20 +65,80 @@ If information is not provided, omit that field from the response.`;
           },
         }),
       });
-    } catch (fetchError) {
-      // Ollama not available - return a basic fallback extraction
-      console.log('[Extract] Ollama not available, using fallback extraction');
+    } catch {
+      // Ollama not available - use intelligent fallback extraction
+      console.log('[Extract] Ollama not available, using pattern-based fallback extraction');
+      
+      const lowerText = text.toLowerCase();
+      
+      // Mood detection from keywords
+      let detectedMood = 3;
+      if (/great|amazing|awesome|fantastic|wonderful|excellent|happy|excited|joyful/i.test(lowerText)) {
+        detectedMood = 5;
+      } else if (/good|nice|well|fine|okay|productive|successful/i.test(lowerText)) {
+        detectedMood = 4;
+      } else if (/bad|terrible|awful|horrible|frustrated|stressed|angry|sad/i.test(lowerText)) {
+        detectedMood = 1;
+      } else if (/tired|exhausted|overwhelmed|struggling|difficult/i.test(lowerText)) {
+        detectedMood = 2;
+      }
+      
+      // Energy detection
+      let detectedEnergy = 5;
+      const energyMatch = lowerText.match(/energy\s*(?:level)?:?\s*(\d+)/i);
+      if (energyMatch) {
+        detectedEnergy = Math.min(10, Math.max(1, parseInt(energyMatch[1])));
+      } else if (/exhausted|drained|no energy|very tired/i.test(lowerText)) {
+        detectedEnergy = 2;
+      } else if (/energized|full of energy|high energy/i.test(lowerText)) {
+        detectedEnergy = 8;
+      }
+      
+      // Extract wins - sentences with positive action words
+      const wins: string[] = [];
+      const winPatterns = /(?:completed|finished|accomplished|achieved|fixed|solved|deployed|launched|shipped|built|created)\s+[^.!?]+[.!?]/gi;
+      let winMatch;
+      while ((winMatch = winPatterns.exec(text)) !== null) {
+        wins.push(winMatch[0].trim());
+      }
+      
+      // Extract challenges - sentences with challenge words
+      const challenges: string[] = [];
+      const challengePatterns = /(?:struggled with|blocked by|couldn't|issue with|problem with|difficult to|failed to|stuck on)[^.!?]+[.!?]/gi;
+      let challengeMatch;
+      while ((challengeMatch = challengePatterns.exec(text)) !== null) {
+        challenges.push(challengeMatch[0].trim());
+      }
+      
+      // Extract time mentions for productivity
+      const productivityData: Record<string, number> = {};
+      const timePatterns = [
+        { pattern: /(\d+)\s*(?:hours?|hrs?)\s*(?:of\s+)?(?:coding|programming|development|work)/gi, key: 'deep_work', multiplier: 60 },
+        { pattern: /(\d+)\s*(?:minutes?|mins?)\s*(?:of\s+)?(?:coding|programming|development|work)/gi, key: 'deep_work', multiplier: 1 },
+        { pattern: /(\d+)\s*(?:hours?|hrs?)\s*(?:of\s+)?(?:exercise|workout|running|gym)/gi, key: 'exercise', multiplier: 60 },
+        { pattern: /(\d+)\s*(?:minutes?|mins?)\s*(?:of\s+)?(?:exercise|workout|running|gym)/gi, key: 'exercise', multiplier: 1 },
+        { pattern: /(\d+)\s*(?:hours?|hrs?)\s*(?:of\s+)?(?:meeting|meetings|calls?)/gi, key: 'meetings', multiplier: 60 },
+      ];
+      
+      for (const { pattern, key, multiplier } of timePatterns) {
+        let match;
+        while ((match = pattern.exec(text)) !== null) {
+          productivityData[key] = (productivityData[key] || 0) + (parseInt(match[1]) * multiplier);
+        }
+      }
+      
       return NextResponse.json({
         success: true,
         extraction: {
-          mood: 3,      // Neutral mood as default
-          energyLevel: 5, // Middle energy as default
-          summary: text.slice(0, 200),
-          wins: [],
-          challenges: [],
+          mood: detectedMood,
+          energyLevel: detectedEnergy,
+          summary: text.slice(0, 300).trim() + (text.length > 300 ? '...' : ''),
+          wins: wins.slice(0, 5),
+          challenges: challenges.slice(0, 5),
+          productivityData: Object.keys(productivityData).length > 0 ? productivityData : undefined,
         },
         fallback: true,
-        message: 'LLM not available, using basic extraction. Edit the details manually.',
+        message: 'LLM not available, used pattern-based extraction. Review and edit details.',
       });
     }
 

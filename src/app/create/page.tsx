@@ -67,6 +67,21 @@ export default function CreatePage() {
   };
 
   const activeGoals = goals.filter((g) => !g.isArchived);
+  
+  // Sort goals for recommendations: Focus goals first, then in_progress, then by priority
+  const sortedGoals = [...activeGoals].sort((a, b) => {
+    const aIsFocus = (useAppStore.getState().focusGoalIds || []).includes(a.id) ? 1 : 0;
+    const bIsFocus = (useAppStore.getState().focusGoalIds || []).includes(b.id) ? 1 : 0;
+    if (aIsFocus !== bIsFocus) return bIsFocus - aIsFocus; // Focus first
+    
+    const statusOrder = { 'in_progress': 0, 'not_started': 1, 'completed': 2 };
+    if (statusOrder[a.status] !== statusOrder[b.status]) {
+      return statusOrder[a.status] - statusOrder[b.status]; // In-progress first
+    }
+    
+    return (a.priority || 2) - (b.priority || 2); // Lower priority number = higher importance
+  });
+  
   const activeSlots = timeSlots.filter((ts) => ts.isActive);
 
   return (
@@ -213,7 +228,7 @@ export default function CreatePage() {
                     </button>
 
                     {/* Goals */}
-                    {activeGoals.map((goal) => {
+                    {sortedGoals.map((goal) => {
                       const isSelected = selectedGoalId === goal.id;
                       const statusIcon =
                         goal.status === 'completed' ? '🟢' : goal.status === 'in_progress' ? '🔵' : '🟡';

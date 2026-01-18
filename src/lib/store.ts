@@ -213,11 +213,16 @@ export const useAppStore = create<AppState>()((set, get) => ({
         });
         
         // If timeSlotId provided, add goal to that slot
-        if (input.timeSlotId) {
-          get().addGoalToTimeSlot(input.timeSlotId, goal.id);
-        }
+        
+        input.timeSlotId && get().addGoalToTimeSlot(input.timeSlotId, goal.id);
         
         get().logTimelineEvent('goal_created', goal.id, undefined, `Created goal: ${goal.title}`);
+        
+        // Sync to Obsidian
+        import('./obsidian-sync').then(({ queueSync }) => {
+          queueSync('goal', goal, 'upsert');
+        });
+        
         get().trackInteraction();
       },
       
@@ -235,6 +240,11 @@ export const useAppStore = create<AppState>()((set, get) => ({
               }
             });
           });
+          
+          // Sync to Obsidian
+          import('./obsidian-sync').then(({ queueSync }) => {
+            queueSync('goal', updatedGoal, 'upsert');
+          });
         }
         get().trackInteraction();
       },
@@ -251,6 +261,15 @@ export const useAppStore = create<AppState>()((set, get) => ({
         }));
         
         get().logTimelineEvent('goal_started', id, undefined, `Started goal: ${goal.title}`);
+        
+        // Sync to Obsidian
+        const updatedGoal = get().goals.find(g => g.id === id);
+        if (updatedGoal) {
+          import('./obsidian-sync').then(({ queueSync }) => {
+            queueSync('goal', updatedGoal, 'upsert');
+          });
+        }
+        
         get().trackInteraction();
       },
       
@@ -289,10 +308,21 @@ export const useAppStore = create<AppState>()((set, get) => ({
         
         get().logTimelineEvent('goal_completed', id, undefined, 
           `Completed goal: ${goal.title} (${totalMinutesSpent}min spent)`);
+          
+        // Sync to Obsidian
+        const updatedGoal = get().goals.find(g => g.id === id);
+        if (updatedGoal) {
+          import('./obsidian-sync').then(({ queueSync }) => {
+            queueSync('goal', updatedGoal, 'upsert');
+          });
+        }
+        
         get().trackInteraction();
       },
       
       deleteGoal: (id) => {
+        const goal = get().goals.find((g) => g.id === id);
+        
         set((state) => ({
           goals: state.goals.filter((g) => g.id !== id),
           tasks: state.tasks.filter((t) => t.goalId !== id),
@@ -311,6 +341,13 @@ export const useAppStore = create<AppState>()((set, get) => ({
             }
           });
         });
+        
+        // Sync deletion to Obsidian
+        if (goal) {
+          import('./obsidian-sync').then(({ queueSync }) => {
+            queueSync('goal', goal, 'delete');
+          });
+        }
         
         get().trackInteraction();
       },
@@ -370,6 +407,12 @@ export const useAppStore = create<AppState>()((set, get) => ({
         });
         
         get().logTimelineEvent('task_created', task.goalId, task.id, `Created task: ${task.title} [${task.estimatedMinutes}m]`);
+        
+        // Sync to Obsidian
+        import('./obsidian-sync').then(({ queueSync }) => {
+          queueSync('task', task, 'upsert');
+        });
+        
         get().trackInteraction();
         return task.id;
       },
@@ -398,6 +441,11 @@ export const useAppStore = create<AppState>()((set, get) => ({
                 set({ lastSyncError: `Failed to sync task completion: ${result.error}` });
               }
             });
+          });
+          
+          // Sync to Obsidian
+          import('./obsidian-sync').then(({ queueSync }) => {
+            queueSync('task', updatedTask, 'upsert');
           });
         }
         
@@ -483,10 +531,21 @@ export const useAppStore = create<AppState>()((set, get) => ({
         set((state) => ({
           tasks: state.tasks.map((t) => (t.id === id ? { ...t, ...updates } : t)),
         }));
+        
+        const updatedTask = get().tasks.find((t) => t.id === id);
+        if (updatedTask) {
+          // Sync to Obsidian
+          import('./obsidian-sync').then(({ queueSync }) => {
+            queueSync('task', updatedTask, 'upsert');
+          });
+        }
+        
         get().trackInteraction();
       },
       
       deleteTask: (id) => {
+        const task = get().tasks.find((t) => t.id === id);
+        
         set((state) => ({
           tasks: state.tasks.filter((t) => t.id !== id),
           links: state.links.filter((l) => l.taskId !== id),
@@ -500,6 +559,13 @@ export const useAppStore = create<AppState>()((set, get) => ({
             }
           });
         });
+        
+        // Sync deletion to Obsidian
+        if (task) {
+          import('./obsidian-sync').then(({ queueSync }) => {
+            queueSync('task', task, 'delete');
+          });
+        }
         
         get().trackInteraction();
       },
@@ -559,6 +625,17 @@ export const useAppStore = create<AppState>()((set, get) => ({
           createdAt: getNow(),
         };
         set((state) => ({ timeSlots: [...state.timeSlots, timeSlot] }));
+        
+        // CRITICAL: Sync time slot to Supabase immediately
+        import('./supabaseSync').then(({ saveTimeSlot }) => {
+          saveTimeSlot(timeSlot).then((result) => {
+            if (!result.success) {
+              console.error('[Store] Failed to sync time slot to cloud:', result.error);
+              set({ lastSyncError: `Failed to sync time slot: ${result.error}` });
+            }
+          });
+        });
+        
         get().trackInteraction();
       },
       
@@ -566,11 +643,34 @@ export const useAppStore = create<AppState>()((set, get) => ({
         set((state) => ({
           timeSlots: state.timeSlots.map((ts) => (ts.id === id ? { ...ts, ...updates } : ts)),
         }));
+        
+        // Sync updated time slot to Supabase
+        const updatedSlot = get().timeSlots.find(ts => ts.id === id);
+        if (updatedSlot) {
+          import('./supabaseSync').then(({ saveTimeSlot }) => {
+            saveTimeSlot(updatedSlot).then((result) => {
+              if (!result.success) {
+                set({ lastSyncError: `Failed to sync time slot update: ${result.error}` });
+              }
+            });
+          });
+        }
+        
         get().trackInteraction();
       },
       
       deleteTimeSlot: (id) => {
         set((state) => ({ timeSlots: state.timeSlots.filter((ts) => ts.id !== id) }));
+        
+        // Sync deletion to Supabase
+        import('./supabaseSync').then(({ deleteTimeSlotFromSupabase }) => {
+          deleteTimeSlotFromSupabase(id).then((result) => {
+            if (!result.success) {
+              set({ lastSyncError: `Failed to sync time slot deletion: ${result.error}` });
+            }
+          });
+        });
+        
         get().trackInteraction();
       },
       
@@ -585,6 +685,22 @@ export const useAppStore = create<AppState>()((set, get) => ({
             g.id === goalId ? { ...g, timeSlotId } : g
           ),
         }));
+        
+        // Sync updated time slot to Supabase
+        const updatedSlot = get().timeSlots.find(ts => ts.id === timeSlotId);
+        if (updatedSlot) {
+          import('./supabaseSync').then(({ saveTimeSlot }) => {
+            saveTimeSlot(updatedSlot);
+          });
+        }
+        // Also sync the goal update
+        const updatedGoal = get().goals.find(g => g.id === goalId);
+        if (updatedGoal) {
+          import('./supabaseSync').then(({ saveGoal }) => {
+            saveGoal(updatedGoal);
+          });
+        }
+        
         get().trackInteraction();
       },
       
@@ -597,6 +713,22 @@ export const useAppStore = create<AppState>()((set, get) => ({
             g.id === goalId && g.timeSlotId === timeSlotId ? { ...g, timeSlotId: undefined } : g
           ),
         }));
+        
+        // Sync updated time slot to Supabase
+        const updatedSlot = get().timeSlots.find(ts => ts.id === timeSlotId);
+        if (updatedSlot) {
+          import('./supabaseSync').then(({ saveTimeSlot }) => {
+            saveTimeSlot(updatedSlot);
+          });
+        }
+        // Also sync the goal update
+        const updatedGoal = get().goals.find(g => g.id === goalId);
+        if (updatedGoal) {
+          import('./supabaseSync').then(({ saveGoal }) => {
+            saveGoal(updatedGoal);
+          });
+        }
+        
         get().trackInteraction();
       },
       
@@ -675,6 +807,13 @@ export const useAppStore = create<AppState>()((set, get) => ({
           return { sleepWakeLogs: [...state.sleepWakeLogs, newLog] };
         });
         get().trackInteraction();
+        
+        // Trigger wake-up email (morning briefing)
+        import('./emailTrigger').then(({ triggerWakeUpEmail }) => {
+          triggerWakeUpEmail(mood ? String(mood) : undefined).catch(err => 
+            console.error('[Store] Wake-up email failed:', err)
+          );
+        });
       },
       
       recordSleep: () => {
@@ -703,6 +842,13 @@ export const useAppStore = create<AppState>()((set, get) => ({
           return { sleepWakeLogs: [...state.sleepWakeLogs, newLog] };
         });
         get().trackInteraction();
+        
+        // Trigger sleep email (daily summary)
+        import('./emailTrigger').then(({ triggerSleepEmail }) => {
+          triggerSleepEmail().catch(err => 
+            console.error('[Store] Sleep email failed:', err)
+          );
+        });
       },
       
       getTodaySleepLog: () => {
