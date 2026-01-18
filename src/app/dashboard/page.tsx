@@ -67,7 +67,7 @@ export default function DashboardPage() {
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 pb-28">
       {/* Header with Date */}
       <div>
         <h1 className="text-2xl font-bold text-white mb-1">Today</h1>

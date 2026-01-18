@@ -105,6 +105,49 @@ body {
   overflow-x: hidden;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  /* iOS optimizations */
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: none;
+  overscroll-behavior-y: none;
+}
+
+/* iOS Safe Area Utilities */
+.safe-area-top {
+  padding-top: env(safe-area-inset-top, 0px);
+}
+
+.safe-area-bottom {
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+.safe-area-left {
+  padding-left: env(safe-area-inset-left, 0px);
+}
+
+.safe-area-right {
+  padding-right: env(safe-area-inset-right, 0px);
+}
+
+/* Ensure minimum touch target size for iOS (44px) */
+button,
+a,
+[role="button"],
+input[type="checkbox"],
+input[type="radio"] {
+  min-height: 44px;
+  min-width: 44px;
+}
+
+/* iOS-safe scrolling container */
+.scroll-container {
+  -webkit-overflow-scrolling: touch;
+  overflow-y: auto;
+  overscroll-behavior-y: contain;
+}
+
+/* Page content with nav clearance */
+.page-content {
+  padding-bottom: calc(var(--nav-height) + env(safe-area-inset-bottom, 0px) + 1rem);
 }
 
 /* Focus States */

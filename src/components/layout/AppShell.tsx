@@ -45,9 +45,9 @@ export function AppShell({ children }: AppShellProps) {
   }, [trackInteraction]);
 
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100">
+    <div className="min-h-screen min-h-[100dvh] bg-slate-950 text-slate-100">
       <Header />
-      <main className="pt-16 pb-24 px-4 max-w-4xl mx-auto">
+      <main className="pt-16 pb-28 px-4 max-w-lg mx-auto scroll-container">
         {children}
       </main>
       <MobileNav />

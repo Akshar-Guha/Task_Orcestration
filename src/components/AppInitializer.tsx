@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { useAppStore } from '@/lib/store';
 import { WakeUpModal } from './sleep/WakeUpModal';
 import { RoutineNotificationScheduler } from '@/lib/routineNotifications';
+import { PushNotificationScheduler } from '@/lib/pushScheduler';
 
 export function AppInitializer() {
   const [showWakeUpModal, setShowWakeUpModal] = useState(false);
@@ -91,6 +92,7 @@ export function AppInitializer() {
         <WakeUpModal onClose={() => setShowWakeUpModal(false)} />
       )}
       <RoutineNotificationScheduler />
+      <PushNotificationScheduler />
     </>
   );
 }
