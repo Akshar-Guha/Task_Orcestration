@@ -5,6 +5,7 @@ import { createDailyEntrySchema, updateDailyEntrySchema } from '@/lib/diary-sche
 import type { DailyEntryRow, DailyEntry } from '@/lib/diary-types';
 import type { MoodLevel, EnergyLevel } from '@/lib/diary-types';
 import { syncDiaryEntry } from '@/lib/obsidian-sync';
+import { generateEmbedding, combineTextForEmbedding } from '@/lib/server-embedding';
 
 // Initialize Supabase client
 const supabase = createClient(
@@ -109,6 +110,14 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Generate embedding from diary content (non-blocking on failure)
+    const embeddingText = combineTextForEmbedding({
+      summary: input.summary,
+      wins: input.wins,
+      challenges: input.challenges,
+    });
+    const embedding = await generateEmbedding(embeddingText);
+
     // Create the entry
     const { data, error } = await supabase
       .from('daily_entries')
@@ -122,6 +131,7 @@ export async function POST(request: NextRequest) {
         challenges: input.challenges,
         productivity_data: input.productivityData || {},
         custom_fields: input.customFields,
+        embedding: embedding, // Store the embedding vector
       })
       .select()
       .single();

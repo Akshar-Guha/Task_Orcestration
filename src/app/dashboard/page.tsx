@@ -42,10 +42,18 @@ export default function DashboardPage() {
   const activeSlots = timeSlots.filter((ts) => ts.isActive).sort((a, b) => a.startTime.localeCompare(b.startTime));
 
   // Helper to get goals for a slot (computed locally to ensure reactivity)
+  // ROBUST: Check BOTH the slot's goalIds array AND the goal's timeSlotId field
   const getGoalsForSlot = (slotId: string) => {
     const slot = timeSlots.find((ts) => ts.id === slotId);
     if (!slot) return [];
-    return goals.filter((g) => slot.goalIds.includes(g.id) && !g.isArchived);
+    
+    return goals.filter((g) => {
+      if (g.isArchived) return false;
+      // Goal is in this slot if:
+      // 1. The slot's goalIds array contains this goal's ID, OR
+      // 2. The goal's timeSlotId references this slot
+      return slot.goalIds.includes(g.id) || g.timeSlotId === slotId;
+    });
   };
 
   // Helper to get tasks for a goal (computed locally to ensure reactivity)
