@@ -49,15 +49,12 @@ export function AppInitializer() {
       // SKIP on /diary routes (separate journaling system)
       const isDiaryRoute = window.location.pathname.startsWith('/diary');
       const now = new Date();
-      const currentHour = now.getHours();
-      
-      // Only show during morning hours (5 AM - 12 PM)
-      const isMorningTime = currentHour >= 5 && currentHour < 12;
       
       const lastOpen = store.lastAppOpen;
       const fourHoursMs = 4 * 60 * 60 * 1000;
       
-      if (!isDiaryRoute && isMorningTime && (!lastOpen || (now.getTime() - new Date(lastOpen).getTime()) > fourHoursMs)) {
+      // Show popup if: not on diary, 4+ hours since last open, and no wake-up recorded today
+      if (!isDiaryRoute && (!lastOpen || (now.getTime() - new Date(lastOpen).getTime()) > fourHoursMs)) {
         // Check if we haven't already recorded wake-up today
         const today = now.toISOString().split('T')[0];
         const todayLog = store.sleepWakeLogs.find(log => log.date === today);
