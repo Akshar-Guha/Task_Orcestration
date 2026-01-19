@@ -1,8 +1,99 @@
 'use client';
 
+import { useState } from 'react';
 import { useAppStore } from '@/lib/store';
 import Link from 'next/link';
 import { motion } from 'framer-motion';
+import { WakeUpModal } from '@/components/sleep/WakeUpModal';
+import { triggerEmail } from '@/lib/emailTrigger';
+
+// Quick Actions component for manual wake-up/sleep entry
+function QuickActions() {
+  const [showWakeUpModal, setShowWakeUpModal] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [message, setMessage] = useState('');
+  
+  const { recordSleep, sleepWakeLogs } = useAppStore();
+  
+  const today = new Date().toISOString().split('T')[0];
+  const todayLog = sleepWakeLogs.find(log => log.date === today);
+  
+  const handleRecordSleep = async () => {
+    setLoading(true);
+    setMessage('');
+    try {
+      recordSleep();
+      await triggerEmail('sleep');
+      setMessage('✅ Sleep time recorded!');
+    } catch {
+      setMessage('❌ Failed to record sleep');
+    }
+    setLoading(false);
+  };
+  
+  return (
+    <>
+      {showWakeUpModal && (
+        <WakeUpModal onClose={() => {
+          setShowWakeUpModal(false);
+          setMessage('✅ Wake-up time recorded!');
+        }} />
+      )}
+      
+      <div className="mb-8 p-5 bg-gradient-to-br from-indigo-900/30 to-violet-900/30 border border-indigo-500/30 rounded-2xl">
+        <h2 className="text-lg font-bold text-white mb-4">Quick Actions</h2>
+        
+        <div className="grid grid-cols-2 gap-3">
+          {/* Record Wake-Up */}
+          <button
+            onClick={() => setShowWakeUpModal(true)}
+            disabled={loading || !!todayLog?.wakeUpTime}
+            className={`p-4 rounded-xl flex flex-col items-center gap-2 transition-all active:scale-95
+              ${todayLog?.wakeUpTime 
+                ? 'bg-slate-800 text-slate-500 cursor-not-allowed' 
+                : 'bg-amber-500/20 border border-amber-500/40 text-amber-400 hover:bg-amber-500/30'
+              }`}
+          >
+            <span className="text-2xl">☀️</span>
+            <span className="text-sm font-medium">
+              {todayLog?.wakeUpTime ? `Woke at ${todayLog.wakeUpTime}` : 'Record Wake-Up'}
+            </span>
+          </button>
+          
+          {/* Record Sleep */}
+          <button
+            onClick={handleRecordSleep}
+            disabled={loading || !!todayLog?.sleepTime}
+            className={`p-4 rounded-xl flex flex-col items-center gap-2 transition-all active:scale-95
+              ${todayLog?.sleepTime 
+                ? 'bg-slate-800 text-slate-500 cursor-not-allowed' 
+                : 'bg-indigo-500/20 border border-indigo-500/40 text-indigo-400 hover:bg-indigo-500/30'
+              }`}
+          >
+            <span className="text-2xl">🌙</span>
+            <span className="text-sm font-medium">
+              {loading ? 'Recording...' : todayLog?.sleepTime ? `Slept at ${todayLog.sleepTime}` : 'Going to Sleep'}
+            </span>
+          </button>
+        </div>
+        
+        {message && (
+          <div className={`mt-3 p-2 rounded-lg text-sm text-center ${
+            message.startsWith('✅') ? 'bg-emerald-500/20 text-emerald-400' : 'bg-red-500/20 text-red-400'
+          }`}>
+            {message}
+          </div>
+        )}
+        
+        {!todayLog?.wakeUpTime && !todayLog?.sleepTime && (
+          <p className="text-xs text-slate-500 mt-3 text-center">
+            Tip: Record wake-up in the morning, sleep at night
+          </p>
+        )}
+      </div>
+    </>
+  );
+}
 
 export default function SleepPage() {
   const { getSleepLogs, getSleepStats } = useAppStore();
@@ -67,6 +158,9 @@ export default function SleepPage() {
             <div className="text-2xl font-bold text-amber-400">{logs.length} Days</div>
           </div>
         </div>
+
+        {/* Quick Actions */}
+        <QuickActions />
 
         {/* Sleep Logs List */}
         <div className="space-y-4">
