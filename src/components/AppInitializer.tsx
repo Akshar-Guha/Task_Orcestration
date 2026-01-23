@@ -46,15 +46,16 @@ export function AppInitializer() {
       store.initializeDefaultTimeSlots();
       
       // Check if should show wake-up modal (4+ hour gap since last interaction)
-      // SKIP on /diary routes (separate journaling system)
+      // SKIP on landing page and /diary routes
+      const isLandingPage = window.location.pathname === '/';
       const isDiaryRoute = window.location.pathname.startsWith('/diary');
       const now = new Date();
       
       const lastOpen = store.lastAppOpen;
       const fourHoursMs = 4 * 60 * 60 * 1000;
       
-      // Show popup if: not on diary, 4+ hours since last open, and no wake-up recorded today
-      if (!isDiaryRoute && (!lastOpen || (now.getTime() - new Date(lastOpen).getTime()) > fourHoursMs)) {
+      // Show popup if: not on landing/diary, 4+ hours since last open, and no wake-up recorded today
+      if (!isLandingPage && !isDiaryRoute && (!lastOpen || (now.getTime() - new Date(lastOpen).getTime()) > fourHoursMs)) {
         // Check if we haven't already recorded wake-up today
         const today = now.toISOString().split('T')[0];
         const todayLog = store.sleepWakeLogs.find(log => log.date === today);

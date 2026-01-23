@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, createContext, useContext, useCallback } from 'react';
+import { usePathname } from 'next/navigation';
 import { 
   getDeviceToken, 
   saveDeviceToken, 
@@ -27,10 +28,21 @@ interface DeviceAuthProviderProps {
 }
 
 export function DeviceAuthProvider({ children }: DeviceAuthProviderProps) {
+  const pathname = usePathname();
   const [isAuthorized, setIsAuthorized] = useState(false);
-  const [isLoading, setIsLoading] = useState(true);
+  
+  // Landing page is publicly accessible - bypass auth immediately
+  const isLandingPage = pathname === '/';
+  
+  // Don't show loading for landing page since it's public
+  const [isLoading, setIsLoading] = useState(!isLandingPage);
 
   useEffect(() => {
+    // Skip auth check entirely for landing page
+    if (isLandingPage) {
+      return;
+    }
+
     async function checkAuth() {
       const token = getDeviceToken();
       
@@ -47,7 +59,7 @@ export function DeviceAuthProvider({ children }: DeviceAuthProviderProps) {
     }
     
     checkAuth();
-  }, []);
+  }, [isLandingPage]);
 
   const handlePinSuccess = useCallback(async () => {
     const token = generateDeviceToken();
@@ -60,6 +72,15 @@ export function DeviceAuthProvider({ children }: DeviceAuthProviderProps) {
       setIsAuthorized(true);
     }
   }, []);
+
+  // Landing page is publicly accessible - bypass auth
+  if (isLandingPage) {
+    return (
+      <DeviceAuthContext.Provider value={{ isAuthorized: true, isLoading: false }}>
+        {children}
+      </DeviceAuthContext.Provider>
+    );
+  }
 
   // Show loading spinner while checking auth
   if (isLoading) {
