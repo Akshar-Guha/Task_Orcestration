@@ -85,7 +85,7 @@ export async function POST(request: NextRequest) {
     const payload: NotificationPayload = {
       title,
       body,
-      icon: icon || '/icon-192.png',
+      icon: icon || '/icons/icon-192.png',
       url: url || '/dashboard',
       tag: `goal-tracker-${Date.now()}`
     };
