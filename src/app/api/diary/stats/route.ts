@@ -62,7 +62,12 @@ export async function GET(request: NextRequest) {
         cacheKeys.streak(userId),
         cacheTTL.streak,
         async () => {
-          const { data } = await supabase.rpc('calculate_diary_streak', { p_user_id: userId });
+          // Pass local date to ensure timezone consistency
+          const today = new Date().toISOString().split('T')[0];
+          const { data } = await supabase.rpc('calculate_diary_streak', { 
+            p_user_id: userId,
+            p_reference_date: today 
+          });
           return data?.[0] || { current_streak: 0, longest_streak: 0, last_entry_date: null };
         }
       );
@@ -115,7 +120,11 @@ export async function GET(request: NextRequest) {
         cacheKeys.streak(userId),
         cacheTTL.streak,
         async () => {
-          const { data } = await supabase.rpc('calculate_diary_streak', { p_user_id: userId });
+          const today = new Date().toISOString().split('T')[0];
+          const { data } = await supabase.rpc('calculate_diary_streak', { 
+            p_user_id: userId,
+            p_reference_date: today
+          });
           return data?.[0] || { current_streak: 0, longest_streak: 0, last_entry_date: null };
         }
       ),

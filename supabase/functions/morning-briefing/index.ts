@@ -6,123 +6,117 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
-const GROQ_API_KEY = Deno.env.get('GROQ_API_KEY') || '';
+const RESEND_API_KEY = Deno.env.get('RESEND_API_KEY') || '';
+const USER_EMAIL = Deno.env.get('USER_EMAIL') || '';
 const USER_ID = Deno.env.get('DEFAULT_USER_ID') || '';
 
-serve(async (req: Request) => {
+serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders });
   }
 
   try {
-    const supabaseClient = createClient(
+    const supabase = createClient(
       Deno.env.get('SUPABASE_URL') ?? '',
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     );
 
-    // Get today's date range
-    const today = new Date();
-    const startOfDay = new Date(today.setHours(0, 0, 0, 0)).toISOString();
-    const endOfDay = new Date(today.setHours(23, 59, 59, 999)).toISOString();
+    const today = new Date().toISOString().split('T')[0];
 
-    // Query today's tasks
-    const { data: tasks, error: tasksError } = await supabaseClient
-      .from('nodes')
-      .select('id, title, type, status, properties')
+    // 1. Get today's goals
+    const { data: goals } = await supabase
+      .from('goals')
+      .select('id, title, status, priority')
       .eq('user_id', USER_ID)
-      .eq('type', 'task')
-      .or(`properties->>due_date.gte.${startOfDay},properties->>due_date.lte.${endOfDay}`);
-
-    // Query all goals for context
-    const { data: goals, error: goalsError } = await supabaseClient
-      .from('nodes')
-      .select('id, title, properties')
-      .eq('user_id', USER_ID)
-      .eq('type', 'goal')
+      .eq('is_archived', false)
+      .in('status', ['not_started', 'in_progress'])
+      .order('priority', { ascending: false })
       .limit(5);
 
-    // Query recent memories for context
-    const { data: memories, error: memoriesError } = await supabaseClient
-      .from('memories')
-      .select('id, content, metadata')
+    // 2. Get today's tasks
+    const { data: tasks } = await supabase
+      .from('tasks')
+      .select('id, title, is_completed, estimated_minutes')
       .eq('user_id', USER_ID)
-      .order('created_at', { ascending: false })
-      .limit(3);
+      .eq('is_archived', false)
+      .eq('is_completed', false)
+      .limit(10);
 
-    // Build context for AI
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const taskList = tasks?.map((t: any) => `- ${t.title} (${t.status || 'pending'})`).join('\n') || 'No tasks scheduled';
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const goalList = goals?.map((g: any) => `- ${g.title}`).join('\n') || 'No active goals';
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const recentNotes = memories?.map((m: any) => m.metadata?.keywords || '').filter(Boolean).join(', ') || 'No recent notes';
+    // 4. Build email content
+    const goalsHtml = goals?.length
+      ? goals.map((g: any) => `<li><strong>${g.title}</strong> - ${g.status}</li>`).join('')
+      : '<li>No active goals</li>';
 
-    // Generate briefing with Groq
-    let briefing = '';
-    
-    if (GROQ_API_KEY) {
-      const groqResponse = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+    const tasksHtml = tasks?.length
+      ? tasks.map((t: any) => `<li>${t.title} (${t.estimated_minutes || 30} min)</li>`).join('')
+      : '<li>No pending tasks - add some!</li>';
+
+    const emailHtml = `
+<!DOCTYPE html>
+<html>
+<head>
+  <style>
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; background: #0a0a0a; color: #e0e0e0; }
+    h1 { color: #60a5fa; }
+    h2 { color: #a78bfa; margin-top: 24px; }
+    ul { padding-left: 20px; }
+    li { margin: 8px 0; }
+    .footer { margin-top: 32px; text-align: center; color: #666; font-size: 12px; }
+  </style>
+</head>
+<body>
+  <h1>☀️ Morning Briefing</h1>
+  
+  <p>Good morning! Here is your automated briefing for <strong>${today}</strong>.</p>
+  
+  <h2>🎯 Today's Goals</h2>
+  <ul>${goalsHtml}</ul>
+  
+  <h2>✅ Tasks to Complete</h2>
+  <ul>${tasksHtml}</ul>
+  
+  <div class="footer">
+    <p>Sent by Goal Tracker • <a href="https://your-goal-tracker.vercel.app" style="color: #60a5fa;">Open Dashboard</a></p>
+  </div>
+</body>
+</html>
+`;
+
+    // 5. Send email via Resend
+    if (RESEND_API_KEY) {
+        const resendResponse = await fetch('https://api.resend.com/emails', {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${GROQ_API_KEY}`,
-          'Content-Type': 'application/json'
+            'Authorization': `Bearer ${RESEND_API_KEY}`,
+            'Content-Type': 'application/json'
         },
         body: JSON.stringify({
-          model: 'llama-3.1-8b-instant',
-          messages: [{
-            role: 'system',
-            content: 'You are a helpful productivity assistant. Generate a concise, motivating morning briefing.'
-          }, {
-            role: 'user',
-            content: `Generate a brief morning briefing (3-4 sentences max) based on:
-
-TODAY'S TASKS:
-${taskList}
-
-ACTIVE GOALS:
-${goalList}
-
-RECENT FOCUS AREAS:
-${recentNotes}
-
-Keep it encouraging and action-oriented.`
-          }],
-          temperature: 0.7,
-          max_tokens: 200
+            from: 'Goal Tracker <noreply@resend.dev>',
+            to: [USER_EMAIL],
+            subject: `☀️ Morning Briefing - ${today}`,
+            html: emailHtml
         })
-      });
+        });
 
-      if (groqResponse.ok) {
-        const groqData = await groqResponse.json();
-        briefing = groqData.choices[0]?.message?.content || 'Good morning! Ready to tackle your goals today.';
-      }
+        if (!resendResponse.ok) {
+            console.error('Resend error:', await resendResponse.text());
+        }
+    } else {
+        console.log('Skipping email send - RESEND_API_KEY not set. Content generated.');
     }
-
-    // Save briefing to daily_logs
-    const { data: log, error: logError } = await supabaseClient
-      .from('daily_logs')
-      .insert({
-        user_id: USER_ID,
-        log_date: new Date().toISOString().split('T')[0],
-        summary: briefing,
-        tasks_completed: 0,
-        tasks_total: tasks?.length || 0
-      })
-      .select()
-      .single();
 
     return new Response(
       JSON.stringify({
         success: true,
-        briefing: briefing,
-        tasks_count: tasks?.length || 0,
-        goals_count: goals?.length || 0,
-        log_id: log?.id
+        goalsCount: goals?.length || 0,
+        tasksCount: tasks?.length || 0,
+        preview: emailHtml // Return preview for user
       }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
 
-  } catch (error) {
+  } catch (error: any) {
+    console.error('Error:', error);
     return new Response(
       JSON.stringify({ success: false, error: error.message }),
       { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
