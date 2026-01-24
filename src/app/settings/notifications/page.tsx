@@ -3,11 +3,25 @@
 import { useState, useEffect } from 'react';
 import { setupPushNotifications } from '@/lib/push';
 
+// iOS detection
+function isIOS() {
+  if (typeof window === 'undefined') return false;
+  return /iPad|iPhone|iPod/.test(navigator.userAgent) && !(window as Window & { MSStream?: unknown }).MSStream;
+}
+
+// PWA detection
+function isStandalone() {
+  if (typeof window === 'undefined') return false;
+  return (window.navigator as Navigator & { standalone?: boolean }).standalone || window.matchMedia('(display-mode: standalone)').matches;
+}
+
 export default function NotificationsPage() {
   const [permission, setPermission] = useState<NotificationPermission>('default');
   const [isSubscribed, setIsSubscribed] = useState(false);
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState('');
+  const [iosDevice, setIosDevice] = useState(false);
+  const [standaloneMode, setStandaloneMode] = useState(false);
 
   const checkSubscriptionStatus = async () => {
     if ('serviceWorker' in navigator) {
@@ -24,6 +38,10 @@ export default function NotificationsPage() {
     if ('Notification' in window) {
       setPermission(Notification.permission);
     }
+
+    // Check platform
+    setIosDevice(isIOS());
+    setStandaloneMode(isStandalone());
 
     // Check if already subscribed
     checkSubscriptionStatus();
@@ -77,6 +95,23 @@ export default function NotificationsPage() {
         </p>
       </div>
 
+      {/* iOS-specific warning */}
+      {iosDevice && !standaloneMode && (
+        <div className="bg-orange-500/10 border border-orange-500/20 rounded-xl p-4">
+          <h4 className="text-sm font-semibold text-orange-400 mb-2">⚠️ iOS Setup Required</h4>
+          <div className="text-xs text-orange-300/80 space-y-2">
+            <p><strong>Push notifications on iPhone require the app to be installed as a PWA.</strong></p>
+            <ol className="list-decimal list-inside space-y-1 ml-2">
+              <li>Tap the <strong>Share</strong> button in Safari (at bottom of screen)</li>
+              <li>Scroll down and tap <strong>&quot;Add to Home Screen&quot;</strong></li>
+              <li>Tap <strong>&quot;Add&quot;</strong> to confirm</li>
+              <li>Open the app from your Home Screen</li>
+              <li>Return here and enable notifications</li>
+            </ol>
+          </div>
+        </div>
+      )}
+
       {/* Permission Status */}
       <div className="bg-slate-900/50 border border-slate-800 rounded-xl p-6">
         <h3 className="text-lg font-semibold text-white mb-4">Status</h3>
@@ -117,6 +152,37 @@ export default function NotificationsPage() {
               {isSubscribed ? 'Active' : 'Inactive'}
             </div>
           </div>
+
+          {/* iOS Diagnostic Info */}
+          {iosDevice && (
+            <>
+              <div className="flex items-center justify-between">
+                <div>
+                  <div className="text-sm font-medium text-slate-300">Running as PWA</div>
+                  <div className="text-xs text-slate-500 mt-1">
+                    {standaloneMode ? '✅ Installed PWA' : '❌ Safari browser mode'}
+                  </div>
+                </div>
+                <div className={`px-3 py-1 rounded-full text-xs font-medium ${
+                  standaloneMode
+                    ? 'bg-green-500/20 text-green-400'
+                    : 'bg-orange-500/20 text-orange-400'
+                }`}>
+                  {standaloneMode ? 'Yes' : 'No'}
+                </div>
+              </div>
+
+              <div className="flex items-center justify-between">
+                <div>
+                  <div className="text-sm font-medium text-slate-300">Platform</div>
+                  <div className="text-xs text-slate-500 mt-1">iOS Device Detected</div>
+                </div>
+                <div className="px-3 py-1 rounded-full text-xs font-medium bg-blue-500/20 text-blue-400">
+                  iPhone/iPad
+                </div>
+              </div>
+            </>
+          )}
         </div>
       </div>
 
@@ -128,8 +194,9 @@ export default function NotificationsPage() {
           {!isSubscribed && (
             <button
               onClick={handleEnableNotifications}
-              disabled={loading}
+              disabled={loading || (iosDevice && !standaloneMode)}
               className="w-full py-3 bg-gradient-to-r from-violet-500 to-cyan-500 text-white font-medium rounded-xl disabled:opacity-50 hover:opacity-90 transition-opacity"
+              title={iosDevice && !standaloneMode ? 'Install PWA first (see instructions above)' : ''}
             >
               {loading ? 'Setting up...' : '🔔 Enable Notifications'}
             </button>
@@ -165,6 +232,9 @@ export default function NotificationsPage() {
           <li>• Get notifications for goal milestones</li>
           <li>• Morning briefing summaries</li>
           <li>• Works even when the app is closed</li>
+          {iosDevice && (
+            <li className="font-semibold text-blue-300">• iOS 16.4+ required for Web Push</li>
+          )}
         </ul>
       </div>
     </div>
