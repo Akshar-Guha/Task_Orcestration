@@ -62,6 +62,8 @@ export default function EditPage() {
           title: t.title,
           description: t.description,
           estimatedMinutes: t.estimatedMinutes,
+          goalId: t.goalId,        // FIX: Include goalId so reassignment works
+          isDaily: t.isDaily,      // FIX: Include isDaily so toggle persists
         });
       }
     });
