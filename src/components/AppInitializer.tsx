@@ -67,17 +67,14 @@ export function AppInitializer() {
         console.log('[AppInit] ✓ No daily tasks needing reset');
       }
       
-      // Check if should show wake-up modal (4+ hour gap since last interaction)
+      // Check if should show wake-up modal
       // SKIP on landing page and /diary routes
       const isLandingPage = window.location.pathname === '/';
       const isDiaryRoute = window.location.pathname.startsWith('/diary');
       
-      const lastOpen = store.lastAppOpen;
-      const fourHoursMs = 4 * 60 * 60 * 1000;
-      
-      // Show popup if: not on landing/diary, 4+ hours since last open, and no wake-up recorded today
-      if (!isLandingPage && !isDiaryRoute && (!lastOpen || (now.getTime() - new Date(lastOpen).getTime()) > fourHoursMs)) {
-        // Check if we haven't already recorded wake-up today
+      // DATABASE-DRIVEN: Only show if no wake-up recorded for today
+      // This ensures modal doesn't re-appear after deployments or refreshes
+      if (!isLandingPage && !isDiaryRoute) {
         const todayLog = store.sleepWakeLogs.find(log => log.date === today);
         
         if (!todayLog?.wakeUpTime) {
