@@ -7,12 +7,16 @@ import { MobileNav } from './MobileNav';
 
 
 
+import { usePathname } from 'next/navigation';
+
 interface AppShellProps {
   children: ReactNode;
 }
 
 export function AppShell({ children }: AppShellProps) {
   const { trackInteraction } = useAppStore();
+  const pathname = usePathname();
+  const isLandingPage = pathname === '/';
 
   useEffect(() => {
     // Throttled activity tracker
@@ -43,6 +47,15 @@ export function AppShell({ children }: AppShellProps) {
       window.removeEventListener('touchstart', handleActivity);
     };
   }, [trackInteraction]);
+
+  // Bypass shell for mobile/PWA landing page
+  if (isLandingPage) {
+    return (
+      <div className="min-h-screen min-h-[100dvh] bg-slate-950 text-slate-100 dark">
+        {children}
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen min-h-[100dvh] bg-slate-950 text-slate-100">

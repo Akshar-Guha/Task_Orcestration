@@ -12,28 +12,33 @@ type EmailType = 'wake-up' | 'sleep';
 
 export async function triggerEmail(type: EmailType, data?: Record<string, unknown>): Promise<boolean> {
   try {
-    const functionName = type === 'wake-up' ? 'wake-up-email' : 'sleep-email';
+    console.log(`[Email] Triggering ${type} email...`, data);
     
-    const response = await fetch(
-      `${SUPABASE_URL}/functions/v1/${functionName}`,
-      {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(data || {}),
-      }
-    );
+    // Use correct Edge Function URLs
+    const functionUrl = `${SUPABASE_URL}/functions/v1/${type}-email`;
+    
+    console.log(`[Email] Calling function: ${functionUrl}`);
+    
+    const response = await fetch(functionUrl, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(data || {}),
+    });
 
+    console.log(`[Email] Response status: ${response.status}`);
+    
     if (!response.ok) {
-      console.error(`[Email] Failed to trigger ${type} email:`, await response.text());
+      const errorText = await response.text();
+      console.error(`[Email] Failed to trigger ${type} email:`, errorText);
       return false;
     }
 
     const result = await response.json();
-    console.log(`[Email] ${type} email sent:`, result);
-    return result.success;
+    console.log(`[Email] ${type} email sent successfully:`, result);
+    return result.success !== false;
 
   } catch (error) {
     console.error(`[Email] Error triggering ${type} email:`, error);
@@ -42,9 +47,11 @@ export async function triggerEmail(type: EmailType, data?: Record<string, unknow
 }
 
 export async function triggerWakeUpEmail(mood?: string): Promise<boolean> {
+  console.log('[Email] Wake-up email triggered with mood:', mood);
   return triggerEmail('wake-up', { mood });
 }
 
 export async function triggerSleepEmail(): Promise<boolean> {
+  console.log('[Email] Sleep email triggered');
   return triggerEmail('sleep');
 }

@@ -45,11 +45,32 @@ export function AppInitializer() {
       // Now that cloud data is loaded, proceed with other initialization
       store.initializeDefaultTimeSlots();
       
+      // ============================================
+      // CRITICAL: Check if we need to reset daily tasks
+      // This runs EVERY time the app loads, not just on wake-up popup
+      // ============================================
+      const now = new Date();
+      const today = now.toISOString().split('T')[0];
+      
+      // Check if any daily tasks were completed on a PREVIOUS day
+      const tasksNeedingReset = store.tasks.filter(t => {
+        if (!t.isDaily || !t.isCompleted || !t.completedAt) return false;
+        const completedDate = t.completedAt.split('T')[0];
+        return completedDate !== today; // Completed on a different day
+      });
+      
+      if (tasksNeedingReset.length > 0) {
+        console.log(`[AppInit] ⚠️ Found ${tasksNeedingReset.length} daily tasks from previous days - resetting...`);
+        await store.resetDailyTasks();
+        console.log('[AppInit] ✓ Daily tasks reset for new day');
+      } else {
+        console.log('[AppInit] ✓ No daily tasks needing reset');
+      }
+      
       // Check if should show wake-up modal (4+ hour gap since last interaction)
       // SKIP on landing page and /diary routes
       const isLandingPage = window.location.pathname === '/';
       const isDiaryRoute = window.location.pathname.startsWith('/diary');
-      const now = new Date();
       
       const lastOpen = store.lastAppOpen;
       const fourHoursMs = 4 * 60 * 60 * 1000;
@@ -57,7 +78,6 @@ export function AppInitializer() {
       // Show popup if: not on landing/diary, 4+ hours since last open, and no wake-up recorded today
       if (!isLandingPage && !isDiaryRoute && (!lastOpen || (now.getTime() - new Date(lastOpen).getTime()) > fourHoursMs)) {
         // Check if we haven't already recorded wake-up today
-        const today = now.toISOString().split('T')[0];
         const todayLog = store.sleepWakeLogs.find(log => log.date === today);
         
         if (!todayLog?.wakeUpTime) {

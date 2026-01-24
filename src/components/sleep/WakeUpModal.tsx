@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { useAppStore } from '@/lib/store';
+import { triggerWakeUpEmail } from '@/lib/emailTrigger';
 import type { MoodLevel } from '@/lib/types';
 
 interface WakeUpModalProps {
@@ -42,7 +43,13 @@ export function WakeUpModal({ onClose }: WakeUpModalProps) {
       // 3. Record wake-up time and mood
       recordWakeUp(adjustedMinutes, mood);
       
-      // 4. Sync to cloud
+      // 4. Trigger wake-up email notification
+      console.log('[WakeUpModal] Triggering wake-up email...');
+      triggerWakeUpEmail(String(mood)).catch(err => 
+        console.error('[WakeUpModal] Email trigger failed:', err)
+      );
+      
+      // 5. Sync to cloud
       await syncToCloud();
       
       onClose();

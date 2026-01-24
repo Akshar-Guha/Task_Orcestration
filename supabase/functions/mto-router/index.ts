@@ -60,6 +60,41 @@ serve(async (req) => {
          result = { success: true, matches };
          break;
 
+      case 'generate_embedding':
+        // Generate embedding using Supabase AI (gte-small model, 384 dimensions)
+        const { text: embText } = data;
+        if (!embText) throw new Error("Missing text for embedding");
+
+        try {
+          // Use Supabase edge_ai for embedding generation
+          // This uses the built-in gte-small model (384 dimensions)
+          const embeddingResponse = await fetch(
+            `${Deno.env.get('SUPABASE_URL')}/rest/v1/rpc/generate_embedding`,
+            {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'apikey': Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '',
+                'Authorization': `Bearer ${Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')}`
+              },
+              body: JSON.stringify({ input_text: embText })
+            }
+          );
+
+          if (embeddingResponse.ok) {
+            const embData = await embeddingResponse.json();
+            result = { success: true, embedding: embData };
+          } else {
+            // Fallback: Return null embedding if function doesn't exist
+            console.warn('generate_embedding RPC not available, returning null');
+            result = { success: false, error: 'Embedding generation not configured' };
+          }
+        } catch (embError) {
+          console.error('Embedding generation error:', embError);
+          result = { success: false, error: 'Embedding generation failed' };
+        }
+        break;
+
       case 'create_node':
         // Expecting data to contain: id, type, title, etc.
         const { id, type, title, description, properties, metadata, user_id } = data
