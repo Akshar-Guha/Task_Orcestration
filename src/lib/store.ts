@@ -778,43 +778,59 @@ export const useAppStore = create<AppState>()((set, get) => ({
       // ========== SLEEP/WAKE ACTIONS ==========
       
       recordWakeUp: (adjustedMinutes = 0, mood) => {
-        const today = getToday();
-        const now = new Date();
-        now.setMinutes(now.getMinutes() - adjustedMinutes);
-        const wakeUpTime = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
-        
-        set((state) => {
-          const existing = state.sleepWakeLogs.find((l) => l.date === today);
-          if (existing) {
-            return {
-              sleepWakeLogs: state.sleepWakeLogs.map((l) =>
-                l.date === today
-                  ? { ...l, wakeUpTime, wakeUpConfirmedAt: getNow(), wakeUpMood: mood, updatedAt: getNow() }
-                  : l
-              ),
-            };
-          }
-          const newLog: SleepWakeLog = {
-            id: generateId(),
-            date: today,
-            wakeUpTime,
-            wakeUpConfirmedAt: getNow(),
-            wakeUpMood: mood,
-            sleepAttempts: [],
-            createdAt: getNow(),
-            updatedAt: getNow(),
-          };
-          return { sleepWakeLogs: [...state.sleepWakeLogs, newLog] };
-        });
-        get().trackInteraction();
-        
-        // Trigger wake-up email (morning briefing)
-        import('./emailTrigger').then(({ triggerWakeUpEmail }) => {
-          triggerWakeUpEmail(mood ? String(mood) : undefined).catch(err => 
-            console.error('[Store] Wake-up email failed:', err)
-          );
-        });
-      },
+  const today = getToday();
+  const now = new Date();
+  now.setMinutes(now.getMinutes() - adjustedMinutes);
+  const wakeUpTime = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+  
+  set((state) => {
+    const existing = state.sleepWakeLogs.find((l) => l.date === today);
+    if (existing) {
+      return {
+        sleepWakeLogs: state.sleepWakeLogs.map((l) =>
+          l.date === today
+            ? { ...l, wakeUpTime, wakeUpConfirmedAt: getNow(), wakeUpMood: mood, updatedAt: getNow() }
+            : l
+        ),
+      };
+    }
+    const newLog: SleepWakeLog = {
+      id: generateId(),
+      date: today,
+      wakeUpTime,
+      wakeUpConfirmedAt: getNow(),
+      wakeUpMood: mood,
+      sleepAttempts: [],
+      createdAt: getNow(),
+      updatedAt: getNow(),
+    };
+    return { sleepWakeLogs: [...state.sleepWakeLogs, newLog] };
+  });
+  
+  // CRITICAL FIX: Save to Supabase immediately
+  const updatedLog = get().sleepWakeLogs.find(l => l.date === today);
+  if (updatedLog) {
+    import('./supabaseSync').then(({ saveSleepWakeLog }) => {
+      saveSleepWakeLog(updatedLog).then((result) => {
+        if (!result.success) {
+          console.error('[Store] Failed to sync wake-up to Supabase:', result.error);
+          set({ lastSyncError: `Failed to save wake-up: ${result.error}` });
+        } else {
+          console.log('[Store] ✓ Wake-up synced to Supabase');
+        }
+      });
+    });
+  }
+  
+  get().trackInteraction();
+  
+  // Trigger wake-up email (morning briefing)
+  import('./emailTrigger').then(({ triggerWakeUpEmail }) => {
+    triggerWakeUpEmail(mood ? String(mood) : undefined).catch(err => 
+      console.error('[Store] Wake-up email failed:', err)
+    );
+  });
+},
       
       recordSleep: () => {
         const today = getToday();
