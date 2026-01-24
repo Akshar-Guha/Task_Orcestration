@@ -7,11 +7,13 @@ import { PushNotificationScheduler } from '@/lib/pushScheduler';
 import { useTasks, useResetDailyTasks, useSleepLogs, useTimeSlots } from '@/lib/hooks/useSupabase';
 
 export function AppInitializer() {
+  // State to track if we've already run the initialization check this session
+  const [hasInitialized, setHasInitialized] = useState(false);
   const [showWakeUpModal, setShowWakeUpModal] = useState(false);
   
   // Hooks for data
-  const { data: tasks = [] } = useTasks();
-  const { data: sleepLogs = [] } = useSleepLogs();
+  const { data: tasks = [], isLoading: tasksLoading } = useTasks();
+  const { data: sleepLogs = [], isLoading: sleepLoading } = useSleepLogs();
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const { data: timeSlots = [] } = useTimeSlots();
   
@@ -19,6 +21,9 @@ export function AppInitializer() {
 
   // Initialization Logic
   useEffect(() => {
+    // Only run if data is loaded and we haven't initialized yet
+    if (tasksLoading || sleepLoading || hasInitialized) return;
+
     const init = async () => {
       // 1. Check for Daily Reset
       const now = new Date();
@@ -43,20 +48,17 @@ export function AppInitializer() {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const todayLog = sleepLogs.find((log: any) => log.date === today);
         if (!todayLog?.wakeUpTime) {
-          setShowWakeUpModal(true);
+           // Only show if strictly missing and not previously dismissed (implicit via hasInitialized)
+           setShowWakeUpModal(true);
         }
       }
       
-      // 3. Initialize Default Time Slots if empty
-      // Only run this if we are sure data is loaded (which useTimeSlots handles, but we need to be careful not to spam)
-      // For now, skipping auto-creation to avoid duplicates if query is slow. 
-      // If needed, we can check if timeSlots is explicitly empty array AND query status is success.
+      // Mark as initialized so we don't re-run this logic even if data refreshes (e.g. after mutation)
+      setHasInitialized(true);
     };
 
-    if (tasks.length > 0 || sleepLogs.length > 0) {
-       init();
-    }
-  }, [tasks, sleepLogs, resetDailyTasksMutation]);
+    init();
+  }, [tasks, sleepLogs, tasksLoading, sleepLoading, hasInitialized, resetDailyTasksMutation]);
 
   return (
     <>
