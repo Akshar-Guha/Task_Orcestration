@@ -1,23 +1,54 @@
 'use client';
 
 import { useState } from 'react';
-import { useAppStore } from '@/lib/store';
-import { formatDuration, LEVEL_LABELS, LEVEL_COLORS } from '@/lib/types';
+import { formatDuration, LEVEL_LABELS } from '@/lib/types';
 import Link from 'next/link';
+import { 
+  useGoals, 
+  useTasks, 
+  useTimeSlots, 
+  useProductivity 
+} from '@/lib/hooks/useSupabase';
 
 type ViewTab = 'goals' | 'productivity';
 
 export default function TimelinePage() {
-  const {
-    goals,
-    tasks,
-    timeSlots,
-    productivityLogs,
-    getTodayProductivity,
-    getGoalTimeSpent,
-    getGoalTimelineStats,
-    getTasksForGoal,
-  } = useAppStore();
+  // React Query data
+  const { data: goals = [] } = useGoals();
+  const { data: tasks = [] } = useTasks();
+  const { data: timeSlots = [] } = useTimeSlots();
+  const { data: productivityData } = useProductivity();
+
+  // Helper calculation functions (previously in store)
+  const getTasksForGoal = (goalId: string) => {
+    return tasks.filter((t) => t.goalId === goalId && !t.isArchived);
+  };
+
+  const getGoalTimelineStats = (goalId: string) => {
+    const goalTasks = getTasksForGoal(goalId);
+    const tasksTotal = goalTasks.length;
+    const tasksCompleted = goalTasks.filter(t => t.isCompleted).length;
+    
+    // Calculate minutes spent
+    const minutesSpent = goalTasks.reduce((sum, t) => {
+      // For tasks, we use estimatedMinutes as "spent" if completed
+      // Or actualMinutes if available
+      if (t.isCompleted) return sum + (t.actualMinutes || t.estimatedMinutes);
+      return sum + (t.actualMinutes || 0);
+    }, 0);
+
+    // Calculate age in days
+    const created = new Date(goals.find(g => g.id === goalId)?.createdAt || new Date());
+    const now = new Date();
+    const totalDays = Math.ceil((now.getTime() - created.getTime()) / (1000 * 60 * 60 * 24));
+
+    return {
+      tasksTotal,
+      tasksCompleted,
+      minutesSpent,
+      totalDays
+    };
+  };
 
   const [activeTab, setActiveTab] = useState<ViewTab>('goals');
   const [filterStatus, setFilterStatus] = useState<'all' | 'active' | 'completed'>('all');
@@ -30,7 +61,13 @@ export default function TimelinePage() {
     return true;
   });
 
-  const productivity = getTodayProductivity();
+  const productivity = {
+    todayMinutes: productivityData?.todayMinutes || 0,
+    todayPercentage: productivityData?.todayPercentage || 0,
+    weekMinutes: productivityData?.weekMinutes || 0,
+    weeklyAverage: productivityData?.weeklyAverage || 0,
+    topGoals: [], // TODO: Calculate top goals from tasks
+  };
 
   // Get last 7 days of productivity
   const last7Days = Array.from({ length: 7 }, (_, i) => {
@@ -40,15 +77,26 @@ export default function TimelinePage() {
   });
 
   const weeklyData = last7Days.map((date) => {
-    const log = productivityLogs.find((l) => l.date === date);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const log = productivityData?.logs.find((l: any) => l.date === date);
     return {
       date,
       day: new Date(date).toLocaleDateString('en-US', { weekday: 'short' }),
-      minutes: log?.productiveMinutes || 0,
+      minutes: log?.productive_minutes || 0,
     };
   });
 
   const maxMinutes = Math.max(...weeklyData.map((d) => d.minutes), 60);
+
+  // Helper for goal status config to avoid any type
+  const getGoalStatusConfig = (status: 'not_started' | 'in_progress' | 'completed') => {
+    const configs = {
+      not_started: { icon: '🟡', label: 'Not Started', bg: 'bg-amber-500/10', border: 'border-amber-500/30' },
+      in_progress: { icon: '🔵', label: 'In Progress', bg: 'bg-blue-500/10', border: 'border-blue-500/30' },
+      completed: { icon: '🟢', label: 'Completed', bg: 'bg-emerald-500/10', border: 'border-emerald-500/30' },
+    };
+    return configs[status] || configs.not_started;
+  };
 
   return (
     <div className="min-h-screen bg-slate-950 pb-24">
@@ -127,11 +175,7 @@ export default function TimelinePage() {
                   const goalTasks = getTasksForGoal(goal.id);
                   const slot = timeSlots.find((ts) => ts.goalIds?.includes(goal.id));
                   
-                  const statusConfig = {
-                    not_started: { icon: '🟡', label: 'Not Started', bg: 'bg-amber-500/10', border: 'border-amber-500/30' },
-                    in_progress: { icon: '🔵', label: 'In Progress', bg: 'bg-blue-500/10', border: 'border-blue-500/30' },
-                    completed: { icon: '🟢', label: 'Completed', bg: 'bg-emerald-500/10', border: 'border-emerald-500/30' },
-                  }[goal.status];
+                  const statusConfig = getGoalStatusConfig(goal.status);
 
                   const progress = stats.tasksTotal > 0 
                     ? Math.round((stats.tasksCompleted / stats.tasksTotal) * 100) 
@@ -293,12 +337,13 @@ export default function TimelinePage() {
               </div>
             </div>
 
-            {/* Top Goals */}
+            {/* Top Goals (Placeholder as we don't have task-level logs yet) */}
             {productivity.topGoals.length > 0 && (
               <div className="p-6 bg-slate-900/50 border border-slate-800 rounded-xl">
                 <h3 className="text-lg font-semibold text-white mb-4">Today&apos;s Top Goals</h3>
                 <div className="space-y-3">
-                  {productivity.topGoals.map((item, idx) => {
+                  {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
+                  {productivity.topGoals.map((item: any, idx) => {
                     const goal = goals.find((g) => g.id === item.goalId);
                     if (!goal) return null;
                     return (

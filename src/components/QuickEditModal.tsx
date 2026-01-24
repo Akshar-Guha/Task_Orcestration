@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import type { Goal } from '@/lib/types';
-import { useAppStore } from '@/lib/store';
+import { useUpdateGoal } from '@/lib/hooks/useSupabase';
 
 interface QuickEditModalProps {
   goal: Goal;
@@ -10,18 +10,21 @@ interface QuickEditModalProps {
 }
 
 export function QuickEditModal({ goal, onClose }: QuickEditModalProps) {
-  const updateGoal = useAppStore((state) => state.updateGoal);
+  const updateGoalMutation = useUpdateGoal();
   const [title, setTitle] = useState(goal.title);
   const [description, setDescription] = useState(goal.description || '');
   const [status, setStatus] = useState(goal.status);
   const [priority, setPriority] = useState(goal.priority || 2);
 
   const handleSave = async () => {
-    await updateGoal(goal.id, {
-      title,
-      description,
-      status,
-      priority,
+    updateGoalMutation.mutate({
+      id: goal.id,
+      updates: {
+        title,
+        description,
+        status,
+        priority,
+      }
     });
     onClose();
   };
@@ -99,7 +102,7 @@ export function QuickEditModal({ goal, onClose }: QuickEditModalProps) {
               ].map((p) => (
                 <button
                   key={p.value}
-                  onClick={() => setPriority(p.value)}
+                  onClick={() => setPriority(p.value as 1 | 2 | 3)}
                   className={`py-3 rounded-lg text-sm font-medium transition-all ${
                     priority === p.value
                       ? `${p.color} text-white`

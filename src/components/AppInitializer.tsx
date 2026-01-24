@@ -1,109 +1,66 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { useAppStore } from '@/lib/store';
 import { WakeUpModal } from './sleep/WakeUpModal';
 import { RoutineNotificationScheduler } from '@/lib/routineNotifications';
 import { PushNotificationScheduler } from '@/lib/pushScheduler';
+import { useTasks, useResetDailyTasks, useSleepLogs, useTimeSlots } from '@/lib/hooks/useSupabase';
 
 export function AppInitializer() {
   const [showWakeUpModal, setShowWakeUpModal] = useState(false);
-  const [isCloudLoaded, setIsCloudLoaded] = useState(false);
-  const [loadError, setLoadError] = useState<string | null>(null);
+  
+  // Hooks for data
+  const { data: tasks = [] } = useTasks();
+  const { data: sleepLogs = [] } = useSleepLogs();
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const { data: timeSlots = [] } = useTimeSlots();
+  
+  const resetDailyTasksMutation = useResetDailyTasks();
 
+  // Initialization Logic
   useEffect(() => {
-    let isMounted = true;
-    
-    async function initializeApp() {
-      const store = useAppStore.getState();
-      
-      console.log('[AppInit] Starting app initialization...');
-      console.log('[AppInit] STEP 1: Loading data from cloud (Supabase)...');
-      
-      try {
-        // CRITICAL: Load cloud data FIRST before any other operations
-        // This ensures we always start with the latest data from Supabase
-        const result = await store.loadFromCloud();
-        
-        if (!result.success) {
-          console.error('[AppInit] ✗ Cloud load failed:', result.error);
-          setLoadError(result.error || 'Failed to load data from cloud');
-        } else {
-          console.log('[AppInit] ✓ Cloud data loaded successfully');
-        }
-      } catch (err) {
-        console.error('[AppInit] ✗ Cloud load exception:', err);
-        setLoadError(String(err));
-      }
-      
-      if (!isMounted) return;
-      
-      setIsCloudLoaded(true);
-      
-      console.log('[AppInit] STEP 2: Initializing app features...');
-      
-      // Now that cloud data is loaded, proceed with other initialization
-      store.initializeDefaultTimeSlots();
-      
-      // ============================================
-      // CRITICAL: Check if we need to reset daily tasks
-      // This runs EVERY time the app loads, not just on wake-up popup
-      // ============================================
+    const init = async () => {
+      // 1. Check for Daily Reset
       const now = new Date();
       const today = now.toISOString().split('T')[0];
       
-      // Check if any daily tasks were completed on a PREVIOUS day
-      const tasksNeedingReset = store.tasks.filter(t => {
+      const tasksNeedingReset = tasks.filter(t => {
         if (!t.isDaily || !t.isCompleted || !t.completedAt) return false;
         const completedDate = t.completedAt.split('T')[0];
-        return completedDate !== today; // Completed on a different day
+        return completedDate !== today;
       });
       
       if (tasksNeedingReset.length > 0) {
         console.log(`[AppInit] ⚠️ Found ${tasksNeedingReset.length} daily tasks from previous days - resetting...`);
-        await store.resetDailyTasks();
-        console.log('[AppInit] ✓ Daily tasks reset for new day');
-      } else {
-        console.log('[AppInit] ✓ No daily tasks needing reset');
+        resetDailyTasksMutation.mutate();
       }
-      
-      // Check if should show wake-up modal
-      // SKIP on landing page and /diary routes
+
+      // 2. Wake Up Modal Check
       const isLandingPage = window.location.pathname === '/';
       const isDiaryRoute = window.location.pathname.startsWith('/diary');
       
-      // DATABASE-DRIVEN: Only show if no wake-up recorded for today
-      // This ensures modal doesn't re-appear after deployments or refreshes
       if (!isLandingPage && !isDiaryRoute) {
-        const todayLog = store.sleepWakeLogs.find(log => log.date === today);
-        
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const todayLog = sleepLogs.find((log: any) => log.date === today);
         if (!todayLog?.wakeUpTime) {
           setShowWakeUpModal(true);
         }
       }
       
-      // Track app open and interaction
-      store.trackAppOpen();
-      store.trackInteraction();
-      
-      console.log('[AppInit] ✓ App initialization complete');
-    }
-    
-    initializeApp();
-    
-    return () => {
-      isMounted = false;
+      // 3. Initialize Default Time Slots if empty
+      // Only run this if we are sure data is loaded (which useTimeSlots handles, but we need to be careful not to spam)
+      // For now, skipping auto-creation to avoid duplicates if query is slow. 
+      // If needed, we can check if timeSlots is explicitly empty array AND query status is success.
     };
-  }, []);
-  
+
+    if (tasks.length > 0 || sleepLogs.length > 0) {
+       init();
+    }
+  }, [tasks, sleepLogs, resetDailyTasksMutation]);
+
   return (
     <>
-      {loadError && (
-        <div className="fixed top-0 left-0 right-0 bg-red-600 text-white p-3 text-center z-50">
-          ⚠️ Failed to load data from cloud: {loadError}
-        </div>
-      )}
-      {showWakeUpModal && isCloudLoaded && (
+      {showWakeUpModal && (
         <WakeUpModal onClose={() => setShowWakeUpModal(false)} />
       )}
       <RoutineNotificationScheduler />

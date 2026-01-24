@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useRef } from 'react';
+import { Suspense, useState, useRef } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import type { ProductivityData } from '@/lib/diary-types';
@@ -18,7 +18,7 @@ interface ExtractionResult {
 
 type Step = 'capture' | 'review' | 'questions' | 'confirm';
 
-export default function NewDiaryEntryPage() {
+function NewDiaryEntryContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const dateParam = searchParams.get('date') || new Date().toISOString().split('T')[0];
@@ -381,5 +381,13 @@ export default function NewDiaryEntryPage() {
         )}
       </main>
     </div>
+  );
+}
+
+export default function NewDiaryEntryPage() {
+  return (
+    <Suspense fallback={<div className="min-h-screen flex items-center justify-center text-white">Loading...</div>}>
+      <NewDiaryEntryContent />
+    </Suspense>
   );
 }

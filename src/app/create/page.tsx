@@ -3,12 +3,21 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAppStore } from '@/lib/store';
+import { useGoals, useTimeSlots, useAddGoal, useAddTask } from '@/lib/hooks/useSupabase';
 import type { GoalLevel, CreateGoalInput, CreateTaskInput, GoalMetadata, TimeSlotType } from '@/lib/types';
 import { DURATION_OPTIONS, formatDuration, TIME_SLOT_LABELS } from '@/lib/types';
 
 export default function CreatePage() {
   const router = useRouter();
-  const { addGoal, addTask, goals, timeSlots, addGoalToTimeSlot } = useAppStore();
+  
+  // React Query hooks
+  const { data: goals = [] } = useGoals();
+  const { data: timeSlots = [] } = useTimeSlots();
+  const addGoalMutation = useAddGoal();
+  const addTaskMutation = useAddTask();
+  
+  // UI State
+  const focusGoalIds = useAppStore((state) => state.focusGoalIds);
 
   const [tab, setTab] = useState<'goal' | 'task'>('task');
 
@@ -39,7 +48,7 @@ export default function CreatePage() {
       timeSlotId: selectedTimeSlotId || undefined,
     };
 
-    addGoal(input);
+    addGoalMutation.mutate(input);
     router.push('/dashboard');
   };
 
@@ -54,7 +63,7 @@ export default function CreatePage() {
       goalId: selectedGoalId || undefined,
     };
 
-    addTask(input);
+    addTaskMutation.mutate(input);
     router.push('/dashboard');
   };
 
@@ -70,8 +79,8 @@ export default function CreatePage() {
   
   // Sort goals for recommendations: Focus goals first, then in_progress, then by priority
   const sortedGoals = [...activeGoals].sort((a, b) => {
-    const aIsFocus = (useAppStore.getState().focusGoalIds || []).includes(a.id) ? 1 : 0;
-    const bIsFocus = (useAppStore.getState().focusGoalIds || []).includes(b.id) ? 1 : 0;
+    const aIsFocus = (focusGoalIds || []).includes(a.id) ? 1 : 0;
+    const bIsFocus = (focusGoalIds || []).includes(b.id) ? 1 : 0;
     if (aIsFocus !== bIsFocus) return bIsFocus - aIsFocus; // Focus first
     
     const statusOrder = { 'in_progress': 0, 'not_started': 1, 'completed': 2 };

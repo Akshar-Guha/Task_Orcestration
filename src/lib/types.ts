@@ -146,10 +146,12 @@ export type TimelineEventType =
 
 export interface TimelineEvent {
   id: string;
+  userId: string;
   timestamp: string;
   eventType: TimelineEventType;
   goalId?: string;
   taskId?: string;
+  relatedId?: string;
   details?: string;
   metadata?: Record<string, unknown>;
 }

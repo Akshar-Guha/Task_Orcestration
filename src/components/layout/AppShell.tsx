@@ -1,7 +1,6 @@
 'use client';
 
-import { ReactNode, useEffect } from 'react';
-import { useAppStore } from '@/lib/store';
+import { ReactNode } from 'react';
 import { Header } from './Header';
 import { MobileNav } from './MobileNav';
 
@@ -14,41 +13,8 @@ interface AppShellProps {
 }
 
 export function AppShell({ children }: AppShellProps) {
-  const { trackInteraction } = useAppStore();
   const pathname = usePathname();
   const isLandingPage = pathname === '/';
-
-  useEffect(() => {
-    // Throttled activity tracker
-    let lastUpdate = 0;
-    const THROTTLE_MS = 60000; // Update max once per minute to avoid spamming store
-
-    const handleActivity = () => {
-      const now = Date.now();
-      if (now - lastUpdate > THROTTLE_MS) {
-        trackInteraction();
-        lastUpdate = now;
-      }
-    };
-
-    // Listen for common user interactions
-    window.addEventListener('mousemove', handleActivity);
-    window.addEventListener('keydown', handleActivity);
-    window.addEventListener('click', handleActivity);
-    window.addEventListener('touchstart', handleActivity);
-
-    // Initial update on mount
-    trackInteraction();
-
-    return () => {
-      window.removeEventListener('mousemove', handleActivity);
-      window.removeEventListener('keydown', handleActivity);
-      window.removeEventListener('click', handleActivity);
-      window.removeEventListener('touchstart', handleActivity);
-    };
-  }, [trackInteraction]);
-
-  // Bypass shell for mobile/PWA landing page
   if (isLandingPage) {
     return (
       <div className="min-h-screen min-h-[100dvh] bg-slate-950 text-slate-100 dark">

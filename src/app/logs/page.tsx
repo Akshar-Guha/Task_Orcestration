@@ -1,8 +1,8 @@
 'use client';
 
 import { useState } from 'react';
-import { useAppStore } from '@/lib/store';
 import type { TimelineEventType } from '@/lib/types';
+import { useTimelineEvents, useTasks, useGoals } from '@/lib/hooks/useSupabase';
 
 const EVENT_CATEGORIES: { label: string; types: TimelineEventType[]; icon: string; color: string }[] = [
   {
@@ -32,7 +32,9 @@ const EVENT_CATEGORIES: { label: string; types: TimelineEventType[]; icon: strin
 ];
 
 export default function LogsPage() {
-  const { timelineEvents, tasks, goals } = useAppStore();
+  const { data: timelineEvents = [] } = useTimelineEvents();
+  const { data: tasks = [] } = useTasks();
+  const { data: goals = [] } = useGoals();
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
   
   const events = timelineEvents || [];

@@ -13,7 +13,9 @@ function getSupabase(): SupabaseClient {
     const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
     
     if (!url || !key) {
-      throw new Error('Supabase environment variables not configured');
+      // During build time or if misconfigured, log warning instead of throwing to allow static generation
+      console.warn('Supabase environment variables not configured. Device auth will be disabled.');
+      return null as unknown as SupabaseClient; // Potentially dangerous at runtime but prevents build crash
     }
     
     _supabaseClient = createClient(url, key);
@@ -82,6 +84,8 @@ export async function validatePin(pin: string): Promise<boolean> {
 export async function registerDevice(token: string): Promise<boolean> {
   try {
     const supabase = getSupabase();
+    if (!supabase) return false;
+    
     const { error } = await supabase
       .from('authorized_devices')
       .insert({ device_token: token });
@@ -103,6 +107,8 @@ export async function registerDevice(token: string): Promise<boolean> {
 export async function isDeviceAuthorized(token: string): Promise<boolean> {
   try {
     const supabase = getSupabase();
+    if (!supabase) return false;
+
     const { data, error } = await supabase
       .from('authorized_devices')
       .select('id')
@@ -132,6 +138,8 @@ export async function isDeviceAuthorized(token: string): Promise<boolean> {
 export async function revokeAllSessions(): Promise<boolean> {
   try {
     const supabase = getSupabase();
+    if (!supabase) return false;
+
     const { error } = await supabase
       .from('authorized_devices')
       .delete()

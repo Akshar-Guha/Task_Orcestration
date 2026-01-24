@@ -3,6 +3,12 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAppStore } from '@/lib/store';
+import { 
+  useGoals, useTasks, useTimeSlots, 
+  useUpdateGoal, useDeleteGoal, 
+  useUpdateTask, useDeleteTask, 
+  useAddTimeSlot, useUpdateTimeSlot, useDeleteTimeSlot 
+} from '@/lib/hooks/useSupabase';
 import type { Goal, Task, TimeSlot, TimeSlotType } from '@/lib/types';
 import { TIME_SLOT_LABELS, TIME_SLOT_COLORS, formatDuration } from '@/lib/types';
 
@@ -10,20 +16,22 @@ type EditTab = 'timeslots' | 'goals' | 'tasks';
 
 export default function EditPage() {
   const router = useRouter();
-  const {
-    timeSlots,
-    goals,
-    tasks,
-    updateGoal,
-    deleteGoal,
-    updateTask,
-    deleteTask,
-    addTimeSlot,
-    updateTimeSlot,
-    deleteTimeSlot,
-    focusGoalIds,
-    toggleFocusGoal,
-  } = useAppStore();
+  
+  // React Query hooks
+  const { data: timeSlots = [] } = useTimeSlots();
+  const { data: goals = [] } = useGoals();
+  const { data: tasks = [] } = useTasks();
+  
+  const updateGoalMutation = useUpdateGoal();
+  const deleteGoalMutation = useDeleteGoal();
+  const updateTaskMutation = useUpdateTask();
+  const deleteTaskMutation = useDeleteTask();
+  const addTimeSlotMutation = useAddTimeSlot();
+  const updateTimeSlotMutation = useUpdateTimeSlot();
+  const deleteTimeSlotMutation = useDeleteTimeSlot();
+  
+  // UI State from store (focus only)
+  const { focusGoalIds, toggleFocusGoal } = useAppStore();
 
   const [activeTab, setActiveTab] = useState<EditTab>('timeslots');
   const [hasChanges, setHasChanges] = useState(false);
@@ -40,34 +48,44 @@ export default function EditPage() {
     setEditingTasks(JSON.parse(JSON.stringify(tasks)));
   }, [timeSlots, goals, tasks]);
 
-  const handleSave = () => {
+  const handleSave = async () => {
+    const promises = [];
+
     // Save time slots
-    editingSlots.forEach((slot) => {
+    for (const slot of editingSlots) {
       const existing = timeSlots.find((ts) => ts.id === slot.id);
-      if (existing) {
-        updateTimeSlot(slot.id, slot);
+      // Rough check for changes to minimize requests
+      if (existing && JSON.stringify(existing) !== JSON.stringify(slot)) {
+         promises.push(updateTimeSlotMutation.mutateAsync({ id: slot.id, updates: slot }));
       }
-    });
+    }
 
     // Save goals
-    editingGoals.forEach((g) => {
-      updateGoal(g.id, g);
-    });
+    for (const g of editingGoals) {
+      const existing = goals.find(ex => ex.id === g.id);
+      if (existing && JSON.stringify(existing) !== JSON.stringify(g)) {
+        promises.push(updateGoalMutation.mutateAsync({ id: g.id, updates: g }));
+      }
+    }
 
     // Save tasks
-    editingTasks.forEach((t) => {
-      const original = tasks.find((task) => task.id === t.id);
-      if (original) {
-        updateTask(t.id, {
-          title: t.title,
-          description: t.description,
-          estimatedMinutes: t.estimatedMinutes,
-          goalId: t.goalId,        // FIX: Include goalId so reassignment works
-          isDaily: t.isDaily,      // FIX: Include isDaily so toggle persists
-        });
+    for (const t of editingTasks) {
+      const existing = tasks.find(ex => ex.id === t.id);
+      if (existing && JSON.stringify(existing) !== JSON.stringify(t)) {
+        promises.push(updateTaskMutation.mutateAsync({ 
+          id: t.id, 
+          updates: {
+            title: t.title,
+            description: t.description,
+            estimatedMinutes: t.estimatedMinutes,
+            goalId: t.goalId,
+            isDaily: t.isDaily
+          }
+        }));
       }
-    });
+    }
 
+    await Promise.all(promises);
     setHasChanges(false);
     router.push('/dashboard');
   };
@@ -78,20 +96,24 @@ export default function EditPage() {
   };
 
   const addNewTimeSlot = () => {
-    const newSlot: TimeSlot = {
-      id: `slot-${Date.now()}`,
-      name: 'New Time Slot',
-      type: 'work',
-      startTime: '09:00',
-      endTime: '12:00',
-      color: TIME_SLOT_COLORS.work,
-      goalIds: [],
-      isActive: true,
-      createdAt: new Date().toISOString(),
-    };
-    setEditingSlots([...editingSlots, newSlot]);
-    addTimeSlot({ name: newSlot.name, type: newSlot.type, startTime: newSlot.startTime, endTime: newSlot.endTime });
-    setHasChanges(true);
+    // Optimistic update for UI is handled by query invalidation, 
+    // but here we are in "editing" mode local state.
+    // Ideally we assume success or wait.
+    // Since we are adding to server immediately:
+    
+    addTimeSlotMutation.mutate({ 
+        name: 'New Time Slot', 
+        type: 'work', 
+        startTime: '09:00', 
+        endTime: '12:00' 
+    }, {
+        onSuccess: () => {
+            // Refetch will update timeSlots, and useEffect will update editingSlots.
+            // But we might want to manually add to editingSlots to show it immediately if useEffect laggy?
+            // Actually, useEffect will trigger on timeSlots change.
+        }
+    });
+    // setHasChanges(true); // Technically saved to server, so no "unsaved" changes unless we edit it further.
   };
 
   return (
@@ -249,21 +271,21 @@ export default function EditPage() {
                         <button
                           onClick={() => {
                             if (confirm(`Delete "${slot.name}"?`)) {
-                              setEditingSlots(editingSlots.filter((s) => s.id !== slot.id));
-                              deleteTimeSlot(slot.id);
-                              setHasChanges(true);
-                            }
-                          }}
-                          className="min-h-[44px] px-4 py-3 bg-red-600 hover:bg-red-700 text-white rounded-lg font-medium transition-all"
-                          style={{ fontSize: '16px' }}
-                        >
-                          🗑️ Delete
-                        </button>
-                      </div>
+                            setEditingSlots(editingSlots.filter((s) => s.id !== slot.id));
+                            deleteTimeSlotMutation.mutate(slot.id);
+                            setHasChanges(true); // Deletion is immediate on server, but we flag UI changes? Actually delete is immediate.
+                          }
+                        }}
+                        className="min-h-[44px] px-4 py-3 bg-red-600 hover:bg-red-700 text-white rounded-lg font-medium transition-all"
+                        style={{ fontSize: '16px' }}
+                      >
+                        🗑️ Delete
+                      </button>
                     </div>
+                  </div>
 
-                    {/* Goals in this slot */}
-                    <div className="space-y-2">
+                  {/* Goals in this slot */}
+                  <div className="space-y-2">
                       <h4 className="text-sm font-medium text-slate-400 mb-2">
                         Goals in this slot ({(slot.goalIds || []).length})
                       </h4>
@@ -414,8 +436,11 @@ export default function EditPage() {
                         onClick={() => {
                           if (confirm(`Delete goal "${goal.title}"?`)) {
                             setEditingGoals(editingGoals.filter((g) => g.id !== goal.id));
-                            deleteGoal(goal.id);
-                            setHasChanges(true);
+                            deleteGoalMutation.mutate(goal.id);
+                            // Deletions are immediate, no need to flag setHasChanges for SAVE button, 
+                            // but maybe keep it for consistency? 
+                            // If we save, we don't want to re-delete.
+                            // But handleSave only iterates editingGoals.
                           }
                         }}
                         className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg text-sm transition-all"
@@ -683,8 +708,7 @@ export default function EditPage() {
                       onClick={() => {
                         if (confirm(`Delete task "${task.title}"?`)) {
                           setEditingTasks(editingTasks.filter((t) => t.id !== task.id));
-                          deleteTask(task.id);
-                          setHasChanges(true);
+                          deleteTaskMutation.mutate(task.id);
                         }
                       }}
                       className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg text-sm transition-all"

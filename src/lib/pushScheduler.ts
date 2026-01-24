@@ -10,8 +10,9 @@
 
 'use client';
 
-import { useEffect, useRef } from 'react';
-import { useAppStore } from '@/lib/store';
+import { useEffect } from 'react';
+import { useAppStore } from '@/lib/store'; // Keep for focusGoalIds
+import { useTasks, useGoals } from '@/lib/hooks/useSupabase';
 
 const PUSH_API_URL = '/api/push/send';
 
@@ -53,57 +54,56 @@ function msUntilTime(hours: number, minutes: number = 0): number {
 }
 
 // Morning reminder notification
-export function scheduleMorningReminder(onSend?: () => void) {
-  const msUntil7AM = msUntilTime(7, 0);
+// Morning reminder notification
+export function useMorningReminderScheduler() {
+  const { data: tasks = [] } = useTasks();
+  const { data: goals = [] } = useGoals();
+  const focusGoalIds = useAppStore(state => state.focusGoalIds);
   
-  console.log(`[PushScheduler] Morning reminder scheduled in ${Math.round(msUntil7AM / 60000)} minutes`);
-  
-  return setTimeout(async () => {
-    const store = useAppStore.getState();
-    const todayTasks = store.tasks.filter(t => !t.isCompleted && !t.isArchived);
-    const focusGoals = store.goals.filter(g => store.focusGoalIds.includes(g.id));
+  useEffect(() => {
+    const msUntil7AM = msUntilTime(7, 0);
+    console.log(`[PushScheduler] Morning reminder scheduled in ${Math.round(msUntil7AM / 60000)} minutes`);
     
-    const body = focusGoals.length > 0
-      ? `Focus on: ${focusGoals[0].title}. ${todayTasks.length} tasks waiting.`
-      : `You have ${todayTasks.length} tasks to tackle today. Let's go! 💪`;
+    const timeout = setTimeout(async () => {
+      const todayTasks = tasks.filter(t => !t.isCompleted && !t.isArchived);
+      const focusGoals = goals.filter(g => focusGoalIds.includes(g.id));
+      
+      const body = focusGoals.length > 0
+        ? `Focus on: ${focusGoals[0].title}. ${todayTasks.length} tasks waiting.`
+        : `You have ${todayTasks.length} tasks to tackle today. Let's go! 💪`;
+      
+      await sendPushNotification(
+        '☀️ Good Morning!',
+        body,
+        '/dashboard'
+      );
+    }, msUntil7AM);
     
-    await sendPushNotification(
-      '☀️ Good Morning!',
-      body,
-      '/dashboard'
-    );
-    
-    onSend?.();
-    
-    // Reschedule for next day
-    scheduleMorningReminder(onSend);
-  }, msUntil7AM);
+    return () => clearTimeout(timeout);
+  }, [tasks, goals, focusGoalIds]);
 }
 
 // Diary reminder notification (8 PM)
-export function scheduleDiaryReminder(onSend?: () => void) {
-  const msUntil8PM = msUntilTime(20, 0);
-  
-  console.log(`[PushScheduler] Diary reminder scheduled in ${Math.round(msUntil8PM / 60000)} minutes`);
-  
-  return setTimeout(async () => {
-    // Check if diary entry exists for today
-    // Note: This requires diary entries to be loaded in the future
-    const hasEntryToday = false; // TODO: Check from API
+function useDiaryReminderScheduler() {
+  useEffect(() => {
+    const msUntil8PM = msUntilTime(20, 0);
+    console.log(`[PushScheduler] Diary reminder scheduled in ${Math.round(msUntil8PM / 60000)} minutes`);
     
-    if (!hasEntryToday) {
-      await sendPushNotification(
-        '📝 How was your day?',
-        'Take a moment to reflect on your wins and challenges.',
-        '/diary/new'
-      );
-    }
+    const timeout = setTimeout(async () => {
+      // TODO: Check if diary entry exists for today via API
+      const hasEntryToday = false; 
+      
+      if (!hasEntryToday) {
+        await sendPushNotification(
+          '📝 How was your day?',
+          'Take a moment to reflect on your wins and challenges.',
+          '/diary/new'
+        );
+      }
+    }, msUntil8PM);
     
-    onSend?.();
-    
-    // Reschedule for next day
-    scheduleDiaryReminder(onSend);
-  }, msUntil8PM);
+    return () => clearTimeout(timeout);
+  }, []);
 }
 
 // Task completion celebration
@@ -126,59 +126,49 @@ export function sendTaskCompletionNotification(taskTitle: string) {
 }
 
 // Goal deadline approaching (check daily)
-export function checkGoalDeadlines() {
-  const store = useAppStore.getState();
-  const now = new Date();
+function useDeadlineScheduler() {
+  const { data: goals = [] } = useGoals();
   const oneDayMs = 24 * 60 * 60 * 1000;
-  
-  store.goals
-    .filter(g => !g.isArchived && g.status !== 'completed')
-    .forEach(goal => {
-      // Check if goal has a deadline in metadata
-      const metadata = goal.metadata as Record<string, unknown> | undefined;
-      const deadline = metadata?.deadline as string | undefined;
-      
-      if (deadline) {
-        const deadlineDate = new Date(deadline);
-        const timeUntil = deadlineDate.getTime() - now.getTime();
-        
-        // If deadline is within 24 hours
-        if (timeUntil > 0 && timeUntil <= oneDayMs) {
-          sendPushNotification(
-            '⏰ Deadline Approaching!',
-            `"${goal.title}" is due tomorrow.`,
-            '/goals'
-          );
-        }
-      }
-    });
+
+  useEffect(() => {
+    const checkDeadlines = () => {
+      const now = new Date();
+      goals
+        .filter(g => !g.isArchived && g.status !== 'completed')
+        .forEach(goal => {
+          const metadata = goal.metadata as Record<string, unknown> | undefined;
+          const deadline = metadata?.deadline as string | undefined;
+          
+          if (deadline) {
+            const deadlineDate = new Date(deadline);
+            const timeUntil = deadlineDate.getTime() - now.getTime();
+            
+            if (timeUntil > 0 && timeUntil <= oneDayMs) {
+              sendPushNotification(
+                '⏰ Deadline Approaching!',
+                `"${goal.title}" is due tomorrow.`,
+                '/goals'
+              );
+            }
+          }
+        });
+    };
+
+    checkDeadlines();
+    const interval = setInterval(checkDeadlines, 6 * 60 * 60 * 1000);
+    return () => clearInterval(interval);
+  }, [goals]);
 }
 
 // React hook to manage all scheduled notifications
 export function usePushNotificationScheduler() {
-  const morningTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-  const diaryTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-  const deadlineIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  // Use specialized hooks
+  useMorningReminderScheduler();
+  useDeadlineScheduler();
   
-  useEffect(() => {
-    // Schedule morning reminder
-    morningTimeoutRef.current = scheduleMorningReminder();
-    
-    // Schedule diary reminder
-    diaryTimeoutRef.current = scheduleDiaryReminder();
-    
-    // Check goal deadlines every 6 hours
-    checkGoalDeadlines(); // Check immediately
-    deadlineIntervalRef.current = setInterval(checkGoalDeadlines, 6 * 60 * 60 * 1000);
-    
-    console.log('[PushScheduler] All notifications scheduled');
-    
-    return () => {
-      if (morningTimeoutRef.current) clearTimeout(morningTimeoutRef.current);
-      if (diaryTimeoutRef.current) clearTimeout(diaryTimeoutRef.current);
-      if (deadlineIntervalRef.current) clearInterval(deadlineIntervalRef.current);
-    };
-  }, []);
+  // Diary reminder can be independent hook too, but for now inline is fine or keep as is?
+  // Let's migrate diary reminder to hook pattern too for consistency
+  useDiaryReminderScheduler();
 }
 
 // Component to enable push notification scheduling

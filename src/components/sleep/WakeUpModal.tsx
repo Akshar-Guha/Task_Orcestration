@@ -1,8 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { useAppStore } from '@/lib/store';
-import { triggerWakeUpEmail } from '@/lib/emailTrigger';
+import { useRecordWakeUp, useResetDailyTasks } from '@/lib/hooks/useSupabase';
 import type { MoodLevel } from '@/lib/types';
 
 interface WakeUpModalProps {
@@ -10,7 +9,8 @@ interface WakeUpModalProps {
 }
 
 export function WakeUpModal({ onClose }: WakeUpModalProps) {
-  const { recordWakeUp, resetDailyTasks, syncToCloud } = useAppStore();
+  const recordWakeUpMutation = useRecordWakeUp();
+  const resetDailyTasksMutation = useResetDailyTasks();
   
   // Get current time as default
   const now = new Date();
@@ -32,30 +32,19 @@ export function WakeUpModal({ onClose }: WakeUpModalProps) {
       selectedTime.setHours(hours, minutes, 0, 0);
       const adjustedMinutes = Math.round((now.getTime() - selectedTime.getTime()) / (1000 * 60));
       
-      // 1. Get yesterday's date for archiving
-      const yesterday = new Date();
-      yesterday.setDate(yesterday.getDate() - 1);
-      const yesterdayStr = yesterday.toISOString().split('T')[0];
+      // 1. Reset daily tasks (server-side via mutation)
+      await resetDailyTasksMutation.mutateAsync();
       
-      // 2. Archive previous day and reset daily tasks
-      await resetDailyTasks(yesterdayStr);
-      
-      // 3. Record wake-up time and mood
-      recordWakeUp(adjustedMinutes, mood);
-      
-      // 4. Trigger wake-up email notification
-      console.log('[WakeUpModal] Triggering wake-up email...');
-      triggerWakeUpEmail(String(mood)).catch(err => 
-        console.error('[WakeUpModal] Email trigger failed:', err)
-      );
-      
-      // 5. Sync to cloud
-      await syncToCloud();
+      // 2. Record wake-up time and mood
+      await recordWakeUpMutation.mutateAsync({ adjustedMinutes, mood });
       
       onClose();
     } catch (err) {
       console.error('[WakeUpModal] Error:', err);
+      // Optional: Show error toast
       onClose();
+    } finally {
+      setIsSubmitting(false);
     }
   };
 

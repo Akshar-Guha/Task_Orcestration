@@ -1,7 +1,7 @@
 'use client';
 
-import { useAppStore } from '@/lib/store';
 import { LEVEL_LABELS, LEVEL_COLORS, type GoalLevel } from '@/lib/types';
+import { useGoals, useTasks, useDeleteGoal, useTaskGoalLinks, useClearUserData } from '@/lib/hooks/useSupabase';
 
 const LEVELS: GoalLevel[] = ['yearly', 'quarterly', 'monthly', 'weekly'];
 const LEVEL_ICONS: Record<GoalLevel, string> = {
@@ -13,7 +13,34 @@ const LEVEL_ICONS: Record<GoalLevel, string> = {
 };
 
 export default function GoalsPage() {
-  const { goals, tasks, getGoalProgress, getLinksForGoal, deleteGoal, loadSampleData, clearAll } = useAppStore();
+  // React Query data
+  const { data: goals = [] } = useGoals();
+  const { data: tasks = [] } = useTasks();
+  const { data: links = [] } = useTaskGoalLinks();
+  
+  const deleteGoalMutation = useDeleteGoal();
+  const clearUserDataMutation = useClearUserData();
+  
+  // Helpers
+  const getGoalProgress = (goalId: string) => {
+    const relativeTasks = tasks.filter(t => t.goalId === goalId && !t.isArchived);
+    if (relativeTasks.length === 0) return 0;
+    
+    const totalMinutes = relativeTasks.reduce((sum, t) => sum + t.estimatedMinutes, 0);
+    const completedMinutes = relativeTasks.filter(t => t.isCompleted).reduce((sum, t) => sum + t.estimatedMinutes, 0);
+    
+    return totalMinutes > 0 ? Math.round((completedMinutes / totalMinutes) * 100) : 0;
+  };
+  
+  const getLinksForGoal = (goalId: string) => {
+    return links.filter(l => l.goalId === goalId);
+  };
+
+  const handleClearAll = async () => {
+    if (confirm('Are you sure you want to delete ALL data? This cannot be undone.')) {
+        clearUserDataMutation.mutate();
+    }
+  };
   
   return (
     <div className="min-h-screen bg-slate-950 pb-24">
@@ -26,16 +53,16 @@ export default function GoalsPage() {
           </div>
           <div className="flex gap-2">
             {goals.length === 0 && (
-              <button
-                onClick={loadSampleData}
+              <a
+                href="/edit"
                 className="px-3 py-1.5 text-xs bg-violet-500/20 border border-violet-500/40 text-violet-400 rounded-lg"
               >
-                Load Examples
-              </button>
+                Create Goal
+              </a>
             )}
             {goals.length > 0 && (
               <button
-                onClick={() => { if (confirm('Clear all?')) clearAll(); }}
+                onClick={handleClearAll}
                 className="px-3 py-1.5 text-xs bg-red-500/10 border border-red-500/30 text-red-400 rounded-lg"
               >
                 Clear All
@@ -76,8 +103,8 @@ export default function GoalsPage() {
                   <div className="space-y-2">
                     {levelGoals.map((goal) => {
                       const progress = getGoalProgress(goal.id);
-                      const links = getLinksForGoal(goal.id);
-                      const linkedTasks = links.map(link => ({
+                      const myLinks = getLinksForGoal(goal.id);
+                      const linkedTasks = myLinks.map(link => ({
                         task: tasks.find(t => t.id === link.taskId),
                         weight: link.contributionWeight
                       })).filter(item => item.task);
@@ -120,7 +147,7 @@ export default function GoalsPage() {
                               <button
                                 onClick={(e) => {
                                   e.stopPropagation();
-                                  if (confirm('Delete this goal?')) deleteGoal(goal.id);
+                                  if (confirm('Delete this goal?')) deleteGoalMutation.mutate(goal.id);
                                 }}
                                 className="text-slate-600 hover:text-red-400"
                               >
@@ -142,9 +169,7 @@ export default function GoalsPage() {
                                 <div className="text-xs text-slate-500 uppercase tracking-wider mb-2">Linked Tasks</div>
                                 {linkedTasks.map(({ task, weight }) => {
                                   if (!task) return null;
-                                  const taskProgress = task.isRepeating 
-                                    ? `${task.completedCount}/${task.requiredCount}`
-                                    : task.isCompleted ? '✓' : '—';
+                                  const taskProgress = task.isCompleted ? '✓' : '—';
                                   
                                   return (
                                     <div key={task.id} className="flex items-center gap-2 p-2 bg-slate-800/50 rounded-lg">

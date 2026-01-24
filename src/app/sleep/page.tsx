@@ -1,11 +1,10 @@
 'use client';
 
 import { useState } from 'react';
-import { useAppStore } from '@/lib/store';
 import Link from 'next/link';
 import { motion } from 'framer-motion';
 import { WakeUpModal } from '@/components/sleep/WakeUpModal';
-import { triggerEmail } from '@/lib/emailTrigger';
+import { useSleepLogs, useRecordSleep } from '@/lib/hooks/useSupabase';
 
 // Quick Actions component for manual wake-up/sleep entry
 function QuickActions() {
@@ -13,7 +12,8 @@ function QuickActions() {
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState('');
   
-  const { recordSleep, sleepWakeLogs } = useAppStore();
+  const { data: sleepWakeLogs = [] } = useSleepLogs();
+  const recordSleepMutation = useRecordSleep();
   
   const today = new Date().toISOString().split('T')[0];
   const todayLog = sleepWakeLogs.find(log => log.date === today);
@@ -22,8 +22,7 @@ function QuickActions() {
     setLoading(true);
     setMessage('');
     try {
-      recordSleep();
-      await triggerEmail('sleep');
+      await recordSleepMutation.mutateAsync();
       setMessage('✅ Sleep time recorded!');
     } catch {
       setMessage('❌ Failed to record sleep');
@@ -96,8 +95,30 @@ function QuickActions() {
 }
 
 export default function SleepPage() {
-  const { getSleepLogs, getSleepStats } = useAppStore();
-  const logs = getSleepLogs(30); // Get last 30 days
+  const { data: logs = [] } = useSleepLogs();
+
+  const getSleepStats = () => {
+    if (logs.length === 0) return {
+      averageMood: 0,
+      averageSleepDuration: 0,
+      sleepDebtMinutes: 0
+    };
+
+    const totalMood = logs.reduce((sum, log) => sum + (log.wakeUpMood || 0), 0);
+    const totalDuration = logs.reduce((sum, log) => sum + (log.sleepDurationMinutes || 0), 0);
+    const targetMinutes = 8 * 60;
+    const totalDebt = logs.reduce((sum, log) => {
+      if (!log.sleepDurationMinutes) return sum;
+      return sum + (targetMinutes - log.sleepDurationMinutes);
+    }, 0);
+
+    return {
+      averageMood: totalMood / (logs.length || 1) / 5, // Normalize to 0-1
+      averageSleepDuration: Math.round(totalDuration / (logs.length || 1)),
+      sleepDebtMinutes: totalDebt
+    };
+  };
+
   const stats = getSleepStats();
 
   const getMoodEmoji = (level?: number) => {

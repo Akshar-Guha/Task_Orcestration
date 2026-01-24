@@ -2,8 +2,8 @@
 
 import Link from 'next/link';
 import { useMemo } from 'react';
-import { useAppStore } from '@/lib/store';
 import { TimelineEvent } from '@/lib/types';
+import { useTimelineEvents, useSleepLogs, useProductivity } from '@/lib/hooks/useSupabase';
 
 // Get all days from Jan 1, 2026 up to today (max 365 days)
 function getLast365Days() {
@@ -22,8 +22,34 @@ function getLast365Days() {
 }
 
 export default function ProfilePage() {
-  const { timelineEvents, getSleepStats, productivityLogs } = useAppStore();
-  const sleepStats = getSleepStats();
+  const { data: timelineEvents = [] } = useTimelineEvents();
+  const { data: sleepLogs = [] } = useSleepLogs();
+  const { data: productivityData } = useProductivity();
+
+  // Helper to calculate sleep stats (previously in store)
+  const sleepStats = useMemo(() => {
+    if (sleepLogs.length === 0) return {
+      averageMood: 0,
+      averageSleepDuration: 0,
+      sleepDebtMinutes: 0,
+      streakDays: 0
+    };
+
+    const totalMood = sleepLogs.reduce((sum, log) => sum + (log.wakeUpMood || 0), 0);
+    const totalDuration = sleepLogs.reduce((sum, log) => sum + (log.sleepDurationMinutes || 0), 0);
+    const targetMinutes = 8 * 60;
+    const totalDebt = sleepLogs.reduce((sum, log) => {
+      if (!log.sleepDurationMinutes) return sum;
+      return sum + (targetMinutes - log.sleepDurationMinutes);
+    }, 0);
+
+    return {
+      averageMood: totalMood / (sleepLogs.length || 1) / 5, // Normalize to 0-1
+      averageSleepDuration: Math.round(totalDuration / (sleepLogs.length || 1)),
+      sleepDebtMinutes: totalDebt,
+      streakDays: sleepLogs.length // Simple streak for now
+    };
+  }, [sleepLogs]);
   
   // Group timeline events by date (replacing activities)
   const eventsByDate = useMemo(() => {
@@ -38,12 +64,13 @@ export default function ProfilePage() {
   
   // Calculate completion percentage for a date using productivity logs
   const getCompletionPercentage = (date: string) => {
-    const dayLog = (productivityLogs || []).find(l => l.date === date);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const dayLog = productivityData?.logs.find((l: any) => l.date === date);
     const dayEvents = eventsByDate[date] || [];
     
-    if (dayLog && dayLog.productiveMinutes > 0) {
+    if (dayLog && dayLog.productive_minutes > 0) {
       // Use productivity percentage (capped at 100)
-      return Math.min(100, Math.round((dayLog.productiveMinutes / (8 * 60)) * 100));
+      return Math.min(100, Math.round((dayLog.productive_minutes / (8 * 60)) * 100));
     }
     
     if (dayEvents.length === 0) return 0;

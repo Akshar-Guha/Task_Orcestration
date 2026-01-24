@@ -8,7 +8,7 @@
  */
 
 import { useEffect, useRef } from 'react';
-import { useAppStore } from '@/lib/store';
+import { useGoals, useTasks, useTimeSlots, useUserSettings } from '@/lib/hooks/useSupabase';
 import type { TimeSlot } from '@/lib/types';
 
 // Check if browser notifications are supported
@@ -76,7 +76,7 @@ function msUntilSlotEnd(slot: TimeSlot): number {
 }
 
 // Generate summary for a time slot
-function generateRoutineSummary(slot: TimeSlot, goals: ReturnType<typeof useAppStore.getState>['goals'], tasks: ReturnType<typeof useAppStore.getState>['tasks']): string {
+function generateRoutineSummary(slot: TimeSlot, goals: any[], tasks: any[]): string {
   const slotGoals = goals.filter(g => slot.goalIds.includes(g.id));
   const slotTasks = tasks.filter(t => slotGoals.some(g => g.id === t.goalId));
   const completed = slotTasks.filter(t => t.isCompleted);
@@ -95,12 +95,15 @@ function generateRoutineSummary(slot: TimeSlot, goals: ReturnType<typeof useAppS
 export function useRoutineNotifications() {
   const timeoutsRef = useRef<Map<string, NodeJS.Timeout>>(new Map());
   
+  // Use React Query hooks instead of safe store access
+  const { data: timeSlots = [] } = useTimeSlots();
+  const { data: goals = [] } = useGoals();
+  const { data: tasks = [] } = useTasks();
+  const { data: userSettings } = useUserSettings();
+  
   useEffect(() => {
-    const store = useAppStore.getState();
-    const { timeSlots, userSettings } = store;
-    
     // Check if notifications are enabled
-    if (!userSettings.enableDailySummaryReminder) {
+    if (!userSettings?.enableDailySummaryReminder) {
       return;
     }
     
@@ -118,19 +121,18 @@ export function useRoutineNotifications() {
       // Only schedule if less than 24 hours away
       if (msUntil < 24 * 60 * 60 * 1000) {
         const timeout = setTimeout(() => {
-          const currentStore = useAppStore.getState();
-          const summary = generateRoutineSummary(slot, currentStore.goals, currentStore.tasks);
+          // Use the data captured partly in closure, but ideally we'd refetch or use refs
+          // For simplicity/reliability in this effect-based scheduler, we use the latest props from the render cycle
+          // warning: this might use "stale" data captured at effect time if dependencies don't update.
+          // However, since we add them to dep array, it will reschedule when data changes.
+          
+          const summary = generateRoutineSummary(slot, goals, tasks);
           
           showNotification(
             `${slot.name} Complete 🎯`,
             summary
           );
           
-          // Reschedule for next day
-          const nextTimeout = setTimeout(() => {
-            // This will reschedule via the effect re-run
-          }, 24 * 60 * 60 * 1000);
-          timeoutsRef.current.set(`${slot.id}-next`, nextTimeout);
         }, msUntil);
         
         timeoutsRef.current.set(slot.id, timeout);
@@ -146,7 +148,7 @@ export function useRoutineNotifications() {
       currentTimeouts.forEach(timeout => clearTimeout(timeout));
       currentTimeouts.clear();
     };
-  }, []);
+  }, [timeSlots, goals, tasks, userSettings]); // Re-schedule when data changes
 }
 
 /**

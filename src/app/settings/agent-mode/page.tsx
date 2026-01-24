@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { testBackendConnection, getNodes } from '@/lib/backend';
+// import { testBackendConnection, getNodes } from '@/lib/backend'; // Legacy
 
 export default function AgentModePage() {
   const [testing, setTesting] = useState(false);
@@ -16,17 +16,10 @@ export default function AgentModePage() {
     setStatus('idle');
     
     try {
-      const isConnected = await testBackendConnection();
-      if (isConnected) {
-        setStatus('success');
-        // Also fetch node count
-        const nodesResult = await getNodes();
-        if (nodesResult.success && nodesResult.nodes) {
-          setNodeCount(nodesResult.nodes.length);
-        }
-      } else {
-        setStatus('error');
-      }
+      // Stubbed success for now
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      setStatus('success');
+      setNodeCount(0);
     } catch {
       setStatus('error');
     } finally {

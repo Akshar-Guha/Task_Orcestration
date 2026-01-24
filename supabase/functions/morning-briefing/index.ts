@@ -9,7 +9,7 @@ const corsHeaders = {
 const GROQ_API_KEY = Deno.env.get('GROQ_API_KEY') || '';
 const USER_ID = Deno.env.get('DEFAULT_USER_ID') || '';
 
-serve(async (req) => {
+serve(async (req: Request) => {
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders });
   }
@@ -50,9 +50,12 @@ serve(async (req) => {
       .limit(3);
 
     // Build context for AI
-    const taskList = tasks?.map(t => `- ${t.title} (${t.status || 'pending'})`).join('\n') || 'No tasks scheduled';
-    const goalList = goals?.map(g => `- ${g.title}`).join('\n') || 'No active goals';
-    const recentNotes = memories?.map(m => m.metadata?.keywords || '').filter(Boolean).join(', ') || 'No recent notes';
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const taskList = tasks?.map((t: any) => `- ${t.title} (${t.status || 'pending'})`).join('\n') || 'No tasks scheduled';
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const goalList = goals?.map((g: any) => `- ${g.title}`).join('\n') || 'No active goals';
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const recentNotes = memories?.map((m: any) => m.metadata?.keywords || '').filter(Boolean).join(', ') || 'No recent notes';
 
     // Generate briefing with Groq
     let briefing = '';

@@ -1,9 +1,17 @@
 'use client';
 
-import { useAppStore } from '@/lib/store';
+import { useUserSettings, useUpdateUserSettings } from '@/lib/hooks/useSupabase';
 
 export default function ProfileSettingsPage() {
-  const { userSettings, updateSettings } = useAppStore();
+  const { data: userSettings } = useUserSettings();
+  const updateSettingsMutation = useUpdateUserSettings();
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const updateSettings = (updates: any) => {
+    updateSettingsMutation.mutate(updates);
+  };
+
+  if (!userSettings) return <div>Loading...</div>;
 
   return (
     <div className="space-y-6">

@@ -4,6 +4,7 @@ import './globals.css';
 import { AppShell } from '@/components/layout';
 import { AppInitializer } from '@/components/AppInitializer';
 import { DeviceAuthProvider } from '@/components/DeviceAuthProvider';
+import { QueryProvider } from '@/components/providers/QueryProvider';
 
 const inter = Inter({
   subsets: ['latin'],
@@ -14,7 +15,6 @@ export const metadata: Metadata = {
   title: 'GoalTracker - Personal Goal Management',
   description: 'Track your goals, build habits, and achieve your dreams',
   manifest: '/manifest.json',
-  themeColor: '#0f172a',
   appleWebApp: {
     capable: true,
     statusBarStyle: 'black-translucent',
@@ -52,8 +52,10 @@ export default function RootLayout({
       </head>
       <body className={inter.className}>
         <DeviceAuthProvider>
-          <AppInitializer />
-          <AppShell>{children}</AppShell>
+          <QueryProvider>
+            <AppInitializer />
+            <AppShell>{children}</AppShell>
+          </QueryProvider>
         </DeviceAuthProvider>
       </body>
     </html>

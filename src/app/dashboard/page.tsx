@@ -4,21 +4,53 @@ import { useAppStore } from '@/lib/store';
 import { SleepButton } from '@/components/sleep/SleepButton';
 import { formatDuration, TIME_SLOT_LABELS } from '@/lib/types';
 import Link from 'next/link';
+import { 
+  useGoals, 
+  useTasks, 
+  useTimeSlots, 
+  useCompleteTask,
+  useProductivity,
+  useAddTimeSlot
+} from '@/lib/hooks/useSupabase';
 
 export default function DashboardPage() {
-  // Subscribe to all relevant state to ensure re-renders
-  const timeSlots = useAppStore((state) => state.timeSlots);
-  const goals = useAppStore((state) => state.goals);
-  const tasks = useAppStore((state) => state.tasks);
+  // 1. Data from Supabase (React Query)
+  const { data: timeSlots = [] } = useTimeSlots();
+  const { data: goals = [] } = useGoals();
+  const { data: tasks = [] } = useTasks();
+  const { data: productivity } = useProductivity();
 
+  // 2. Mutations
+  const completeTaskMutation = useCompleteTask();
+  const addTimeSlotMutation = useAddTimeSlot();
+
+  // 3. UI State from Zustand (Data persistence removed, only UI state remains)
   const focusGoalIds = useAppStore((state) => state.focusGoalIds);
-  
-  const completeTask = useAppStore((state) => state.completeTask);
-  const initializeDefaultTimeSlots = useAppStore((state) => state.initializeDefaultTimeSlots);
-  const getTodayProductivity = useAppStore((state) => state.getTodayProductivity);
 
-  // Initialize default time slots if none exist
+  const handleInitialize = async () => {
+    const defaultSlots = [
+      { name: 'Morning Routine', type: 'morning' as const, startTime: '06:00', endTime: '09:00' },
+      { name: 'Deep Work', type: 'work' as const, startTime: '09:00', endTime: '12:00' },
+      { name: 'Afternoon', type: 'afternoon' as const, startTime: '14:00', endTime: '17:00' },
+      { name: 'Evening', type: 'evening' as const, startTime: '17:00', endTime: '21:00' },
+    ];
+    
+    // Create slots sequentially or typically parallel is fine
+    for (const slot of defaultSlots) {
+       addTimeSlotMutation.mutate(slot);
+    }
+  };
+
+  // Safe default for productivity
+  const prodStats = productivity || {
+    todayMinutes: 0,
+    todayPercentage: 0,
+    weekMinutes: 0
+  };
+
   if (timeSlots.length === 0) {
+    // If truly empty (and not just loading?), show init. 
+    // Ideally we check isLoading, but for now assuming empty array = no slots.
     return (
       <div className="min-h-screen bg-slate-950 pb-24">
         <div className="max-w-4xl mx-auto px-4 py-6">
@@ -27,7 +59,7 @@ export default function DashboardPage() {
             <h2 className="text-2xl font-bold text-white mb-3">Welcome to Goal Tracker!</h2>
             <p className="text-slate-400 mb-6">Let&apos;s set up your daily time slots</p>
             <button
-              onClick={initializeDefaultTimeSlots}
+              onClick={handleInitialize}
               className="px-6 py-3 bg-violet-600 hover:bg-violet-700 text-white rounded-xl font-medium transition-all"
             >
               Initialize Time Slots
@@ -38,32 +70,27 @@ export default function DashboardPage() {
     );
   }
 
-  const productivity = getTodayProductivity();
   const activeSlots = timeSlots.filter((ts) => ts.isActive).sort((a, b) => a.startTime.localeCompare(b.startTime));
 
-  // Helper to get goals for a slot (computed locally to ensure reactivity)
-  // ROBUST: Check BOTH the slot's goalIds array AND the goal's timeSlotId field
+  // Helper to get goals for a slot
   const getGoalsForSlot = (slotId: string) => {
     const slot = timeSlots.find((ts) => ts.id === slotId);
     if (!slot) return [];
     
     return goals.filter((g) => {
       if (g.isArchived) return false;
-      // Goal is in this slot if:
-      // 1. The slot's goalIds array contains this goal's ID, OR
-      // 2. The goal's timeSlotId references this slot
       return slot.goalIds.includes(g.id) || g.timeSlotId === slotId;
     });
   };
 
-  // Helper to get tasks for a goal (computed locally to ensure reactivity)
+  // Helper to get tasks for a goal
   const getTasksForGoalLocal = (goalId: string) => {
     return tasks.filter((t) => t.goalId === goalId && !t.isArchived);
   };
 
   const handleTaskClick = (taskId: string) => {
     console.log('[Dashboard] Completing task:', taskId);
-    completeTask(taskId);
+    completeTaskMutation.mutate(taskId);
   };
 
   return (
@@ -81,13 +108,13 @@ export default function DashboardPage() {
         <div className="flex items-center justify-between mb-2">
           <span className="text-sm text-slate-400">Today&apos;s Productivity</span>
           <span className="text-lg font-bold text-violet-400">
-            {formatDuration(productivity.todayMinutes)} ({productivity.todayPercentage}%)
+            {formatDuration(prodStats.todayMinutes)} ({prodStats.todayPercentage}%)
           </span>
         </div>
         <div className="w-full h-3 bg-slate-800 rounded-full overflow-hidden">
           <div
             className="h-full bg-gradient-to-r from-violet-500 to-cyan-500 transition-all duration-500"
-            style={{ width: `${Math.min(100, productivity.todayPercentage)}%` }}
+            style={{ width: `${Math.min(100, prodStats.todayPercentage)}%` }}
           />
         </div>
         <div className="flex justify-between mt-2 text-xs text-slate-500">
@@ -98,8 +125,6 @@ export default function DashboardPage() {
           <span>16h</span>
         </div>
       </div>
-
-
 
       {/* Sleep/Wake Button */}
       <SleepButton />

@@ -1,10 +1,17 @@
 'use client';
 
-import { useAppStore } from '@/lib/store';
 import { useState } from 'react';
+import { useGoals, useTasks, useCompleteTask, useDeleteTask, useUncompleteTask, useTaskGoalLinks } from '@/lib/hooks/useSupabase';
 
 export default function TasksPage() {
-  const { tasks, goals, links, completeTask, deleteTask } = useAppStore();
+  // React Query data
+  const { data: tasks = [] } = useTasks();
+  const { data: goals = [] } = useGoals();
+  const { data: links = [] } = useTaskGoalLinks();
+  const completeTaskMutation = useCompleteTask();
+  const uncompleteTaskMutation = useUncompleteTask();
+  const deleteTaskMutation = useDeleteTask();
+  
   const [filter, setFilter] = useState<'all' | 'active' | 'completed'>('active');
 
   const filteredTasks = tasks.filter((t) => {
@@ -72,7 +79,13 @@ export default function TasksPage() {
                   <div className="flex items-start gap-3">
                     {/* Checkbox */}
                     <button
-                      onClick={() => completeTask(task.id)}
+                      onClick={() => {
+                        if (task.isCompleted) {
+                          uncompleteTaskMutation.mutate(task.id);
+                        } else {
+                          completeTaskMutation.mutate(task.id);
+                        }
+                      }}
                       className={`mt-1 w-5 h-5 rounded flex items-center justify-center transition-all ${
                         task.isCompleted
                           ? 'bg-emerald-500 text-white'
@@ -88,9 +101,9 @@ export default function TasksPage() {
                         <h3 className={`font-medium ${task.isCompleted ? 'text-slate-500 line-through' : 'text-white'}`}>
                           {task.title}
                         </h3>
-                        {task.isRepeating && (
+                        {task.isDaily && (
                            <span className="text-[10px] bg-sky-500/20 text-sky-400 px-1.5 py-0.5 rounded uppercase tracking-wider">
-                             Repeat ({task.completedCount}/{task.requiredCount})
+                             Daily
                            </span>
                         )}
                       </div>
@@ -117,7 +130,7 @@ export default function TasksPage() {
                     {/* Delete */}
                     <button
                       onClick={() => {
-                        if (confirm('Delete this task?')) deleteTask(task.id);
+                        if (confirm('Delete this task?')) deleteTaskMutation.mutate(task.id);
                       }}
                       className="text-slate-600 hover:text-red-400 opacity-0 group-hover:opacity-100 transition-opacity"
                     >

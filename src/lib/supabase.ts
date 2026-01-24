@@ -1,10 +1,18 @@
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
 
 // Client for browser usage (anon key)
-export const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-);
+// Client for browser usage (anon key)
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+
+if (!supabaseUrl || !supabaseKey) {
+  console.warn('⚠️ Supabase environment variables missing. Using placeholder client. Queries will fail.');
+}
+
+export const supabase = (supabaseUrl && supabaseKey) 
+  ? createClient(supabaseUrl, supabaseKey)
+  // Fallback for build time or missing env
+  : createClient('https://placeholder.supabase.co', 'placeholder');
 
 // Admin client for server-side operations (service role key)
 // Only initialize on server to prevent client-side crashes

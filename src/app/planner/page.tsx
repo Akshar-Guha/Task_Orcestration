@@ -1,20 +1,46 @@
 'use client';
 
 import { useState, useMemo } from 'react';
-import { useAppStore } from '@/lib/store';
 import { formatDuration, TIME_SLOT_LABELS } from '@/lib/types';
 import Link from 'next/link';
+import { 
+  useTimeSlots, 
+  useGoals, 
+  useTasks, 
+  useProductivity, 
+  useCompleteTask,
+  useUpdateTimeSlot
+} from '@/lib/hooks/useSupabase';
 
 export default function PlannerPage() {
-  // Subscribe to store state with individual selectors for reactivity
-  const timeSlots = useAppStore((state) => state.timeSlots);
-  const goals = useAppStore((state) => state.goals);
-  const tasks = useAppStore((state) => state.tasks);
-  const productivityLogs = useAppStore((state) => state.productivityLogs);
+  // React Query data
+  const { data: timeSlots = [] } = useTimeSlots();
+  const { data: goals = [] } = useGoals();
+  const { data: tasks = [] } = useTasks();
+  const { data: productivityData } = useProductivity();
   
-  const completeTask = useAppStore((state) => state.completeTask);
-  const getTodayProductivity = useAppStore((state) => state.getTodayProductivity);
-  const addGoalToTimeSlot = useAppStore((state) => state.addGoalToTimeSlot);
+  // Mutations
+  const completeTaskMutation = useCompleteTask();
+  const updateTimeSlotMutation = useUpdateTimeSlot();
+
+  const handleAddGoalToTimeSlot = (timeSlotId: string, goalId: string) => {
+    const slot = timeSlots.find(ts => ts.id === timeSlotId);
+    if (!slot) return;
+    
+    // Avoid duplicates
+    if (slot.goalIds?.includes(goalId)) return;
+    
+    updateTimeSlotMutation.mutate({
+        id: timeSlotId,
+        updates: {
+            goalIds: [...(slot.goalIds || []), goalId]
+        }
+    });
+  };
+  
+  // Calculate today's productivity from logs
+  // const getTodayProductivity = ... (re-implement logic locally or use useProductivity hook)
+  // const { data: productivityData } = useProductivity();
 
   const [selectedDate, setSelectedDate] = useState(() => new Date().toISOString().split('T')[0]);
   const [showUnscheduled, setShowUnscheduled] = useState(true);
@@ -30,8 +56,15 @@ export default function PlannerPage() {
   };
 
   // Get productivity for selected date
-  const productivity = isToday ? getTodayProductivity() : {
-    todayMinutes: productivityLogs.find(l => l.date === selectedDate)?.productiveMinutes || 0,
+  const productivity = isToday ? {
+    todayMinutes: productivityData?.todayMinutes || 0,
+    todayPercentage: productivityData?.todayPercentage || 0,
+    weekMinutes: productivityData?.weekMinutes || 0,
+    weeklyAverage: productivityData?.weeklyAverage || 0,
+    topGoals: [],
+  } : {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    todayMinutes: productivityData?.logs.find((l: any) => l.date === selectedDate)?.productive_minutes || 0,
     todayPercentage: 0,
     weekMinutes: 0,
     weeklyAverage: 0,
@@ -72,7 +105,7 @@ export default function PlannerPage() {
 
 
   const handleTaskClick = (taskId: string) => {
-    completeTask(taskId);
+    completeTaskMutation.mutate(taskId);
   };
 
   // Calculate stats
@@ -180,7 +213,7 @@ export default function PlannerPage() {
                             <select
                               onChange={(e) => {
                                 if (e.target.value) {
-                                  addGoalToTimeSlot(e.target.value, goal.id);
+                                  handleAddGoalToTimeSlot(e.target.value, goal.id);
                                   e.target.value = '';
                                 }
                               }}
