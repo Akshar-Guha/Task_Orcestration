@@ -619,6 +619,23 @@ export function useRecordWakeUp() {
         .single();
         
       if (error) throw error;
+      
+      // Trigger email (Fire and forget)
+      try {
+        const { triggerWakeUpEmail } = await import('../emailTrigger');
+        const moodMap: Record<number, string> = {
+          5: 'great',
+          4: 'good',
+          3: 'okay',
+          2: 'bad',
+          1: 'terrible'
+        };
+        // @ts-ignore - MoodLevel is compatible
+        triggerWakeUpEmail(moodMap[mood] || 'good').catch(console.error);
+      } catch (e) {
+        console.error("Failed to trigger wake up email", e);
+      }
+
       return data;
     },
     onSuccess: () => {
