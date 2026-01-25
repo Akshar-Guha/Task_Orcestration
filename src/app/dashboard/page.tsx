@@ -225,6 +225,7 @@ export default function DashboardPage() {
                               {goal.title}
                             </span>
                             {isFocus && <span className="ml-2 text-[10px] text-amber-500 uppercase tracking-widest font-bold border border-amber-500/30 px-1 rounded">Priority Focus</span>}
+                            <span className="text-xs text-slate-500 ml-2">
                               ({formatDuration(goalCompletedMinutes)} spent)
                             </span>
                             {goal.deadline && (
