@@ -91,6 +91,7 @@ export function useGoals() {
         lastActivityAt: g.last_activity_at,
         completionSnapshot: g.completion_snapshot,
         isArchived: g.is_archived,
+        deadline: g.deadline,
       }));
     },
   });
@@ -112,6 +113,7 @@ export function useUpdateGoal() {
           depends_on: updates.dependsOn,
           unlocks: updates.unlocks,
           time_slot_id: updates.timeSlotId,
+          deadline: updates.deadline,
           started_at: updates.startedAt,
           completed_at: updates.completedAt,
           last_activity_at: updates.lastActivityAt,
@@ -163,6 +165,7 @@ export function useAddGoal() {
       metadata: Record<string, unknown>;
       priority?: 1 | 2 | 3;
       timeSlotId?: string;
+      deadline?: string;
     }) => {
       const { data, error } = await supabase
         .from('goals')
@@ -175,6 +178,7 @@ export function useAddGoal() {
           status: 'not_started',
           priority: input.priority || 2,
           time_slot_id: input.timeSlotId,
+          deadline: input.deadline,
           is_archived: false,
         })
         .select()

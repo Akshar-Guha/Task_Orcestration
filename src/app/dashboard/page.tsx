@@ -225,9 +225,15 @@ export default function DashboardPage() {
                               {goal.title}
                             </span>
                             {isFocus && <span className="ml-2 text-[10px] text-amber-500 uppercase tracking-widest font-bold border border-amber-500/30 px-1 rounded">Priority Focus</span>}
-                            <span className="text-xs text-slate-500 ml-2">
                               ({formatDuration(goalCompletedMinutes)} spent)
                             </span>
+                            {goal.deadline && (
+                              <span className={`ml-2 text-xs px-2 py-0.5 rounded border ${
+                                new Date(goal.deadline) < new Date() ? 'bg-red-900/40 text-red-300 border-red-700' : 'bg-slate-800 text-slate-300 border-slate-700'
+                              }`}>
+                                📅 {new Date(goal.deadline).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
+                              </span>
+                            )}
                           </div>
                           <span className={`text-xs px-2 py-0.5 rounded-full ${
                             goal.status === 'completed' ? 'bg-emerald-500/20 text-emerald-400' :

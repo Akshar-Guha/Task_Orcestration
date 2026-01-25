@@ -38,6 +38,9 @@ export interface Goal {
   
   // Time slot assignment (optional)
   timeSlotId?: string;
+
+  // Deadline (NEW)
+  deadline?: string;
   
   // Timeline tracking
   createdAt: string;
@@ -248,6 +251,7 @@ export interface CreateGoalInput {
   level: GoalLevel;
   metadata: GoalMetadata;
   timeSlotId?: string;
+  deadline?: string; // ISO Date String
   priority?: 1 | 2 | 3;     // Default 2 (Important)
   dependsOn?: string[];     // Goal IDs this blocks on
   unlocks?: string[];       // Goal IDs this enables

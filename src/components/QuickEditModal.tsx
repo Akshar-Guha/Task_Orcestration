@@ -14,7 +14,7 @@ export function QuickEditModal({ goal, onClose }: QuickEditModalProps) {
   const [title, setTitle] = useState(goal.title);
   const [description, setDescription] = useState(goal.description || '');
   const [status, setStatus] = useState(goal.status);
-  const [priority, setPriority] = useState(goal.priority || 2);
+  const [deadline, setDeadline] = useState(goal.deadline ? goal.deadline.split('T')[0] : '');
 
   const handleSave = async () => {
     updateGoalMutation.mutate({
@@ -24,6 +24,7 @@ export function QuickEditModal({ goal, onClose }: QuickEditModalProps) {
         description,
         status,
         priority,
+        deadline: deadline ? new Date(deadline).toISOString() : undefined,
       }
     });
     onClose();
@@ -64,6 +65,17 @@ export function QuickEditModal({ goal, onClose }: QuickEditModalProps) {
               className="w-full px-4 py-3 bg-slate-800 border border-slate-700 rounded-lg text-white focus:outline-none focus:border-violet-500 resize-none"
               rows={3}
               style={{ fontSize: '16px' }}
+            />
+          </div>
+
+          {/* Deadline */}
+          <div>
+            <label className="text-sm text-slate-400 block mb-2">Target Deadline</label>
+            <input
+              type="date"
+              value={deadline}
+              onChange={(e) => setDeadline(e.target.value)}
+              className="w-full px-4 py-3 bg-slate-800 border border-slate-700 rounded-lg text-white focus:outline-none focus:border-violet-500 [color-scheme:dark]"
             />
           </div>
 
