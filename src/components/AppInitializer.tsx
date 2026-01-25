@@ -44,11 +44,15 @@ export function AppInitializer() {
       const isLandingPage = window.location.pathname === '/';
       const isDiaryRoute = window.location.pathname.startsWith('/diary');
       
-      if (!isLandingPage && !isDiaryRoute) {
+      // Check if user already dismissed it today
+      const dismissedKey = `mto_wake_dismissed_${today}`;
+      const isDismissed = localStorage.getItem(dismissedKey) === 'true';
+      
+      if (!isLandingPage && !isDiaryRoute && !isDismissed) {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const todayLog = sleepLogs.find((log: any) => log.date === today);
         if (!todayLog?.wakeUpTime) {
-           // Only show if strictly missing and not previously dismissed (implicit via hasInitialized)
+           // Only show if strictly missing and not previously dismissed match
            setShowWakeUpModal(true);
         }
       }
@@ -60,10 +64,16 @@ export function AppInitializer() {
     init();
   }, [tasks, sleepLogs, tasksLoading, sleepLoading, hasInitialized, resetDailyTasksMutation]);
 
+  const handleCloseModal = () => {
+    const today = new Date().toISOString().split('T')[0];
+    localStorage.setItem(`mto_wake_dismissed_${today}`, 'true');
+    setShowWakeUpModal(false);
+  };
+
   return (
     <>
       {showWakeUpModal && (
-        <WakeUpModal onClose={() => setShowWakeUpModal(false)} />
+        <WakeUpModal onClose={handleCloseModal} />
       )}
       <RoutineNotificationScheduler />
       <PushNotificationScheduler />
