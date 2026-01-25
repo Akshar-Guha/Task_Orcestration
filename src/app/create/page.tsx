@@ -24,6 +24,7 @@ export default function CreatePage() {
   // Goal form
   const [goalTitle, setGoalTitle] = useState('');
   const [goalDescription, setGoalDescription] = useState('');
+  const [goalDeadline, setGoalDeadline] = useState('');
   const [selectedTimeSlotId, setSelectedTimeSlotId] = useState<string | null>(null);
 
   // Task form
@@ -46,6 +47,7 @@ export default function CreatePage() {
       level: 'uncategorized' as GoalLevel,
       metadata: getGoalMetadata(),
       timeSlotId: selectedTimeSlotId || undefined,
+      deadline: goalDeadline ? new Date(goalDeadline).toISOString() : undefined,
     };
 
     addGoalMutation.mutate(input);
@@ -321,6 +323,19 @@ export default function CreatePage() {
                 placeholder="Add more details..."
                 rows={3}
                 className="w-full px-4 py-3 bg-slate-900 border border-slate-800 rounded-xl text-white placeholder:text-slate-600 focus:outline-none focus:border-violet-500 resize-none"
+              />
+            </div>
+
+            {/* Deadline */}
+            <div>
+               <label className="block text-xs text-slate-500 uppercase tracking-wider mb-2">
+                Target Deadline <span className="text-slate-700">(optional)</span>
+              </label>
+              <input 
+                type="date"
+                value={goalDeadline}
+                onChange={(e) => setGoalDeadline(e.target.value)}
+                className="w-full px-4 py-3 bg-slate-900 border border-slate-800 rounded-xl text-white focus:outline-none focus:border-violet-500 [color-scheme:dark]"
               />
             </div>
 
