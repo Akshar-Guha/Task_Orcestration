@@ -229,22 +229,44 @@ function sanitizeFilename(name: string): string {
 /**
  * Get goal folder path based on status
  */
+/**
+ * Get goal folder path based on status
+ */
 function getGoalPath(goal: Goal): string {
-  const folder = goal.status === 'completed' ? 'completed' 
-    : goal.isArchived ? 'archive' : 'active';
+  let folder = 'active';
+  let subPath = '';
+  
+  if (goal.status === 'completed' && goal.completedAt) {
+      folder = 'completed';
+      const date = new Date(goal.completedAt);
+      subPath = `${date.getFullYear()}/${String(date.getMonth() + 1).padStart(2, '0')}/`;
+  } else if (goal.isArchived) {
+      folder = 'archive';
+      const date = new Date(goal.createdAt);
+      subPath = `${date.getFullYear()}/${String(date.getMonth() + 1).padStart(2, '0')}/`;
+  }
+
   const cleanTitle = sanitizeFilename(goal.title);
   const shortId = goal.id.slice(0, 4);
-  return `MTO/Goals/${folder}/${cleanTitle} (${shortId}).md`;
+  return `MTO/Goals/${folder}/${subPath}${cleanTitle} (${shortId}).md`;
 }
 
 /**
  * Get task folder path
  */
 function getTaskPath(task: Task): string {
-  const folder = task.isCompleted ? 'completed' : 'active';
+  let folder = 'active';
+  let subPath = '';
+
+  if (task.isCompleted) {
+      folder = 'completed';
+      const date = new Date(task.completedAt || task.createdAt);
+      subPath = `${date.getFullYear()}/${String(date.getMonth() + 1).padStart(2, '0')}/`;
+  }
+
   const cleanTitle = sanitizeFilename(task.title);
   const shortId = task.id.slice(0, 4);
-  return `MTO/Tasks/${folder}/${cleanTitle} (${shortId}).md`;
+  return `MTO/Tasks/${folder}/${subPath}${cleanTitle} (${shortId}).md`;
 }
 
 /**

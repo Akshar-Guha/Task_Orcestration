@@ -80,12 +80,23 @@ export async function POST() {
     } else if (goals) {
       for (const goal of goals) {
         try {
-          const statusFolder = goal.status === 'completed' ? 'completed' 
-            : goal.is_archived ? 'archive' : 'active';
+          let statusFolder = 'active';
+          let subPath = '';
+
+          if (goal.status === 'completed' && goal.completed_at) {
+              statusFolder = 'completed';
+              const date = new Date(goal.completed_at);
+              subPath = `${date.getFullYear()}/${String(date.getMonth() + 1).padStart(2, '0')}/`;
+          } else if (goal.is_archived) {
+              statusFolder = 'archive';
+              const date = new Date(goal.created_at); // Archive by creation or last update? Default creation.
+              subPath = `${date.getFullYear()}/${String(date.getMonth() + 1).padStart(2, '0')}/`;
+          }
+
           // Readable filename
           const cleanTitle = (goal.title || 'Untitled').replace(/[^a-z0-9\s-]/gi, '').trim().replace(/\s+/g, '-');
           const shortId = goal.id.slice(0, 4);
-          const path = `MTO/Goals/${statusFolder}/${cleanTitle} (${shortId}).md`;
+          const path = `MTO/Goals/${statusFolder}/${subPath}${cleanTitle} (${shortId}).md`;
           
           await github.upsertFile(
             { path, content: goalToMarkdown(goal) },
@@ -110,11 +121,20 @@ export async function POST() {
     } else if (tasks) {
       for (const task of tasks) {
         try {
-          const statusFolder = task.is_completed ? 'completed' : 'active';
+          let statusFolder = 'active';
+          let subPath = '';
+
+          if (task.is_completed) {
+              statusFolder = 'completed';
+              // Use completed_at or fallback to created_at
+              const date = new Date(task.completed_at || task.created_at); 
+              subPath = `${date.getFullYear()}/${String(date.getMonth() + 1).padStart(2, '0')}/`;
+          }
+
           // Readable filename
           const cleanTitle = (task.title || 'Untitled').replace(/[^a-z0-9\s-]/gi, '').trim().replace(/\s+/g, '-');
           const shortId = task.id.slice(0, 4);
-          const path = `MTO/Tasks/${statusFolder}/${cleanTitle} (${shortId}).md`;
+          const path = `MTO/Tasks/${statusFolder}/${subPath}${cleanTitle} (${shortId}).md`;
           
           await github.upsertFile(
             { path, content: taskToMarkdown(task) },
