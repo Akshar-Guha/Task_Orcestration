@@ -655,19 +655,7 @@ export function useRecordWakeUp() {
       if (error) throw error;
       
       // Trigger email (Fire and forget)
-      try {
-        const { triggerWakeUpEmail } = await import('../emailTrigger');
-        const moodMap: Record<number, string> = {
-          5: 'great',
-          4: 'good',
-          3: 'okay',
-          2: 'bad',
-          1: 'terrible'
-        };
-        triggerWakeUpEmail(moodMap[mood] || 'good').catch(console.error);
-      } catch (e) {
-        console.error("Failed to trigger wake up email", e);
-      }
+      // Email trigger removed as per user request (Scheduled only)
 
       return data;
     },
@@ -713,12 +701,7 @@ export function useRecordSleep() {
       if (error) throw error;
       
       // Trigger email
-        try {
-          const { triggerSleepEmail } = await import('../emailTrigger');
-          triggerSleepEmail().catch(console.error);
-        } catch (e) {
-          console.error("Failed to trigger sleep email", e);
-        }
+      // Email trigger removed as per user request (Scheduled only)
 
       return data;
     },
