@@ -163,7 +163,7 @@ export default function DatabaseSettingsPage() {
               const data = await res.json();
               if (data.success) {
                 setStatus('success');
-                setMessage(`Synced ${data.results?.goals?.synced || 0} goals and ${data.results?.tasks?.synced || 0} tasks to Obsidian!`);
+                setMessage(`Synced Daily Warehouse: ${data.results?.history?.synced || 0} daily entries updated!`);
               } else {
                 setStatus('error');
                 setMessage(data.error || 'Sync failed');
