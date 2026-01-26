@@ -159,8 +159,11 @@ export async function POST() {
     if (!diaryErr && diaryEntries) {
         for (const entry of diaryEntries) {
              try {
+                 // Nested folder structure: MTO/Diary/YYYY/MM/DD/Diary.md
+                 // User wants "nested date wise folder for each date data"
+                 // So we create a folder for the day
                  const [year, month, day] = entry.date.split('-');
-                 const path = `MTO/Diary/${year}/${month}/${entry.date}.md`;
+                 const path = `MTO/Diary/${year}/${month}/${day}/Diary.md`;
                  
                  // Get completed tasks for this date
                  const dayEvents = historyByDate.get(entry.date) || [];

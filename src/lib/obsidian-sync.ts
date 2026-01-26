@@ -307,8 +307,8 @@ export async function syncDiaryEntry(
   questions?: Question[],
   action: 'upsert' | 'delete' = 'upsert'
 ): Promise<boolean> {
-  const [year, month] = entry.date.split('-');
-  const path = `MTO/Diary/${year}/${month}/${entry.date}.md`;
+  const [year, month, day] = entry.date.split('-');
+  const path = `MTO/Diary/${year}/${month}/${day}/Diary.md`;
   const content = action === 'delete' ? null : diaryEntryToMarkdown(entry, answers, questions);
   const message = `[MTO] ${action === 'delete' ? 'Delete' : 'Sync'} diary: ${entry.date}`;
 
