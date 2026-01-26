@@ -103,48 +103,85 @@ export async function POST() {
         getDayBucket(log.date).sleep = log;
     });
 
-    // Index Completed Tasks (via Timeline or CompletedAt)
-    // We prefer Timeline for accuracy, but fallback to Task.completed_at
-    if (historyEvents) {
-        // Map tasks by ID for details
-        const taskMap = new Map(tasks?.map(t => [t.id, t]));
-        historyEvents.forEach(evt => {
-            const date = evt.timestamp.split('T')[0];
-            const task = taskMap.get(evt.task_id);
-            if (task) {
-                getDayBucket(date).tasks.push({ ...task, completion_evt: evt });
+    // ===================================
+    // MULTI-DATE INDEXING (The "Unconstrained Log")
+    // ===================================
+    // We place each item into EVERY date bucket it is relevant to.
+    // 1. Creation Date (Log: Created)
+    // 2. Completion Date(s) (Log: Completed)
+    // 3. Today (Log: Active/Pending if applicable)
+    
+    // Helper to add data to a specific date bucket
+    const addToBucket = (dateStr: string, type: 'tasks' | 'goals', item: any, logType: 'Created' | 'Completed' | 'Active' | 'Pending') => {
+        if (!dateStr || isNaN(new Date(dateStr).getTime())) return;
+        const date = dateStr.split('T')[0];
+        const bucket = getDayBucket(date);
+        // Add meta for logging
+        bucket[type].push({ ...item, _log_status: logType, _log_date: date });
+    };
+
+    const todayStr = new Date().toISOString().split('T')[0];
+
+    // PROCESS TASKS
+    if (tasks) {
+        // Map for timeline lookup
+        const taskMap = new Map(tasks.map(t => [t.id, t]));
+
+        tasks.forEach(task => {
+            // A. Log Creation
+            if (task.created_at) {
+                addToBucket(task.created_at, 'tasks', task, 'Created');
             }
-        });
-    } else if (tasks) {
-        // Fallback if no timeline
-        tasks.filter(t => t.is_completed && t.completed_at).forEach(t => {
-            const date = new Date(t.completed_at).toISOString().split('T')[0];
-            getDayBucket(date).tasks.push(t);
+
+            // B. Log Completions (via Timeline)
+            // (If no timeline, fallback to completed_at)
+            let hasTimeline = false;
+            if (historyEvents) {
+                const events = historyEvents.filter((e: any) => e.task_id === task.id);
+                events.forEach((evt: any) => {
+                    hasTimeline = true;
+                    addToBucket(evt.timestamp, 'tasks', { ...task, completion_evt: evt }, 'Completed');
+                });
+            }
+            
+            if (!hasTimeline && task.is_completed && task.completed_at) {
+                addToBucket(task.completed_at, 'tasks', task, 'Completed');
+            }
+
+            // C. Log Active State (Today)
+            // If it is NOT completed, OR if it IS completed but is_daily (resets)
+            // We log it as "Pending" or "Active" for Today.
+            if (!task.is_completed || task.is_daily) {
+                // If it's done today, we already logged "Completed". 
+                // But daily tasks also exist as "Pending" for tomorrow (conceptually).
+                // User wants "Active state".
+                // If it IS completed today, we might want to skip "Active" to avoid double noise?
+                // User said "Active or any state... entire logs".
+                // We will add it as "Active" to Today.
+                addToBucket(todayStr, 'tasks', task, 'Pending'); // "Pending" implies "To Do"
+            }
         });
     }
 
-    // Index Completed Goals
-    goals?.filter(g => g.status === 'completed' && g.completed_at).forEach(g => {
-        const date = new Date(g.completed_at).toISOString().split('T')[0];
-        getDayBucket(date).goals.push(g);
-    });
+    // PROCESS GOALS
+    if (goals) {
+        goals.forEach(goal => {
+            // A. Log Creation
+            if (goal.created_at) {
+                addToBucket(goal.created_at, 'goals', goal, 'Created');
+            }
 
-    // ===================================
-    // SNAPSHOT ACTIVE STATE (For "Today")
-    // ===================================
-    // User wants a full "Reality Reflection", so we include what is currently PENDING 
-    // in today's folder as well.
-    const todayStr = new Date().toISOString().split('T')[0];
-    
-    // Add Active Tasks to Today
-    tasks?.filter(t => !t.is_completed).forEach(t => {
-        getDayBucket(todayStr).tasks.push(t);
-    });
+            // B. Log Completion
+            if (goal.status === 'completed' && goal.completed_at) {
+                addToBucket(goal.completed_at, 'goals', goal, 'Completed');
+            }
 
-    // Add Active Goals to Today
-    goals?.filter(g => g.status !== 'completed' && !g.is_archived).forEach(g => {
-        getDayBucket(todayStr).goals.push(g);
-    });
+            // C. Log Active (Today)
+            if (goal.status !== 'completed' && !goal.is_archived) {
+                addToBucket(todayStr, 'goals', goal, 'Active');
+            }
+        });
+    }
 
     // 3. Generate Warehouse Files
     for (const [date, bucket] of dataByDate) {
@@ -152,7 +189,18 @@ export async function POST() {
             const [year, month, day] = date.split('-');
             const basePath = `MTO/Data/${year}/${month}/${day}`;
 
-            // A. Diary.md (The Hub)
+            // A. Diary.md etc (Keep existing logic)
+            // ... (We assume previous code block for Diary/Sleep is kept if outside this replace range, 
+            // but checked lines 156-185 are inside 'Generate Warehouse Files' loop? 
+            // The previous replace covered lines. I need to be careful not to delete Diary/Sleep logic.
+            // Wait, implementation above effectively REPLACED the loop start.
+            // I need to include the Diary Logic in my ReplacementContent or ensure StartLine maps correctly.
+            // My StartLine is 108 (Start of "Index Completed Tasks").
+            // My EndLine is 239 (End of Loop).
+            // So I am rewriting the Entire Indexing + Loop logic.
+            // I MUST include Diary/Sleep loop body.
+            
+            // Re-inserting Diary/Sleep Logic:
             let diaryContent = `---
 date: "${date}"
 type: "daily_record"
@@ -174,64 +222,76 @@ synced_at: "${new Date().toISOString()}"
                 const duration = s.sleep_duration_minutes 
                     ? `${Math.floor(s.sleep_duration_minutes / 60)}h ${s.sleep_duration_minutes % 60}m` : 'N/A';
                 diaryContent += `## 😴 Sleep\n- **Duration**: ${duration}\n- **Wake**: ${s.wake_up_time}\n- **Mood**: ${s.wake_up_mood}/5\n\n`;
-                
-                // Also save individual sleep file
                 const sleepPath = `${basePath}/Sleep.md`;
                 await github.upsertFile({ path: sleepPath, content: JSON.stringify(bucket.sleep, null, 2) }, `[MTO] Sleep data`);
             }
 
-            // Save Diary
-            await github.upsertFile({ path: `${basePath}/Diary.md`, content: diaryContent }, `[MTO] Diary ${date}`);
-            
-            // B. Tasks (Both Completed and Active)
+             await github.upsertFile({ path: `${basePath}/Diary.md`, content: diaryContent }, `[MTO] Diary ${date}`);
+
+
+            // B. TASKS (Detailed Dump)
             for (const task of bucket.tasks) {
                 const cleanTitle = (task.title || 'Untitled').replace(/[^a-z0-9\s-]/gi, '').trim().replace(/\s+/g, '-');
-                const isCompleted = task.is_completed || (task.completion_evt !== undefined);
-                const prefix = isCompleted ? '✅' : '⏳';
-                const statusSuffix = isCompleted ? 'Completed' : 'Pending';
+                const logStatus = task._log_status || 'Unknown';
+                const filename = `${cleanTitle} (${logStatus}).md`;
+                const path = `${basePath}/Tasks/${filename}`;
                 
-                // Use distinct filenames so we log BOTH states if they happen (e.g. Daily task done then reset)
-                const path = `${basePath}/Tasks/${cleanTitle} (${statusSuffix}).md`;
-                
-                const timestamp = task.completion_evt?.timestamp || task.completed_at || date; 
-                
+                // FULL ATTRIBUTE DUMP
                 const content = `---
 id: "${task.id}"
-status: "${isCompleted ? 'completed' : 'active'}"
-date: "${date}"
-type: "task_snapshot"
+log_status: "${logStatus}"
+log_date: "${date}"
+title: "${task.title}"
+is_completed: ${task.is_completed}
+is_daily: ${task.is_daily}
+priority: ${task.priority}
+estimated_minutes: ${task.estimated_minutes}
+actual_minutes: ${task.actual_minutes}
+created_at: "${task.created_at}"
+completed_at: "${task.completed_at || ''}"
+goal_id: "${task.goal_id || ''}"
+synced_at: "${new Date().toISOString()}"
 ---
-# ${prefix} ${task.title}
-**Status**: ${isCompleted ? 'Completed' : 'Pending'}
-${isCompleted ? `**Completed At**: ${new Date(timestamp).toLocaleTimeString()}` : ''}
+# ${task.title}
 
+**Log Status**: ${logStatus}
+**Date**: ${date}
+
+## Details
 ${task.description || ''}
 `;
-                await github.upsertFile({ path, content }, `[MTO] Task ${task.title} (${statusSuffix})`);
+                await github.upsertFile({ path, content }, `[MTO] Task Log: ${filename}`);
             }
 
-            // C. Goals (Both Completed and Active)
+            // C. GOALS (Detailed Dump)
             for (const goal of bucket.goals) {
                 const cleanTitle = (goal.title || 'Untitled').replace(/[^a-z0-9\s-]/gi, '').trim().replace(/\s+/g, '-');
-                const isCompleted = goal.status === 'completed';
-                const prefix = isCompleted ? '🏆' : '🎯';
-                const statusSuffix = isCompleted ? 'Completed' : 'Active';
-                
-                const path = `${basePath}/Goals/${cleanTitle} (${statusSuffix}).md`;
+                const logStatus = goal._log_status || 'Unknown';
+                const filename = `${cleanTitle} (${logStatus}).md`;
+                const path = `${basePath}/Goals/${filename}`;
                 
                 const content = `---
 id: "${goal.id}"
+log_status: "${logStatus}"
+log_date: "${date}"
+title: "${goal.title}"
 status: "${goal.status}"
-date: "${date}"
-type: "goal_snapshot"
+priority: ${goal.priority}
+level: "${goal.level}"
+is_archived: ${goal.is_archived}
+created_at: "${goal.created_at}"
+completed_at: "${goal.completed_at || ''}"
+synced_at: "${new Date().toISOString()}"
 ---
-# ${prefix} ${goal.title}
-**Status**: ${goal.status}
-${isCompleted ? `**Completed At**: ${new Date(goal.completed_at).toLocaleTimeString()}` : ''}
+# ${goal.title}
 
+**Log Status**: ${logStatus}
+**Date**: ${date}
+
+## Details
 ${goal.description || ''}
 `;
-                await github.upsertFile({ path, content }, `[MTO] Goal ${goal.title} (${statusSuffix})`);
+                await github.upsertFile({ path, content }, `[MTO] Goal Log: ${filename}`);
             }
 
             results.history.synced++;
