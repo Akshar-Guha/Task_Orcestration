@@ -82,7 +82,10 @@ export async function POST() {
         try {
           const statusFolder = goal.status === 'completed' ? 'completed' 
             : goal.is_archived ? 'archive' : 'active';
-          const path = `MTO/Goals/${statusFolder}/${goal.id}.md`;
+          // Readable filename
+          const cleanTitle = (goal.title || 'Untitled').replace(/[^a-z0-9\s-]/gi, '').trim().replace(/\s+/g, '-');
+          const shortId = goal.id.slice(0, 4);
+          const path = `MTO/Goals/${statusFolder}/${cleanTitle} (${shortId}).md`;
           
           await github.upsertFile(
             { path, content: goalToMarkdown(goal) },
@@ -108,7 +111,10 @@ export async function POST() {
       for (const task of tasks) {
         try {
           const statusFolder = task.is_completed ? 'completed' : 'active';
-          const path = `MTO/Tasks/${statusFolder}/${task.id}.md`;
+          // Readable filename
+          const cleanTitle = (task.title || 'Untitled').replace(/[^a-z0-9\s-]/gi, '').trim().replace(/\s+/g, '-');
+          const shortId = task.id.slice(0, 4);
+          const path = `MTO/Tasks/${statusFolder}/${cleanTitle} (${shortId}).md`;
           
           await github.upsertFile(
             { path, content: taskToMarkdown(task) },
@@ -120,6 +126,45 @@ export async function POST() {
           results.tasks.errors.push(`Task ${task.title}: ${String(e)}`);
         }
       }
+    }
+
+    // Fetch and sync Daily Entries (Diary)
+    const { data: diaryEntries, error: diaryErr } = await supabase
+        .from('daily_entries')
+        .select('*')
+        .eq('user_id', userId);
+        
+    if (!diaryErr && diaryEntries) {
+        for (const entry of diaryEntries) {
+             try {
+                 const [year, month, day] = entry.date.split('-');
+                 const path = `MTO/Diary/${year}/${month}/${entry.date}.md`;
+                 
+                 // Reuse logic or simple markdown
+                 const content = `---
+id: "${entry.id}"
+date: "${entry.date}"
+mood: ${entry.mood}
+energy: ${entry.energy_level}
+synced_at: "${new Date().toISOString()}"
+---
+
+# 📔 ${new Date(entry.date).toDateString()}
+
+## Mood: ${entry.mood}/5 | Energy: ${entry.energy_level || 'N/A'}/10
+
+${entry.summary ? `## Summary\n${entry.summary}` : ''}
+
+${await formatDiaryDetails(entry.id, supabase)}
+`;
+                 await github.upsertFile(
+                     { path, content },
+                     `[MTO] Sync diary: ${entry.date}`
+                 );
+             } catch (e) {
+                 console.error("Diary sync error", e);
+             }
+        }
     }
 
     return NextResponse.json({
@@ -135,4 +180,13 @@ export async function POST() {
       results,
     }, { status: 500 });
   }
+}
+
+// Helper to fetch details for diary
+async function formatDiaryDetails(entryId: string, supabaseClient: any) {
+    // Fetch answers
+    const { data: answers } = await supabaseClient.from('diary_answers').select('*, questions(question_text)').eq('entry_id', entryId);
+    if (!answers?.length) return '';
+    
+    return `## Reflections\n` + answers.map((a: any) => `### ${a.questions?.question_text || 'Question'}\n${a.answer}\n`).join('\n');
 }

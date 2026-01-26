@@ -221,13 +221,20 @@ ${qaSection}
 `;
 }
 
+// Helper to sanitize filenames
+function sanitizeFilename(name: string): string {
+  return (name || 'Untitled').replace(/[^a-z0-9\s-]/gi, '').trim().replace(/\s+/g, '-');
+}
+
 /**
  * Get goal folder path based on status
  */
 function getGoalPath(goal: Goal): string {
   const folder = goal.status === 'completed' ? 'completed' 
     : goal.isArchived ? 'archive' : 'active';
-  return `MTO/Goals/${folder}/${goal.id}.md`;
+  const cleanTitle = sanitizeFilename(goal.title);
+  const shortId = goal.id.slice(0, 4);
+  return `MTO/Goals/${folder}/${cleanTitle} (${shortId}).md`;
 }
 
 /**
@@ -235,7 +242,9 @@ function getGoalPath(goal: Goal): string {
  */
 function getTaskPath(task: Task): string {
   const folder = task.isCompleted ? 'completed' : 'active';
-  return `MTO/Tasks/${folder}/${task.id}.md`;
+  const cleanTitle = sanitizeFilename(task.title);
+  const shortId = task.id.slice(0, 4);
+  return `MTO/Tasks/${folder}/${cleanTitle} (${shortId}).md`;
 }
 
 /**

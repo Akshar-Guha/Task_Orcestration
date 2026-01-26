@@ -250,7 +250,7 @@ export default function EditPage() {
                       </div>
 
                       {/* Action Buttons - Full Width on Mobile */}
-                      <div className="grid grid-cols-2 gap-2">
+                      <div className="grid grid-cols-3 gap-2">
                         <button
                           onClick={() => {
                             setEditingSlots(
@@ -258,14 +258,29 @@ export default function EditPage() {
                             );
                             setHasChanges(true);
                           }}
-                          className={`min-h-[44px] px-4 py-3 rounded-lg font-medium transition-all ${
+                          className={`min-h-[44px] px-2 py-3 rounded-lg font-medium transition-all text-sm flex items-center justify-center ${
                             slot.isActive
                               ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/50'
                               : 'bg-slate-700 text-slate-400'
                           }`}
-                          style={{ fontSize: '16px' }}
                         >
                           {slot.isActive ? '✓ Active' : '○ Inactive'}
+                        </button>
+
+                        <button
+                          onClick={() => {
+                            setEditingSlots(
+                                editingSlots.map((s) => (s.id === slot.id ? { ...s, isNotificationEnabled: !s.isNotificationEnabled } : s))
+                            );
+                            setHasChanges(true);
+                          }}
+                          className={`min-h-[44px] px-2 py-3 rounded-lg font-medium transition-all text-sm flex items-center justify-center ${
+                             slot.isNotificationEnabled !== false
+                                 ? 'bg-blue-500/20 text-blue-400 border border-blue-500/50'
+                                 : 'bg-slate-700 text-slate-400'
+                          }`}
+                        >
+                          {slot.isNotificationEnabled !== false ? '🔔 Notify' : '🔕 Muted'}
                         </button>
 
                         <button
@@ -273,11 +288,10 @@ export default function EditPage() {
                             if (confirm(`Delete "${slot.name}"?`)) {
                             setEditingSlots(editingSlots.filter((s) => s.id !== slot.id));
                             deleteTimeSlotMutation.mutate(slot.id);
-                            setHasChanges(true); // Deletion is immediate on server, but we flag UI changes? Actually delete is immediate.
+                            setHasChanges(true); 
                           }
                         }}
-                        className="min-h-[44px] px-4 py-3 bg-red-600 hover:bg-red-700 text-white rounded-lg font-medium transition-all"
-                        style={{ fontSize: '16px' }}
+                        className="min-h-[44px] px-2 py-3 bg-red-600 hover:bg-red-700 text-white rounded-lg font-medium transition-all text-sm flex items-center justify-center"
                       >
                         🗑️ Delete
                       </button>

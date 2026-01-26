@@ -17,12 +17,14 @@ function isStandalone() {
 }
 
 export default function NotificationsPage() {
-  const [permission, setPermission] = useState<NotificationPermission>('default');
+  const [permission, setPermission] = useState<NotificationPermission>(
+    typeof window !== 'undefined' && 'Notification' in window ? Notification.permission : 'default'
+  );
   const [isSubscribed, setIsSubscribed] = useState(false);
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState('');
-  const [iosDevice, setIosDevice] = useState(false);
-  const [standaloneMode, setStandaloneMode] = useState(false);
+  const [iosDevice, setIosDevice] = useState(() => isIOS());
+  const [standaloneMode, setStandaloneMode] = useState(() => isStandalone());
 
   const checkSubscriptionStatus = async () => {
     if ('serviceWorker' in navigator) {
@@ -35,15 +37,9 @@ export default function NotificationsPage() {
   };
 
   useEffect(() => {
-    // Check current notification permission
-    if ('Notification' in window) {
-      setPermission(Notification.permission);
-    }
+
 
     // Check platform
-    setIosDevice(isIOS());
-    setStandaloneMode(isStandalone());
-
     // Check if already subscribed
     checkSubscriptionStatus();
   }, []);
@@ -283,57 +279,44 @@ function NotificationPreferences() {
       <h3 className="text-lg font-semibold text-white mb-4">Schedule & Preferences</h3>
       
       <div className="space-y-6">
-        {/* Morning Briefing */}
+        
+        {/* Routine Reminders (Dynamic Slots) */}
         <div className="flex items-center justify-between">
           <div className="space-y-1">
-            <div className="text-sm font-medium text-slate-200">Morning Briefing</div>
-            <div className="text-xs text-slate-500">Daily agenda and focus goals</div>
+            <div className="text-sm font-medium text-slate-200">Routine Reminders</div>
+            <div className="text-xs text-slate-500">Alerts when your scheduled time slots begin</div>
           </div>
-          <div className="flex items-center gap-3">
-            <input
-              type="time"
-              value={settings.dailyMorningTime || '07:00'}
-              onChange={(e) => updateSettings({ dailyMorningTime: e.target.value })}
-              className="bg-slate-800 border border-slate-700 rounded-lg px-2 py-1 text-sm text-white focus:outline-none focus:border-violet-500"
-              disabled={!settings.enableMorningReminder}
-            />
-            <button
-              onClick={() => updateSettings({ enableMorningReminder: !settings.enableMorningReminder })}
-              className={`w-11 h-6 rounded-full transition-colors relative ${
-                settings.enableMorningReminder ? 'bg-violet-500' : 'bg-slate-700'
-              }`}
-            >
-              <div className={`absolute top-1 left-1 w-4 h-4 rounded-full bg-white transition-transform ${
-                settings.enableMorningReminder ? 'translate-x-5' : 'translate-x-0'
-              }`} />
-            </button>
-          </div>
+          <button
+            onClick={() => updateSettings({ enableTaskNotifications: !settings.enableTaskNotifications })}
+            className={`w-11 h-6 rounded-full transition-colors relative ${
+              settings.enableTaskNotifications !== false ? 'bg-violet-500' : 'bg-slate-700'
+            }`}
+          >
+            <div className={`absolute top-1 left-1 w-4 h-4 rounded-full bg-white transition-transform ${
+              settings.enableTaskNotifications !== false ? 'translate-x-5' : 'translate-x-0'
+            }`} />
+          </button>
         </div>
 
-        {/* Evening Reflection */}
+        {/* Pre-notification Offset */}
         <div className="flex items-center justify-between">
           <div className="space-y-1">
-            <div className="text-sm font-medium text-slate-200">Evening Reflection</div>
-            <div className="text-xs text-slate-500">Diary prompt and day summary</div>
+            <div className="text-sm font-medium text-slate-200">Pre-start Alert</div>
+            <div className="text-xs text-slate-500">Notify me X minutes before slot starts</div>
           </div>
-          <div className="flex items-center gap-3">
-            <input
-              type="time"
-              value={settings.dailySummaryTime || '20:00'}
-              onChange={(e) => updateSettings({ dailySummaryTime: e.target.value })}
-              className="bg-slate-800 border border-slate-700 rounded-lg px-2 py-1 text-sm text-white focus:outline-none focus:border-violet-500"
-              disabled={!settings.enableDailySummaryReminder}
-            />
-            <button
-              onClick={() => updateSettings({ enableDailySummaryReminder: !settings.enableDailySummaryReminder })}
-              className={`w-11 h-6 rounded-full transition-colors relative ${
-                settings.enableDailySummaryReminder ? 'bg-violet-500' : 'bg-slate-700'
-              }`}
-            >
-              <div className={`absolute top-1 left-1 w-4 h-4 rounded-full bg-white transition-transform ${
-                settings.enableDailySummaryReminder ? 'translate-x-5' : 'translate-x-0'
-              }`} />
-            </button>
+          <div className="flex items-center gap-2">
+             <select
+                value={settings.notificationOffsetMinutes ?? 5}
+                onChange={(e) => updateSettings({ notificationOffsetMinutes: Number(e.target.value) })}
+                className="bg-slate-800 border border-slate-700 rounded-lg px-2 py-1 text-sm text-white focus:outline-none focus:border-violet-500"
+                disabled={settings.enableTaskNotifications === false}
+             >
+                <option value={0}>At start time</option>
+                <option value={5}>5 mins before</option>
+                <option value={10}>10 mins before</option>
+                <option value={15}>15 mins before</option>
+                <option value={30}>30 mins before</option>
+             </select>
           </div>
         </div>
 
@@ -353,24 +336,6 @@ function NotificationPreferences() {
           >
             <div className={`absolute top-1 left-1 w-4 h-4 rounded-full bg-white transition-transform ${
               settings.enableGoalNotifications !== false ? 'translate-x-5' : 'translate-x-0'
-            }`} />
-          </button>
-        </div>
-
-        {/* Task Completions */}
-        <div className="flex items-center justify-between">
-          <div className="space-y-1">
-            <div className="text-sm font-medium text-slate-200">Task Updates</div>
-            <div className="text-xs text-slate-500">Celebrations and progress</div>
-          </div>
-          <button
-            onClick={() => updateSettings({ enableTaskNotifications: !settings.enableTaskNotifications })}
-            className={`w-11 h-6 rounded-full transition-colors relative ${
-              settings.enableTaskNotifications !== false ? 'bg-violet-500' : 'bg-slate-700'
-            }`}
-          >
-            <div className={`absolute top-1 left-1 w-4 h-4 rounded-full bg-white transition-transform ${
-              settings.enableTaskNotifications !== false ? 'translate-x-5' : 'translate-x-0'
             }`} />
           </button>
         </div>

@@ -530,6 +530,7 @@ export function useTimeSlots() {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       return (data || []).map((s: any): TimeSlot => ({
         id: s.id,
+        userId: s.user_id,
         name: s.name,
         type: s.type,
         startTime: s.start_time,
@@ -537,6 +538,7 @@ export function useTimeSlots() {
         color: s.color,
         goalIds: s.goal_ids || [],
         isActive: s.is_active,
+        isNotificationEnabled: s.is_notification_enabled ?? true,
         createdAt: s.created_at,
       }));
     },
@@ -756,6 +758,7 @@ export function useUserSettings() {
         enableMorningReminder: data?.enable_morning_reminder ?? true,
         enableTaskNotifications: data?.enable_task_notifications ?? true,
         enableGoalNotifications: data?.enable_goal_notifications ?? true,
+        notificationOffsetMinutes: data?.notification_offset_minutes ?? 5,
         
         data: data // Keep raw data accessible if needed
       };
@@ -782,6 +785,7 @@ export function useUpdateUserSettings() {
       if (updates.enableMorningReminder !== undefined) dbUpdates.enable_morning_reminder = updates.enableMorningReminder;
       if (updates.enableTaskNotifications !== undefined) dbUpdates.enable_task_notifications = updates.enableTaskNotifications;
       if (updates.enableGoalNotifications !== undefined) dbUpdates.enable_goal_notifications = updates.enableGoalNotifications;
+      if (updates.notificationOffsetMinutes !== undefined) dbUpdates.notification_offset_minutes = updates.notificationOffsetMinutes;
       
       // Upsert to handle creation if not exists
       const { data, error } = await supabase
@@ -938,6 +942,7 @@ export function useUpdateTimeSlot() {
       if (updates.color) dbUpdates.color = updates.color;
       if (updates.goalIds) dbUpdates.goal_ids = updates.goalIds;
       if (updates.isActive !== undefined) dbUpdates.is_active = updates.isActive;
+      if (updates.isNotificationEnabled !== undefined) dbUpdates.is_notification_enabled = updates.isNotificationEnabled;
       
       const { error } = await supabase
         .from('time_slots')

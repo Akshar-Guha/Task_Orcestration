@@ -12,6 +12,7 @@ export type TimeSlotType = 'morning' | 'work' | 'afternoon' | 'evening' | 'leisu
 // TIME SLOT - Groups goals into daily schedule blocks
 export interface TimeSlot {
   id: string;
+  userId: string;     // Added
   name: string;
   type: TimeSlotType;
   startTime: string;  // "06:00" (24hr format)
@@ -19,6 +20,7 @@ export interface TimeSlot {
   color: string;      // Hex color for UI
   goalIds: string[];  // Goals assigned to this slot
   isActive: boolean;
+  isNotificationEnabled?: boolean; // New: Toggle notifications for this slot
   createdAt: string;
 }
 
@@ -230,6 +232,8 @@ export interface TimeSpec {
   timezone?: string;
 }
 
+
+
 // ========================================
 // USER SETTINGS
 // ========================================
@@ -245,6 +249,7 @@ export interface UserSettings {
   enableMorningReminder?: boolean;
   enableTaskNotifications?: boolean;
   enableGoalNotifications?: boolean;
+  notificationOffsetMinutes?: number; // New: Pre-alert offset
 }
 
 // ========================================

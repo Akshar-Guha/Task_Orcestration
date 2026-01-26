@@ -11,7 +11,7 @@
 'use client';
 
 import { useEffect } from 'react';
-import { useAppStore } from '@/lib/store'; // Keep for focusGoalIds
+import { useAppStore } from '@/lib/store';
 import { useGoals, useUserSettings, useTimeSlots } from '@/lib/hooks/useSupabase';
 
 const PUSH_API_URL = '/api/push/send';
@@ -57,35 +57,64 @@ function msUntilTime(hours: number, minutes: number = 0): number {
 function useTimeSlotScheduler() {
   const { data: timeSlots = [] } = useTimeSlots();
   const { data: settings } = useUserSettings();
+  const { data: goals = [] } = useGoals();
+  const focusGoalIds = useAppStore(state => state.focusGoalIds);
 
   useEffect(() => {
-    // If settings disable daily reminders, maybe we disable this too? 
-    // Or we consider this "Task Notifications".
     if (!settings || settings.enableTaskNotifications === false) return;
 
+    const offsetMinutes = settings.notificationOffsetMinutes || 0; // Default 0 if not set
     const timeouts: NodeJS.Timeout[] = [];
 
-    timeSlots.forEach((slot: { isActive: boolean; startTime: string; name: string }) => {
+    timeSlots.forEach(slot => {
+      // 1. Check if slot enabled
       if (!slot.isActive) return;
+      if (slot.isNotificationEnabled === false) return;
 
+      // 2. Calculate adjusted time
       const [h, m] = slot.startTime.split(':').map(Number);
-      const msUntil = msUntilTime(h, m);
+      // Subtract offset
+      const targetTime = new Date();
+      targetTime.setHours(h, m, 0, 0);
+      targetTime.setMinutes(targetTime.getMinutes() - offsetMinutes);
       
-      console.log(`[PushScheduler] Scheduling "${slot.name}" for ${slot.startTime} (in ${Math.round(msUntil / 60000)}m)`);
+      const targetH = targetTime.getHours();
+      const targetM = targetTime.getMinutes();
+
+      const msUntil = msUntilTime(targetH, targetM);
+      
+      console.log(`[PushScheduler] Scheduling "${slot.name}" for ${targetH}:${targetM} (Offset: ${offsetMinutes}m) - in ${Math.round(msUntil / 60000)}m`);
       
       const timeout = setTimeout(async () => {
-         await sendPushNotification(
-            `👉 Time for ${slot.name}`,
-            `Routine starting: ${slot.name}. Check your goals!`,
-            '/dashboard'
+         // 3. Context-Aware Content
+         let body = `Routine starting: ${slot.name}. Check your goals!`;
+         let title = `👉 Time for ${slot.name}`;
+
+         if (offsetMinutes > 0) {
+            title = `⏰ ${offsetMinutes}m until ${slot.name}`;
+            body = `Wrap up your current task! ${slot.name} starts soon.`;
+         }
+
+         // Check focus goal for this slot
+         // Filter goals that belong to this slot AND are in focus
+         const slotFocusGoals = goals.filter(g => 
+            (g.timeSlotId === slot.id || slot.goalIds.includes(g.id)) && 
+            focusGoalIds.includes(g.id) &&
+            !g.isArchived && g.status !== 'completed'
          );
+
+         if (slotFocusGoals.length > 0) {
+            body = `Focus Priority: ${slotFocusGoals[0].title}. Let's make progress!`;
+         }
+         
+         await sendPushNotification(title, body, '/dashboard');
       }, msUntil);
 
       timeouts.push(timeout);
     });
 
     return () => timeouts.forEach(clearTimeout);
-  }, [timeSlots, settings]);
+  }, [timeSlots, settings, goals, focusGoalIds]);
 }
 
 
