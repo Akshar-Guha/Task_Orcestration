@@ -73,13 +73,15 @@ export default function NotificationsPage() {
         method: 'POST',
       });
 
+      const data = await response.json();
+
       if (response.ok) {
         setMessage('✅ Test notification sent! Check your notifications.');
       } else {
-        setMessage('❌ Failed to send test notification');
+        setMessage(`❌ Failed: ${data.error || 'Unknown error'}`);
       }
-    } catch {
-      setMessage('❌ Error sending test notification');
+    } catch (err) {
+      setMessage(`❌ Error: ${err instanceof Error ? err.message : String(err)}`);
     }
 
     setLoading(false);
