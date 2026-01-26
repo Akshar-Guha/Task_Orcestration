@@ -186,12 +186,14 @@ synced_at: "${new Date().toISOString()}"
             // B. Tasks (Both Completed and Active)
             for (const task of bucket.tasks) {
                 const cleanTitle = (task.title || 'Untitled').replace(/[^a-z0-9\s-]/gi, '').trim().replace(/\s+/g, '-');
-                // Prefix with status for easy sorting
                 const isCompleted = task.is_completed || (task.completion_evt !== undefined);
                 const prefix = isCompleted ? '✅' : '⏳';
-                const path = `${basePath}/Tasks/${cleanTitle}.md`;
+                const statusSuffix = isCompleted ? 'Completed' : 'Pending';
                 
-                const timestamp = task.completion_evt?.timestamp || task.completed_at || date; // For active, default to today
+                // Use distinct filenames so we log BOTH states if they happen (e.g. Daily task done then reset)
+                const path = `${basePath}/Tasks/${cleanTitle} (${statusSuffix}).md`;
+                
+                const timestamp = task.completion_evt?.timestamp || task.completed_at || date; 
                 
                 const content = `---
 id: "${task.id}"
@@ -205,7 +207,7 @@ ${isCompleted ? `**Completed At**: ${new Date(timestamp).toLocaleTimeString()}` 
 
 ${task.description || ''}
 `;
-                await github.upsertFile({ path, content }, `[MTO] Task ${task.title}`);
+                await github.upsertFile({ path, content }, `[MTO] Task ${task.title} (${statusSuffix})`);
             }
 
             // C. Goals (Both Completed and Active)
@@ -213,7 +215,9 @@ ${task.description || ''}
                 const cleanTitle = (goal.title || 'Untitled').replace(/[^a-z0-9\s-]/gi, '').trim().replace(/\s+/g, '-');
                 const isCompleted = goal.status === 'completed';
                 const prefix = isCompleted ? '🏆' : '🎯';
-                const path = `${basePath}/Goals/${cleanTitle}.md`;
+                const statusSuffix = isCompleted ? 'Completed' : 'Active';
+                
+                const path = `${basePath}/Goals/${cleanTitle} (${statusSuffix}).md`;
                 
                 const content = `---
 id: "${goal.id}"
@@ -227,7 +231,7 @@ ${isCompleted ? `**Completed At**: ${new Date(goal.completed_at).toLocaleTimeStr
 
 ${goal.description || ''}
 `;
-                await github.upsertFile({ path, content }, `[MTO] Goal ${goal.title}`);
+                await github.upsertFile({ path, content }, `[MTO] Goal ${goal.title} (${statusSuffix})`);
             }
 
             results.history.synced++;
