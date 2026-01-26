@@ -54,330 +54,184 @@ ${task.is_completed ? '✅ Completed' : '⏳ Pending'}
 
 export async function POST() {
   const results = {
-    goals: { synced: 0, failed: 0, errors: [] as string[] },
-    tasks: { synced: 0, failed: 0, errors: [] as string[] },
+    history: { synced: 0, failed: 0, errors: [] as string[] }
   };
 
   try {
     if (!github.isConfigured()) {
-      return NextResponse.json({
-        success: false,
-        error: 'GitHub not configured. Add GITHUB_TOKEN, GITHUB_OWNER, GITHUB_REPO to environment.',
-      }, { status: 503 });
+      return NextResponse.json({ success: false, error: 'GitHub not configured' }, { status: 503 });
     }
 
     const { data: { user } } = await supabase.auth.getUser();
     const userId = user?.id || FALLBACK_USER_ID;
 
-    // Fetch all goals
-    const { data: goals, error: goalsErr } = await supabase
-      .from('goals')
-      .select('*')
-      .eq('user_id', userId);
-
-    if (goalsErr) {
-      results.goals.errors.push(goalsErr.message);
-    } else if (goals) {
-      for (const goal of goals) {
-        try {
-          let statusFolder = 'active';
-          let subPath = '';
-
-          if (goal.status === 'completed' && goal.completed_at) {
-              statusFolder = 'completed';
-              const date = new Date(goal.completed_at);
-              subPath = `${date.getFullYear()}/${String(date.getMonth() + 1).padStart(2, '0')}/`;
-          } else if (goal.is_archived) {
-              statusFolder = 'archive';
-              const date = new Date(goal.created_at); // Archive by creation or last update? Default creation.
-              subPath = `${date.getFullYear()}/${String(date.getMonth() + 1).padStart(2, '0')}/`;
-          }
-
-          // Readable filename
-          const cleanTitle = (goal.title || 'Untitled').replace(/[^a-z0-9\s-]/gi, '').trim().replace(/\s+/g, '-');
-          const shortId = goal.id.slice(0, 4);
-          const path = `MTO/Goals/${statusFolder}/${subPath}${cleanTitle} (${shortId}).md`;
-          
-          await github.upsertFile(
-            { path, content: goalToMarkdown(goal) },
-            `[MTO] Sync goal: ${goal.title}`
-          );
-          results.goals.synced++;
-        } catch (e) {
-          results.goals.failed++;
-          results.goals.errors.push(`Goal ${goal.title}: ${String(e)}`);
-        }
-      }
-    }
-
-    // Fetch all tasks
-    const { data: tasks, error: tasksErr } = await supabase
-      .from('tasks')
-      .select('*')
-      .eq('user_id', userId);
-
-    if (tasksErr) {
-      results.tasks.errors.push(tasksErr.message);
-    } else if (tasks) {
-      for (const task of tasks) {
-        try {
-          let statusFolder = 'active';
-          let subPath = '';
-
-          if (task.is_completed && !task.is_daily) {
-              statusFolder = 'completed';
-              // Use completed_at or fallback to created_at
-              const date = new Date(task.completed_at || task.created_at); 
-              subPath = `${date.getFullYear()}/${String(date.getMonth() + 1).padStart(2, '0')}/`;
-          }
-
-          // Readable filename
-          const cleanTitle = (task.title || 'Untitled').replace(/[^a-z0-9\s-]/gi, '').trim().replace(/\s+/g, '-');
-          const shortId = task.id.slice(0, 4);
-          const path = `MTO/Tasks/${statusFolder}/${subPath}${cleanTitle} (${shortId}).md`;
-          
-          await github.upsertFile(
-            { path, content: taskToMarkdown(task) },
-            `[MTO] Sync task: ${task.title}`
-          );
-          results.tasks.synced++;
-        } catch (e) {
-          results.tasks.failed++;
-          results.tasks.errors.push(`Task ${task.title}: ${String(e)}`);
-        }
-      }
-    }
-
-    // Create Task Map for history lookup
-    const taskMap = new Map<string, any>();
-    if (tasks) {
-        tasks.forEach(t => taskMap.set(t.id, t));
-    }
-
-    // Fetch Task Completion History (Timeline Events)
+    // 1. Fetch ALL Data
+    const { data: goals } = await supabase.from('goals').select('*').eq('user_id', userId);
+    const { data: tasks } = await supabase.from('tasks').select('*').eq('user_id', userId);
+    const { data: sleepLogs } = await supabase.from('sleep_wake_logs').select('*').eq('user_id', userId);
+    const { data: diaryEntries } = await supabase.from('daily_entries').select('*').eq('user_id', userId);
+    
+    // Timeline Events (Task Completions)
     const { data: historyEvents } = await supabase
         .from('timeline_events')
         .select('*')
         .eq('user_id', userId)
         .eq('event_type', 'task_completed');
 
-    const historyByDate = new Map<string, any[]>();
+    // 2. Index Data by Date
+    const dataByDate = new Map<string, {
+        diary?: any,
+        sleep?: any,
+        tasks: any[],
+        goals: any[] // Goals completed on this date
+    }>();
+
+    const getDayBucket = (date: string) => {
+        if (!dataByDate.has(date)) {
+            dataByDate.set(date, { tasks: [], goals: [] });
+        }
+        return dataByDate.get(date)!;
+    };
+
+    // Index Diary
+    diaryEntries?.forEach(entry => {
+        getDayBucket(entry.date).diary = entry;
+    });
+
+    // Index Sleep
+    sleepLogs?.forEach(log => {
+        getDayBucket(log.date).sleep = log;
+    });
+
+    // Index Completed Tasks (via Timeline or CompletedAt)
+    // We prefer Timeline for accuracy, but fallback to Task.completed_at
     if (historyEvents) {
+        // Map tasks by ID for details
+        const taskMap = new Map(tasks?.map(t => [t.id, t]));
         historyEvents.forEach(evt => {
             const date = evt.timestamp.split('T')[0];
-            if (!historyByDate.has(date)) historyByDate.set(date, []);
-            historyByDate.get(date)?.push(evt);
+            const task = taskMap.get(evt.task_id);
+            if (task) {
+                getDayBucket(date).tasks.push({ ...task, completion_evt: evt });
+            }
+        });
+    } else if (tasks) {
+        // Fallback if no timeline
+        tasks.filter(t => t.is_completed && t.completed_at).forEach(t => {
+            const date = new Date(t.completed_at).toISOString().split('T')[0];
+            getDayBucket(date).tasks.push(t);
         });
     }
 
-    // Fetch Sleep Logs
-    const { data: sleepLogs } = await supabase
-        .from('sleep_wake_logs')
-        .select('*')
-        .eq('user_id', userId);
+    // Index Completed Goals
+    goals?.filter(g => g.status === 'completed' && g.completed_at).forEach(g => {
+        const date = new Date(g.completed_at).toISOString().split('T')[0];
+        getDayBucket(date).goals.push(g);
+    });
 
-    const sleepByDate = new Map<string, any>();
-    if (sleepLogs) {
-        sleepLogs.forEach(log => sleepByDate.set(log.date, log));
-    }
+    // 3. Generate Warehouse Files
+    for (const [date, bucket] of dataByDate) {
+        try {
+            const [year, month, day] = date.split('-');
+            const basePath = `MTO/Data/${year}/${month}/${day}`;
 
-    // Fetch Daily Entries (Diary)
-    const { data: diaryEntries } = await supabase
-        .from('daily_entries')
-        .select('*')
-        .eq('user_id', userId);
-
-    const diaryByDate = new Map<string, any>();
-    if (diaryEntries) {
-        diaryEntries.forEach(entry => diaryByDate.set(entry.date, entry));
-    }
-
-    // Get All Unique Dates
-    const allDates = new Set<string>([
-        ...historyByDate.keys(),
-        ...sleepByDate.keys(),
-        ...diaryByDate.keys()
-    ]);
-
-    // Generate Daily Notes for ALL Dates
-    for (const date of allDates) {
-         try {
-             const [year, month, day] = date.split('-');
-             const path = `MTO/Diary/${year}/${month}/${day}/Diary.md`;
-
-             const entry = diaryByDate.get(date);
-             const sleep = sleepByDate.get(date);
-             const dayEvents = historyByDate.get(date) || [];
-
-             // Completed Tasks Section
-             const completedTaskLines = dayEvents.map((evt:any) => {
-                 const task = taskMap.get(evt.task_id);
-                 const title = task ? task.title : 'Unknown Task';
-                 const time = new Date(evt.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-                 return `- [x] ${title} (${time})`;
-             }).join('\n');
-             const completedSection = completedTaskLines ? `\n## ✅ Completed Tasks\n${completedTaskLines}\n` : '';
-
-             // Sleep Section
-             let sleepSection = '';
-             if (sleep) {
-                const duration = sleep.sleep_duration_minutes 
-                    ? `${Math.floor(sleep.sleep_duration_minutes / 60)}h ${sleep.sleep_duration_minutes % 60}m` 
-                    : 'N/A';
-                const moodMap: Record<number, string> = { 5: '🤩', 4: '🙂', 3: '😐', 2: '😫', 1: '💀' };
-                sleepSection = `
-## 😴 Sleep & Recovery
-- **Sleep:** ${sleep.sleep_time || 'N/A'}
-- **Wake:** ${sleep.wake_up_time || 'N/A'}
-- **Duration:** ${duration}
-- **Mood:** ${moodMap[sleep.wake_up_mood] || '❓'}
-`;
-             }
-
-             // Diary Details check
-             let diaryDetails = '';
-             if (entry) {
-                 diaryDetails = await formatDiaryDetails(entry.id, supabase);
-             }
-
-             // Construct Content
-             const content = `---
+            // A. Diary.md (The Hub)
+            let diaryContent = `---
 date: "${date}"
-type: "daily_note"
-mood: ${entry?.mood || 'null'}
-energy: ${entry?.energy_level || 'null'}
+type: "daily_record"
 synced_at: "${new Date().toISOString()}"
 ---
+# 📅 Daily Record: ${date}
 
-# 📔 ${new Date(date).toDateString()}
-
-${entry ? `## Mood: ${entry.mood}/5 | Energy: ${entry.energy_level || 'N/A'}/10` : ''}
-
-${sleepSection}
-
-${entry?.summary ? `## Summary\n${entry.summary}` : ''}
-
-${completedSection}
-
-${diaryDetails}
 `;
-             await github.upsertFile(
-                 { path, content },
-                 `[MTO] Sync daily note: ${date}`
-             );
-                 // ==========================================
-                 // SNAPSHOTS: THE DATA WAREHOUSE
-                 // ==========================================
-                 // We save EVERYTHING that happened this day into the Date Folder.
-                 // Path: MTO/Diary/YYYY/MM/DD/
-                 
-                 // 1. Task Snapshots
-                 for (const evt of dayEvents) {
-                    const task = taskMap.get(evt.task_id);
-                    if (task) {
-                        const cleanTitle = (task.title || 'Untitled').replace(/[^a-z0-9\s-]/gi, '').trim().replace(/\s+/g, '-');
-                        const taskPath = `MTO/Diary/${year}/${month}/${day}/Task - ${cleanTitle}.md`;
-                        
-                        const taskContent = `---
+            if (bucket.diary) {
+                const e = bucket.diary;
+                diaryContent += `## 🧠 Mindset\n- **Mood**: ${e.mood}/5\n- **Energy**: ${e.energy_level}/10\n\n`;
+                if (e.summary) diaryContent += `## 📝 Summary\n${e.summary}\n\n`;
+                const details = await formatDiaryDetails(e.id, supabase);
+                if (details) diaryContent += details + '\n';
+            }
+
+            if (bucket.sleep) {
+                const s = bucket.sleep;
+                const duration = s.sleep_duration_minutes 
+                    ? `${Math.floor(s.sleep_duration_minutes / 60)}h ${s.sleep_duration_minutes % 60}m` : 'N/A';
+                diaryContent += `## 😴 Sleep\n- **Duration**: ${duration}\n- **Wake**: ${s.wake_up_time}\n- **Mood**: ${s.wake_up_mood}/5\n\n`;
+                
+                // Also save individual sleep file
+                const sleepPath = `${basePath}/Sleep.md`;
+                await github.upsertFile({ path: sleepPath, content: JSON.stringify(bucket.sleep, null, 2) }, `[MTO] Sleep data`);
+            }
+
+            // Save Diary
+            await github.upsertFile({ path: `${basePath}/Diary.md`, content: diaryContent }, `[MTO] Diary ${date}`);
+            
+            // B. Completed Tasks
+            for (const task of bucket.tasks) {
+                const cleanTitle = (task.title || 'Untitled').replace(/[^a-z0-9\s-]/gi, '').trim().replace(/\s+/g, '-');
+                const path = `${basePath}/Tasks/${cleanTitle}.md`;
+                const timestamp = task.completion_evt?.timestamp || task.completed_at || date;
+                const content = `---
 id: "${task.id}"
-date: "${date}"
-completed_at: "${evt.timestamp}"
+completed_at: "${timestamp}"
 type: "task_snapshot"
 ---
-# 🟢 TM: ${task.title}
-
-**Completed at:** ${new Date(evt.timestamp).toLocaleTimeString()}
-
+# ✅ ${task.title}
+**Time**: ${new Date(timestamp).toLocaleTimeString()}
 ${task.description || ''}
 `;
-                        await github.upsertFile(
-                            { path: taskPath, content: taskContent },
-                            `[MTO] Snapshot task: ${task.title}`
-                        );
-                    }
-                 }
+                await github.upsertFile({ path, content }, `[MTO] Task ${task.title}`);
+            }
 
-                 // 2. Goal Snapshots (If completed on this day)
-                 // We need to filter goals completed on this date
-                 // We rely on 'goals' array which we fetched earlier
-                 if (goals) {
-                     const dayStart = new Date(date);
-                     const dayEnd = new Date(date);
-                     dayEnd.setDate(dayEnd.getDate() + 1);
-                     
-                     const daysGoals = goals.filter(g => 
-                         g.status === 'completed' && 
-                         g.completed_at && 
-                         new Date(g.completed_at) >= dayStart && 
-                         new Date(g.completed_at) < dayEnd
-                     );
-
-                     for (const goal of daysGoals) {
-                         const cleanTitle = (goal.title || 'Untitled').replace(/[^a-z0-9\s-]/gi, '').trim().replace(/\s+/g, '-');
-                         const goalPath = `MTO/Diary/${year}/${month}/${day}/Goal - ${cleanTitle}.md`;
-                         
-                         const goalContent = `---
+            // C. Completed Goals
+            for (const goal of bucket.goals) {
+                const cleanTitle = (goal.title || 'Untitled').replace(/[^a-z0-9\s-]/gi, '').trim().replace(/\s+/g, '-');
+                const path = `${basePath}/Goals/${cleanTitle}.md`;
+                const content = `---
 id: "${goal.id}"
-date: "${date}"
 completed_at: "${goal.completed_at}"
 type: "goal_snapshot"
 ---
-# 🏆 GOAL: ${goal.title}
-
-**Completed at:** ${new Date(goal.completed_at).toLocaleTimeString()}
-
+# 🏆 ${goal.title}
+**Time**: ${new Date(goal.completed_at).toLocaleTimeString()}
 ${goal.description || ''}
 `;
-                        await github.upsertFile(
-                            { path: goalPath, content: goalContent },
-                            `[MTO] Snapshot goal: ${goal.title}`
-                        );
-                     }
-                 }
-         } catch (e) {
-             console.error(`Daily Note sync error for ${date}`, e);
-         }
+                await github.upsertFile({ path, content }, `[MTO] Goal ${goal.title}`);
+            }
+
+            results.history.synced++;
+
+        } catch (e) {
+            console.error(`Error syncing date ${date}`, e);
+            results.history.failed++;
+        }
     }
 
-
-    // ============================================
-    // CLEANUP LEGACY FILES (UUIDs)
-    // ============================================
+    // 4. CLEANUP LEGACY FOLDERS (Active State)
+    // We delete 'MTO/Tasks' and 'MTO/Goals' entirely as user explicitly rejected "active" folders.
     try {
-        console.log("Starting legacy cleanup...");
-        const legacyDirs = ['MTO/Tasks/active', 'MTO/Goals/active'];
-        const uuidRegex = /^[0-9a-fA-F-]{36}\.md$/;
+        console.log("Cleaning up legacy structure...");
+        // List root items to find leftovers - Github API doesn't support recursive delete of folder easily
+        // We will try to list active folders and delete content.
+        const legacyPaths = [
+            'MTO/Tasks/active', 'MTO/Tasks/completed', 
+            'MTO/Goals/active', 'MTO/Goals/archive', 'MTO/Goals/completed'
+        ];
         
-        for (const dir of legacyDirs) {
+        for (const dir of legacyPaths) {
             const files = await github.listFiles(dir);
             for (const file of files) {
-                const filename = file.split('/').pop() || '';
-                // Delete if it matches pure UUID format (old format)
-                if (uuidRegex.test(filename)) {
-                    await github.softDeleteFile(file, '[MTO] Cleanup legacy UUID file');
-                }
+                await github.softDeleteFile(file, '[MTO] Cleanup legacy structure (Moving to Warehouse)');
             }
         }
-    } catch (cleanErr) {
-        console.error("Cleanup error (non-fatal):", cleanErr);
+    } catch (e) {
+        console.warn("Cleanup warning:", e);
     }
 
-    return NextResponse.json({
-      success: true,
-      message: 'Synced successfully with cleanup',
-      results: {
-        goals: { synced: goals?.length || 0 },
-        tasks: { synced: tasks?.length || 0 },
-        diary: { synced: diaryEntries?.length || 0 }
-      }
-    });
+    return NextResponse.json({ success: true, results });
 
   } catch (error) {
-    return NextResponse.json({
-      success: false,
-      error: String(error),
-      results,
-    }, { status: 500 });
+    return NextResponse.json({ success: false, error: String(error) }, { status: 500 });
   }
 }
 
