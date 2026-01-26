@@ -296,10 +296,37 @@ ${task.description || ''}
          }
     }
 
+
+    // ============================================
+    // CLEANUP LEGACY FILES (UUIDs)
+    // ============================================
+    try {
+        console.log("Starting legacy cleanup...");
+        const legacyDirs = ['MTO/Tasks/active', 'MTO/Goals/active'];
+        const uuidRegex = /^[0-9a-fA-F-]{36}\.md$/;
+        
+        for (const dir of legacyDirs) {
+            const files = await github.listFiles(dir);
+            for (const file of files) {
+                const filename = file.split('/').pop() || '';
+                // Delete if it matches pure UUID format (old format)
+                if (uuidRegex.test(filename)) {
+                    await github.softDeleteFile(file, '[MTO] Cleanup legacy UUID file');
+                }
+            }
+        }
+    } catch (cleanErr) {
+        console.error("Cleanup error (non-fatal):", cleanErr);
+    }
+
     return NextResponse.json({
       success: true,
-      results,
-      timestamp: new Date().toISOString(),
+      message: 'Synced successfully with cleanup',
+      results: {
+        goals: { synced: goals?.length || 0 },
+        tasks: { synced: tasks?.length || 0 },
+        diary: { synced: diaryEntries?.length || 0 }
+      }
     });
 
   } catch (error) {
