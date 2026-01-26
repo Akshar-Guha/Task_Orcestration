@@ -265,40 +265,74 @@ ${diaryDetails}
                  { path, content },
                  `[MTO] Sync daily note: ${date}`
              );
-                          // SNAPSHOT: Save Daily Tasks as individual files in TASKS/COMPLETED
-                 // This ensures accurate history storage ("storing data accurately forever")
+                 // ==========================================
+                 // SNAPSHOTS: THE DATA WAREHOUSE
+                 // ==========================================
+                 // We save EVERYTHING that happened this day into the Date Folder.
+                 // Path: MTO/Diary/YYYY/MM/DD/
+                 
+                 // 1. Task Snapshots
                  for (const evt of dayEvents) {
                     const task = taskMap.get(evt.task_id);
                     if (task) {
                         const cleanTitle = (task.title || 'Untitled').replace(/[^a-z0-9\s-]/gi, '').trim().replace(/\s+/g, '-');
-                        // Path: MTO/Tasks/completed/YYYY/MM/DD/TaskTitle.md
-                        // This mirrors the Diary nesting but for Tasks
-                        const taskPath = `MTO/Tasks/completed/${year}/${month}/${day}/${cleanTitle}.md`;
+                        const taskPath = `MTO/Diary/${year}/${month}/${day}/Task - ${cleanTitle}.md`;
                         
                         const taskContent = `---
 id: "${task.id}"
-task_id: "${task.id}"
 date: "${date}"
 completed_at: "${evt.timestamp}"
 type: "task_snapshot"
-is_daily: ${task.is_daily}
 ---
-# ${task.title}
+# 🟢 TM: ${task.title}
 
 **Completed at:** ${new Date(evt.timestamp).toLocaleTimeString()}
 
-## Description
 ${task.description || ''}
-
-## Context
-- **Date:** ${date}
-- **Diary Entry:** [[MTO/Diary/${year}/${month}/${day}/Diary|Diary for ${date}]]
 `;
                         await github.upsertFile(
                             { path: taskPath, content: taskContent },
                             `[MTO] Snapshot task: ${task.title}`
                         );
                     }
+                 }
+
+                 // 2. Goal Snapshots (If completed on this day)
+                 // We need to filter goals completed on this date
+                 // We rely on 'goals' array which we fetched earlier
+                 if (goals) {
+                     const dayStart = new Date(date);
+                     const dayEnd = new Date(date);
+                     dayEnd.setDate(dayEnd.getDate() + 1);
+                     
+                     const daysGoals = goals.filter(g => 
+                         g.status === 'completed' && 
+                         g.completed_at && 
+                         new Date(g.completed_at) >= dayStart && 
+                         new Date(g.completed_at) < dayEnd
+                     );
+
+                     for (const goal of daysGoals) {
+                         const cleanTitle = (goal.title || 'Untitled').replace(/[^a-z0-9\s-]/gi, '').trim().replace(/\s+/g, '-');
+                         const goalPath = `MTO/Diary/${year}/${month}/${day}/Goal - ${cleanTitle}.md`;
+                         
+                         const goalContent = `---
+id: "${goal.id}"
+date: "${date}"
+completed_at: "${goal.completed_at}"
+type: "goal_snapshot"
+---
+# 🏆 GOAL: ${goal.title}
+
+**Completed at:** ${new Date(goal.completed_at).toLocaleTimeString()}
+
+${goal.description || ''}
+`;
+                        await github.upsertFile(
+                            { path: goalPath, content: goalContent },
+                            `[MTO] Snapshot goal: ${goal.title}`
+                        );
+                     }
                  }
          } catch (e) {
              console.error(`Daily Note sync error for ${date}`, e);
