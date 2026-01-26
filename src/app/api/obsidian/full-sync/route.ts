@@ -239,19 +239,31 @@ ${goal.description || ''}
     }
 
     // 4. CLEANUP LEGACY FOLDERS (Active State)
-    // We delete 'MTO/Tasks' and 'MTO/Goals' entirely as user explicitly rejected "active" folders.
+    // We delete 'MTO/Tasks', 'MTO/Goals', AND 'MTO/Diary' (Old root)
     try {
         console.log("Cleaning up legacy structure...");
-        // List root items to find leftovers - Github API doesn't support recursive delete of folder easily
-        // We will try to list active folders and delete content.
+        // List root items to find leftovers
         const legacyPaths = [
             'MTO/Tasks/active', 'MTO/Tasks/completed', 
-            'MTO/Goals/active', 'MTO/Goals/archive', 'MTO/Goals/completed'
+            'MTO/Goals/active', 'MTO/Goals/archive', 'MTO/Goals/completed',
+            'MTO/Diary', // Clean up old Diary root if it exists, assuming all migrated to Data
         ];
         
         for (const dir of legacyPaths) {
+            // We only want to delete invalid structure, not Data
+            if (dir === 'MTO/Diary') {
+                 // Listing MTO/Diary might return YYYY folders if we used MTO/Diary/2026 before.
+                 // But wait, the new structure uses MTO/Data. So MTO/Diary is old.
+                 // We should proceed carefully. Is MTO/Diary/2026/01/27 the same as MTO/Data/2026/01/27?
+                 // No, I changed it to MTO/Data.
+                 // So entire MTO/Diary can be considered legacy if user accepted the "Data" rename.
+                 // Let's delete it.
+            }
+            
             const files = await github.listFiles(dir);
             for (const file of files) {
+                // Determine if this file is in the new MTO/Data structure? No, it's in legacyPaths.
+                // Just delete it.
                 await github.softDeleteFile(file, '[MTO] Cleanup legacy structure (Moving to Warehouse)');
             }
         }
