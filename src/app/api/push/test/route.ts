@@ -45,7 +45,7 @@ export async function POST() {
     console.error('[API] Test notification error:', error);
     return NextResponse.json({ 
       success: false, 
-      error: 'Internal error sending test notification' 
+      error: `Internal Test Error: ${error instanceof Error ? error.message : String(error)}` 
     }, { status: 500 });
   }
 }
