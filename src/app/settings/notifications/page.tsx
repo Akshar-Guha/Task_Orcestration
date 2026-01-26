@@ -203,13 +203,38 @@ export default function NotificationsPage() {
           )}
 
           {isSubscribed && (
-            <button
-              onClick={handleTestNotification}
-              disabled={loading}
-              className="w-full py-3 bg-slate-700 hover:bg-slate-600 text-white font-medium rounded-xl disabled:opacity-50 transition-colors"
-            >
-              {loading ? 'Sending...' : '🧪 Send Test Notification'}
-            </button>
+            <div className="space-y-3">
+              <button
+                onClick={handleTestNotification}
+                disabled={loading}
+                className="w-full py-3 bg-slate-700 hover:bg-slate-600 text-white font-medium rounded-xl disabled:opacity-50 transition-colors flex items-center justify-center gap-2"
+              >
+                <span>🧪</span>
+                {loading ? 'Sending...' : 'Send Test Notification'}
+              </button>
+              
+              <button
+                onClick={async () => {
+                  setLoading(true);
+                  try {
+                    if ('serviceWorker' in navigator) {
+                      const reg = await navigator.serviceWorker.getRegistration();
+                      const sub = await reg?.pushManager.getSubscription();
+                      await sub?.unsubscribe();
+                      setIsSubscribed(false);
+                      setMessage('✅ Notifications disabled. Click Enable to re-subscribe with new keys.');
+                    }
+                  } catch (e) {
+                    setMessage('❌ Failed to unsubscribe');
+                  }
+                  setLoading(false);
+                }}
+                disabled={loading}
+                className="w-full py-3 bg-red-500/10 hover:bg-red-500/20 text-red-500 border border-red-500/20 font-medium rounded-xl disabled:opacity-50 transition-colors"
+              >
+                Reset / Disable Notifications
+              </button>
+            </div>
           )}
         </div>
 
