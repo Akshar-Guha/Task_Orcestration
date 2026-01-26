@@ -135,7 +135,7 @@ export async function POST() {
     }
 
     // Fetch Task Completion History (Timeline Events)
-    const { data: historyEvents, error: historyErr } = await supabase
+    const { data: historyEvents } = await supabase
         .from('timeline_events')
         .select('*')
         .eq('user_id', userId)
@@ -150,68 +150,112 @@ export async function POST() {
         });
     }
 
-    // Fetch and sync Daily Entries (Diary)
-    const { data: diaryEntries, error: diaryErr } = await supabase
+    // Fetch Sleep Logs
+    const { data: sleepLogs } = await supabase
+        .from('sleep_wake_logs')
+        .select('*')
+        .eq('user_id', userId);
+
+    const sleepByDate = new Map<string, any>();
+    if (sleepLogs) {
+        sleepLogs.forEach(log => sleepByDate.set(log.date, log));
+    }
+
+    // Fetch Daily Entries (Diary)
+    const { data: diaryEntries } = await supabase
         .from('daily_entries')
         .select('*')
         .eq('user_id', userId);
-        
-    if (!diaryErr && diaryEntries) {
-        for (const entry of diaryEntries) {
-             try {
-                 // Nested folder structure: MTO/Diary/YYYY/MM/DD/Diary.md
-                 // User wants "nested date wise folder for each date data"
-                 // So we create a folder for the day
-                 const [year, month, day] = entry.date.split('-');
-                 const path = `MTO/Diary/${year}/${month}/${day}/Diary.md`;
-                 
-                 // Get completed tasks for this date
-                 const dayEvents = historyByDate.get(entry.date) || [];
-                 const completedTaskLines = dayEvents.map(evt => {
-                     const task = taskMap.get(evt.task_id);
-                     const title = task ? task.title : 'Unknown Task';
-                     const time = new Date(evt.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-                     return `- [x] ${title} (${time})`;
-                 }).join('\n');
 
-                 const completedSection = completedTaskLines ? `\n## ✅ Completed Tasks\n${completedTaskLines}\n` : '';
+    const diaryByDate = new Map<string, any>();
+    if (diaryEntries) {
+        diaryEntries.forEach(entry => diaryByDate.set(entry.date, entry));
+    }
 
-                 const content = `---
-id: "${entry.id}"
-date: "${entry.date}"
-mood: ${entry.mood}
-energy: ${entry.energy_level}
+    // Get All Unique Dates
+    const allDates = new Set<string>([
+        ...historyByDate.keys(),
+        ...sleepByDate.keys(),
+        ...diaryByDate.keys()
+    ]);
+
+    // Generate Daily Notes for ALL Dates
+    for (const date of allDates) {
+         try {
+             const [year, month, day] = date.split('-');
+             const path = `MTO/Diary/${year}/${month}/${day}/Diary.md`;
+
+             const entry = diaryByDate.get(date);
+             const sleep = sleepByDate.get(date);
+             const dayEvents = historyByDate.get(date) || [];
+
+             // Completed Tasks Section
+             const completedTaskLines = dayEvents.map((evt:any) => {
+                 const task = taskMap.get(evt.task_id);
+                 const title = task ? task.title : 'Unknown Task';
+                 const time = new Date(evt.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+                 return `- [x] ${title} (${time})`;
+             }).join('\n');
+             const completedSection = completedTaskLines ? `\n## ✅ Completed Tasks\n${completedTaskLines}\n` : '';
+
+             // Sleep Section
+             let sleepSection = '';
+             if (sleep) {
+                const duration = sleep.sleep_duration_minutes 
+                    ? `${Math.floor(sleep.sleep_duration_minutes / 60)}h ${sleep.sleep_duration_minutes % 60}m` 
+                    : 'N/A';
+                const moodMap: Record<number, string> = { 5: '🤩', 4: '🙂', 3: '😐', 2: '😫', 1: '💀' };
+                sleepSection = `
+## 😴 Sleep & Recovery
+- **Sleep:** ${sleep.sleep_time || 'N/A'}
+- **Wake:** ${sleep.wake_up_time || 'N/A'}
+- **Duration:** ${duration}
+- **Mood:** ${moodMap[sleep.wake_up_mood] || '❓'}
+`;
+             }
+
+             // Diary Details check
+             let diaryDetails = '';
+             if (entry) {
+                 diaryDetails = await formatDiaryDetails(entry.id, supabase);
+             }
+
+             // Construct Content
+             const content = `---
+date: "${date}"
+type: "daily_note"
+mood: ${entry?.mood || 'null'}
+energy: ${entry?.energy_level || 'null'}
 synced_at: "${new Date().toISOString()}"
 ---
 
-# 📔 ${new Date(entry.date).toDateString()}
+# 📔 ${new Date(date).toDateString()}
 
-## Mood: ${entry.mood}/5 | Energy: ${entry.energy_level || 'N/A'}/10
+${entry ? `## Mood: ${entry.mood}/5 | Energy: ${entry.energy_level || 'N/A'}/10` : ''}
 
-${entry.summary ? `## Summary\n${entry.summary}` : ''}
+${sleepSection}
+
+${entry?.summary ? `## Summary\n${entry.summary}` : ''}
 
 ${completedSection}
 
-${await formatDiaryDetails(entry.id, supabase)}
+${diaryDetails}
 `;
-                 await github.upsertFile(
-                     { path, content },
-                     `[MTO] Sync diary: ${entry.date}`
-                 );
-                 
-                 // SNAPSHOT: Save Daily Tasks as individual files in the Date Folder
-                 // This ensures history is preserved even if the main Task resets.
-                 for (const evt of dayEvents) {
-                    const task = taskMap.get(evt.task_id);
-                    if (task) {
-                        const cleanTitle = (task.title || 'Untitled').replace(/[^a-z0-9\s-]/gi, '').trim().replace(/\s+/g, '-');
-                        // MTO/Diary/YYYY/MM/DD/TaskTitle.md
-                        const taskPath = `MTO/Diary/${year}/${month}/${day}/${cleanTitle}.md`;
-                        
-                        const taskContent = `---
+             await github.upsertFile(
+                 { path, content },
+                 `[MTO] Sync daily note: ${date}`
+             );
+             
+             // SNAPSHOT: Save Daily Tasks as individual files (Still logic)
+             for (const evt of dayEvents) {
+                const task = taskMap.get(evt.task_id);
+                if (task) {
+                    const cleanTitle = (task.title || 'Untitled').replace(/[^a-z0-9\s-]/gi, '').trim().replace(/\s+/g, '-');
+                    const taskPath = `MTO/Diary/${year}/${month}/${day}/${cleanTitle}.md`;
+                    const taskContent = `---
 id: "${task.id}"
 task_id: "${task.id}"
-date: "${entry.date}"
+date: "${date}"
 completed_at: "${evt.timestamp}"
 type: "daily_snapshot"
 ---
@@ -221,16 +265,15 @@ type: "daily_snapshot"
 
 ${task.description || ''}
 `;
-                        await github.upsertFile(
-                            { path: taskPath, content: taskContent },
-                            `[MTO] Snapshot task: ${task.title}`
-                        );
-                    }
-                 }
-             } catch (e) {
-                 console.error("Diary sync error", e);
+                    await github.upsertFile(
+                        { path: taskPath, content: taskContent },
+                        `[MTO] Snapshot task: ${task.title}`
+                    );
+                }
              }
-        }
+         } catch (e) {
+             console.error(`Daily Note sync error for ${date}`, e);
+         }
     }
 
     return NextResponse.json({
