@@ -129,6 +129,23 @@ export async function POST() {
         getDayBucket(date).goals.push(g);
     });
 
+    // ===================================
+    // SNAPSHOT ACTIVE STATE (For "Today")
+    // ===================================
+    // User wants a full "Reality Reflection", so we include what is currently PENDING 
+    // in today's folder as well.
+    const todayStr = new Date().toISOString().split('T')[0];
+    
+    // Add Active Tasks to Today
+    tasks?.filter(t => !t.is_completed).forEach(t => {
+        getDayBucket(todayStr).tasks.push(t);
+    });
+
+    // Add Active Goals to Today
+    goals?.filter(g => g.status !== 'completed' && !g.is_archived).forEach(g => {
+        getDayBucket(todayStr).goals.push(g);
+    });
+
     // 3. Generate Warehouse Files
     for (const [date, bucket] of dataByDate) {
         try {
@@ -166,34 +183,48 @@ synced_at: "${new Date().toISOString()}"
             // Save Diary
             await github.upsertFile({ path: `${basePath}/Diary.md`, content: diaryContent }, `[MTO] Diary ${date}`);
             
-            // B. Completed Tasks
+            // B. Tasks (Both Completed and Active)
             for (const task of bucket.tasks) {
                 const cleanTitle = (task.title || 'Untitled').replace(/[^a-z0-9\s-]/gi, '').trim().replace(/\s+/g, '-');
+                // Prefix with status for easy sorting
+                const isCompleted = task.is_completed || (task.completion_evt !== undefined);
+                const prefix = isCompleted ? '✅' : '⏳';
                 const path = `${basePath}/Tasks/${cleanTitle}.md`;
-                const timestamp = task.completion_evt?.timestamp || task.completed_at || date;
+                
+                const timestamp = task.completion_evt?.timestamp || task.completed_at || date; // For active, default to today
+                
                 const content = `---
 id: "${task.id}"
-completed_at: "${timestamp}"
+status: "${isCompleted ? 'completed' : 'active'}"
+date: "${date}"
 type: "task_snapshot"
 ---
-# ✅ ${task.title}
-**Time**: ${new Date(timestamp).toLocaleTimeString()}
+# ${prefix} ${task.title}
+**Status**: ${isCompleted ? 'Completed' : 'Pending'}
+${isCompleted ? `**Completed At**: ${new Date(timestamp).toLocaleTimeString()}` : ''}
+
 ${task.description || ''}
 `;
                 await github.upsertFile({ path, content }, `[MTO] Task ${task.title}`);
             }
 
-            // C. Completed Goals
+            // C. Goals (Both Completed and Active)
             for (const goal of bucket.goals) {
                 const cleanTitle = (goal.title || 'Untitled').replace(/[^a-z0-9\s-]/gi, '').trim().replace(/\s+/g, '-');
+                const isCompleted = goal.status === 'completed';
+                const prefix = isCompleted ? '🏆' : '🎯';
                 const path = `${basePath}/Goals/${cleanTitle}.md`;
+                
                 const content = `---
 id: "${goal.id}"
-completed_at: "${goal.completed_at}"
+status: "${goal.status}"
+date: "${date}"
 type: "goal_snapshot"
 ---
-# 🏆 ${goal.title}
-**Time**: ${new Date(goal.completed_at).toLocaleTimeString()}
+# ${prefix} ${goal.title}
+**Status**: ${goal.status}
+${isCompleted ? `**Completed At**: ${new Date(goal.completed_at).toLocaleTimeString()}` : ''}
+
 ${goal.description || ''}
 `;
                 await github.upsertFile({ path, content }, `[MTO] Goal ${goal.title}`);
