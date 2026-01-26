@@ -26,7 +26,7 @@ export default function DashboardPage() {
   const completeTaskMutation = useCompleteTask();
   const addTimeSlotMutation = useAddTimeSlot();
 
-  // 3. UI State from Zustand (Data persistence removed, only UI state remains)
+  // 3. UI State from Zustand
   const focusGoalIds = useAppStore((state) => state.focusGoalIds);
 
   const handleInitialize = async () => {
@@ -37,7 +37,7 @@ export default function DashboardPage() {
       { name: 'Evening', type: 'evening' as const, startTime: '17:00', endTime: '21:00' },
     ];
     
-    // Create slots sequentially or typically parallel is fine
+    // Create slots sequentially
     for (const slot of defaultSlots) {
        addTimeSlotMutation.mutate(slot);
     }
@@ -47,27 +47,49 @@ export default function DashboardPage() {
   const prodStats = productivity || {
     todayMinutes: 0,
     todayPercentage: 0,
-    todayPercentage: 0,
     weekMinutes: 0
   };
 
-  // Calculate Wasted Hours
+  const activeSlots = timeSlots.filter((ts) => ts.isActive).sort((a, b) => a.startTime.localeCompare(b.startTime));
+
+  // --- LOGIC: Wasted/Remaining Hours ---
   const todayStr = new Date().toISOString().split('T')[0];
   const todaySleepLog = sleepLogs.find(l => l.date === todayStr);
   
-  const sleepMinutes = todaySleepLog?.sleepDurationMinutes || 0;
+  let sleepMinutes = todaySleepLog?.sleepDurationMinutes || 0;
+  
+  // If currently sleeping (start time exists, wake time doesn't), calculate duration so far
+  if (todaySleepLog?.sleepTime && !todaySleepLog.wakeUpTime) {
+     const [h, m] = todaySleepLog.sleepTime.split(':').map(Number);
+     const sleepStartMins = h * 60 + m;
+     const now = new Date();
+     const currentMins = now.getHours() * 60 + now.getMinutes();
+     
+     if (currentMins >= sleepStartMins) {
+       sleepMinutes = currentMins - sleepStartMins;
+     } else {
+       // Values wrapped midnight - rare case for single day view, handle if needed 
+       // For now assume same day sleep
+     }
+  }
+
   const productiveMinutes = prodStats.todayMinutes;
   
+  const now = new Date();
+  const minutesPassed = now.getHours() * 60 + now.getMinutes();
   const totalMinutesInDay = 24 * 60;
-  const wastedMinutes = Math.max(0, totalMinutesInDay - (sleepMinutes + productiveMinutes));
+  
+  // Wasted = Time Passed - (Sleep + Work)
+  const wastedMinutes = Math.max(0, minutesPassed - (sleepMinutes + productiveMinutes));
+  const remainingMinutes = Math.max(0, totalMinutesInDay - minutesPassed);
   
   const widthProductive = (productiveMinutes / totalMinutesInDay) * 100;
   const widthSleep = (sleepMinutes / totalMinutesInDay) * 100;
   const widthWasted = (wastedMinutes / totalMinutesInDay) * 100;
+  const widthRemaining = (remainingMinutes / totalMinutesInDay) * 100;
+  // --- END LOGIC ---
 
   if (timeSlots.length === 0) {
-    // If truly empty (and not just loading?), show init. 
-    // Ideally we check isLoading, but for now assuming empty array = no slots.
     return (
       <div className="min-h-screen bg-slate-950 pb-24">
         <div className="max-w-4xl mx-auto px-4 py-6">
@@ -86,8 +108,6 @@ export default function DashboardPage() {
       </div>
     );
   }
-
-  const activeSlots = timeSlots.filter((ts) => ts.isActive).sort((a, b) => a.startTime.localeCompare(b.startTime));
 
   // Helper to get goals for a slot
   const getGoalsForSlot = (slotId: string) => {
@@ -136,7 +156,7 @@ export default function DashboardPage() {
             </div>
             <div className="text-center">
                <div className="text-rose-400 font-bold text-lg">{formatDuration(wastedMinutes)}</div>
-               <div className="text-slate-500 text-xs uppercase tracking-wider">Wasted/Other</div>
+               <div className="text-slate-500 text-xs uppercase tracking-wider">Unaccounted</div>
             </div>
          </div>
 
@@ -145,26 +165,32 @@ export default function DashboardPage() {
             {/* Sleep (Blue) */}
             <div 
               style={{ width: `${widthSleep}%` }} 
-              className="bg-blue-500/50 h-full"
+              className="bg-blue-500/50 h-full transition-all duration-500"
               title={`Sleep: ${formatDuration(sleepMinutes)}`}
             />
             {/* Work (Green) */}
             <div 
               style={{ width: `${widthProductive}%` }} 
-              className="bg-emerald-500 h-full"
+              className="bg-emerald-500 h-full transition-all duration-500"
               title={`Work: ${formatDuration(productiveMinutes)}`}
             />
-            {/* Wasted (Red/Empty) */}
+            {/* Wasted (Red) */}
             <div 
                style={{ width: `${widthWasted}%` }}
-               className="bg-rose-500/20 h-full"
+               className="bg-rose-500/20 h-full transition-all duration-500"
                title={`Unaccounted: ${formatDuration(wastedMinutes)}`}
+            />
+            {/* Remaining (Transparent/Dark) */}
+            <div 
+               style={{ width: `${widthRemaining}%` }}
+               className="bg-slate-800/50 h-full"
+               title={`Remaining: ${formatDuration(remainingMinutes)}`}
             />
          </div>
          
          {!todaySleepLog && (
             <div className="text-center text-xs text-orange-400/80 mt-1">
-               ⚠️ Sleep not tracked yet. "Wasted" includes sleep time.
+               ⚠️ Sleep not tracked yet. &quot;Unaccounted&quot; includes sleep time.
             </div>
          )}
       </div>

@@ -7,7 +7,8 @@ import {
   useGoals, 
   useTasks, 
   useTimeSlots, 
-  useProductivity 
+  useProductivity,
+  useSleepLogs
 } from '@/lib/hooks/useSupabase';
 
 type ViewTab = 'goals' | 'productivity';
@@ -18,6 +19,7 @@ export default function TimelinePage() {
   const { data: tasks = [] } = useTasks();
   const { data: timeSlots = [] } = useTimeSlots();
   const { data: productivityData } = useProductivity();
+  const { data: sleepLogs = [] } = useSleepLogs();
 
   // Helper calculation functions (previously in store)
   const getTasksForGoal = (goalId: string) => {
@@ -273,28 +275,86 @@ export default function TimelinePage() {
         {activeTab === 'productivity' && (
           <div className="space-y-6">
             {/* Today Summary */}
-            <div className="p-6 bg-gradient-to-br from-violet-900/30 to-slate-900/50 border border-violet-500/30 rounded-xl">
-              <h3 className="text-lg font-semibold text-white mb-4">Today&apos;s Productivity</h3>
-              <div className="grid grid-cols-2 gap-4 mb-4">
-                <div>
-                  <div className="text-3xl font-bold text-violet-400">
-                    {formatDuration(productivity.todayMinutes)}
-                  </div>
-                  <div className="text-sm text-slate-500">Productive time</div>
-                </div>
-                <div>
-                  <div className="text-3xl font-bold text-cyan-400">
-                    {productivity.todayPercentage}%
-                  </div>
-                  <div className="text-sm text-slate-500">Of waking hours</div>
-                </div>
-              </div>
-              <div className="w-full h-4 bg-slate-800 rounded-full overflow-hidden">
-                <div
-                  className="h-full bg-gradient-to-r from-violet-500 to-cyan-500 transition-all"
-                  style={{ width: `${Math.min(100, productivity.todayPercentage)}%` }}
-                />
-              </div>
+            <div className="p-6 bg-slate-900/50 border border-slate-800 rounded-xl">
+               {(() => {
+                  const todayStr = new Date().toISOString().split('T')[0];
+                  // useSleepLogs data is available in scope? Yes, I added it.
+                  const todaySleepLog = sleepLogs.find((l) => l.date === todayStr);
+
+                  let sleepMinutes = todaySleepLog?.sleepDurationMinutes || 0;
+
+                  // Active Sleep Calculation
+                  if (todaySleepLog?.sleepTime && !todaySleepLog.wakeUpTime) {
+                     const [h, m] = todaySleepLog.sleepTime.split(':').map(Number);
+                     const sleepStartMins = h * 60 + m;
+                     const now = new Date();
+                     const currentMins = now.getHours() * 60 + now.getMinutes();
+                     
+                     if (currentMins >= sleepStartMins) {
+                        sleepMinutes = currentMins - sleepStartMins;
+                     }
+                  }
+
+                  const productiveMinutes = productivity.todayMinutes;
+                  
+                  const now = new Date();
+                  const minutesPassed = now.getHours() * 60 + now.getMinutes();
+                  const totalMinutesInDay = 24 * 60;
+
+                  // Wasted = Time Passed - (Sleep + Work)
+                  const wastedMinutes = Math.max(0, minutesPassed - (sleepMinutes + productiveMinutes));
+                  const remainingMinutes = Math.max(0, totalMinutesInDay - minutesPassed);
+
+                  const widthProductive = (productiveMinutes / totalMinutesInDay) * 100;
+                  const widthSleep = (sleepMinutes / totalMinutesInDay) * 100;
+                  const widthWasted = (wastedMinutes / totalMinutesInDay) * 100;
+                  const widthRemaining = (remainingMinutes / totalMinutesInDay) * 100;
+
+                  return (
+                    <>
+                      <h3 className="text-lg font-semibold text-white mb-4">Today&apos;s Productivity</h3>
+                      <div className="flex justify-between text-sm mb-4">
+                        <div className="text-center">
+                          <div className="text-emerald-400 font-bold text-3xl">{formatDuration(productiveMinutes)}</div>
+                          <div className="text-slate-500 text-xs uppercase tracking-wider mt-1">Work</div>
+                        </div>
+                        <div className="text-center">
+                          <div className="text-blue-400 font-bold text-3xl">{formatDuration(sleepMinutes)}</div>
+                          <div className="text-slate-500 text-xs uppercase tracking-wider mt-1">Sleep</div>
+                        </div>
+                        <div className="text-center">
+                          <div className="text-rose-400 font-bold text-3xl">{formatDuration(wastedMinutes)}</div>
+                          <div className="text-slate-500 text-xs uppercase tracking-wider mt-1">Unaccounted</div>
+                        </div>
+                      </div>
+
+                      <div className="w-full h-4 bg-slate-800 rounded-full flex overflow-hidden">
+                        <div 
+                          style={{ width: `${widthSleep}%` }} 
+                          className="bg-blue-500/50 h-full transition-all duration-500"
+                        />
+                        <div 
+                          style={{ width: `${widthProductive}%` }} 
+                          className="bg-emerald-500 h-full transition-all duration-500"
+                        />
+                        <div 
+                          style={{ width: `${widthWasted}%` }}
+                          className="bg-rose-500/20 h-full transition-all duration-500"
+                        />
+                        <div 
+                          style={{ width: `${widthRemaining}%` }}
+                          className="bg-slate-800/50 h-full"
+                        />
+                      </div>
+                      
+                      {!todaySleepLog && (
+                        <div className="text-center text-xs text-orange-400/80 mt-3">
+                           ⚠️ Sleep not tracked yet. &quot;Unaccounted&quot; includes sleep time.
+                        </div>
+                      )}
+                    </>
+                  );
+               })()}
             </div>
 
             {/* Weekly Chart */}

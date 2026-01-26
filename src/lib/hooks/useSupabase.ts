@@ -553,6 +553,7 @@ export function useProductivity() {
   return useQuery({
     queryKey: ['productivity', userId],
     queryFn: async () => {
+      // Use local date for "Today"
       const today = new Date().toISOString().split('T')[0];
       const weekAgo = new Date();
       weekAgo.setDate(weekAgo.getDate() - 7);
@@ -661,7 +662,6 @@ export function useRecordWakeUp() {
           2: 'bad',
           1: 'terrible'
         };
-        // @ts-ignore - MoodLevel is compatible
         triggerWakeUpEmail(moodMap[mood] || 'good').catch(console.error);
       } catch (e) {
         console.error("Failed to trigger wake up email", e);
