@@ -12,7 +12,7 @@
 
 import { useEffect } from 'react';
 import { useAppStore } from '@/lib/store'; // Keep for focusGoalIds
-import { useTasks, useGoals } from '@/lib/hooks/useSupabase';
+import { useTasks, useGoals, useUserSettings } from '@/lib/hooks/useSupabase';
 
 const PUSH_API_URL = '/api/push/send';
 
@@ -58,11 +58,17 @@ function msUntilTime(hours: number, minutes: number = 0): number {
 export function useMorningReminderScheduler() {
   const { data: tasks = [] } = useTasks();
   const { data: goals = [] } = useGoals();
+  const { data: settings } = useUserSettings();
   const focusGoalIds = useAppStore(state => state.focusGoalIds);
   
   useEffect(() => {
-    const msUntil7AM = msUntilTime(7, 0);
-    console.log(`[PushScheduler] Morning reminder scheduled in ${Math.round(msUntil7AM / 60000)} minutes`);
+    if (!settings || settings.enableMorningReminder === false) return;
+
+    // Parse configured time "HH:MM"
+    const [h, m] = (settings.dailyMorningTime || '07:00').split(':').map(Number);
+    
+    const msUntilTimeTarget = msUntilTime(h || 7, m || 0);
+    console.log(`[PushScheduler] Morning reminder scheduled for ${h}:${m} (in ${Math.round(msUntilTimeTarget / 60000)}m)`);
     
     const timeout = setTimeout(async () => {
       const todayTasks = tasks.filter(t => !t.isCompleted && !t.isArchived);
@@ -77,17 +83,23 @@ export function useMorningReminderScheduler() {
         body,
         '/dashboard'
       );
-    }, msUntil7AM);
+    }, msUntilTimeTarget);
     
     return () => clearTimeout(timeout);
-  }, [tasks, goals, focusGoalIds]);
+  }, [tasks, goals, focusGoalIds, settings]);
 }
 
-// Diary reminder notification (8 PM)
+// Diary reminder notification
 function useDiaryReminderScheduler() {
+  const { data: settings } = useUserSettings();
+
   useEffect(() => {
-    const msUntil8PM = msUntilTime(20, 0);
-    console.log(`[PushScheduler] Diary reminder scheduled in ${Math.round(msUntil8PM / 60000)} minutes`);
+    if (!settings || settings.enableDailySummaryReminder === false) return;
+
+    const [h, m] = (settings.dailySummaryTime || '20:00').split(':').map(Number);
+    const msUntilTimeTarget = msUntilTime(h || 20, m || 0);
+    
+    console.log(`[PushScheduler] Diary reminder scheduled for ${h}:${m} (in ${Math.round(msUntilTimeTarget / 60000)}m)`);
     
     const timeout = setTimeout(async () => {
       // TODO: Check if diary entry exists for today via API
@@ -100,14 +112,16 @@ function useDiaryReminderScheduler() {
           '/diary/new'
         );
       }
-    }, msUntil8PM);
+    }, msUntilTimeTarget);
     
     return () => clearTimeout(timeout);
-  }, []);
+  }, [settings]);
 }
 
 // Task completion celebration
 export function sendTaskCompletionNotification(taskTitle: string) {
+  // We can't easily check settings here without a hook, 
+  // but immediate feedback is usually desired if push is enabled generally.
   const celebrations = [
     '🎉 Task completed!',
     '✅ Nice work!',
@@ -128,9 +142,12 @@ export function sendTaskCompletionNotification(taskTitle: string) {
 // Goal deadline approaching (check daily)
 function useDeadlineScheduler() {
   const { data: goals = [] } = useGoals();
+  const { data: settings } = useUserSettings();
   const oneDayMs = 24 * 60 * 60 * 1000;
 
   useEffect(() => {
+    if (!settings || settings.enableGoalNotifications === false) return;
+
     const checkDeadlines = () => {
       const now = new Date();
       goals
@@ -157,7 +174,7 @@ function useDeadlineScheduler() {
     checkDeadlines();
     const interval = setInterval(checkDeadlines, 6 * 60 * 60 * 1000);
     return () => clearInterval(interval);
-  }, [goals]);
+  }, [goals, settings]);
 }
 
 // React hook to manage all scheduled notifications
@@ -165,9 +182,6 @@ export function usePushNotificationScheduler() {
   // Use specialized hooks
   useMorningReminderScheduler();
   useDeadlineScheduler();
-  
-  // Diary reminder can be independent hook too, but for now inline is fine or keep as is?
-  // Let's migrate diary reminder to hook pattern too for consistency
   useDiaryReminderScheduler();
 }
 

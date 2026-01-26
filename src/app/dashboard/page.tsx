@@ -10,7 +10,8 @@ import {
   useTimeSlots, 
   useCompleteTask,
   useProductivity,
-  useAddTimeSlot
+  useAddTimeSlot,
+  useSleepLogs
 } from '@/lib/hooks/useSupabase';
 
 export default function DashboardPage() {
@@ -19,6 +20,7 @@ export default function DashboardPage() {
   const { data: goals = [] } = useGoals();
   const { data: tasks = [] } = useTasks();
   const { data: productivity } = useProductivity();
+  const { data: sleepLogs = [] } = useSleepLogs();
 
   // 2. Mutations
   const completeTaskMutation = useCompleteTask();
@@ -45,8 +47,23 @@ export default function DashboardPage() {
   const prodStats = productivity || {
     todayMinutes: 0,
     todayPercentage: 0,
+    todayPercentage: 0,
     weekMinutes: 0
   };
+
+  // Calculate Wasted Hours
+  const todayStr = new Date().toISOString().split('T')[0];
+  const todaySleepLog = sleepLogs.find(l => l.date === todayStr);
+  
+  const sleepMinutes = todaySleepLog?.sleepDurationMinutes || 0;
+  const productiveMinutes = prodStats.todayMinutes;
+  
+  const totalMinutesInDay = 24 * 60;
+  const wastedMinutes = Math.max(0, totalMinutesInDay - (sleepMinutes + productiveMinutes));
+  
+  const widthProductive = (productiveMinutes / totalMinutesInDay) * 100;
+  const widthSleep = (sleepMinutes / totalMinutesInDay) * 100;
+  const widthWasted = (wastedMinutes / totalMinutesInDay) * 100;
 
   if (timeSlots.length === 0) {
     // If truly empty (and not just loading?), show init. 
@@ -90,7 +107,10 @@ export default function DashboardPage() {
 
   const handleTaskClick = (taskId: string) => {
     console.log('[Dashboard] Completing task:', taskId);
-    completeTaskMutation.mutate(taskId);
+    const task = tasks.find(t => t.id === taskId);
+    if (task) {
+      completeTaskMutation.mutate(task);
+    }
   };
 
   return (
@@ -103,27 +123,50 @@ export default function DashboardPage() {
         </p>
       </div>
 
-      {/* Productivity Bar */}
-      <div className="p-4 bg-gradient-to-r from-violet-900/30 to-slate-900/50 border border-violet-500/30 rounded-xl">
-        <div className="flex items-center justify-between mb-2">
-          <span className="text-sm text-slate-400">Today&apos;s Productivity</span>
-          <span className="text-lg font-bold text-violet-400">
-            {formatDuration(prodStats.todayMinutes)} ({prodStats.todayPercentage}%)
-          </span>
-        </div>
-        <div className="w-full h-3 bg-slate-800 rounded-full overflow-hidden">
-          <div
-            className="h-full bg-gradient-to-r from-violet-500 to-cyan-500 transition-all duration-500"
-            style={{ width: `${Math.min(100, prodStats.todayPercentage)}%` }}
-          />
-        </div>
-        <div className="flex justify-between mt-2 text-xs text-slate-500">
-          <span>0h</span>
-          <span>4h</span>
-          <span>8h</span>
-          <span>12h</span>
-          <span>16h</span>
-        </div>
+      {/* Productivity Bar (Day Breakdown) */}
+      <div className="p-4 bg-slate-900/50 border border-slate-800 rounded-xl space-y-4">
+         <div className="flex justify-between text-sm">
+            <div className="text-center">
+               <div className="text-emerald-400 font-bold text-lg">{formatDuration(productiveMinutes)}</div>
+               <div className="text-slate-500 text-xs uppercase tracking-wider">Work</div>
+            </div>
+            <div className="text-center">
+               <div className="text-blue-400 font-bold text-lg">{formatDuration(sleepMinutes)}</div>
+               <div className="text-slate-500 text-xs uppercase tracking-wider">Sleep</div>
+            </div>
+            <div className="text-center">
+               <div className="text-rose-400 font-bold text-lg">{formatDuration(wastedMinutes)}</div>
+               <div className="text-slate-500 text-xs uppercase tracking-wider">Wasted/Other</div>
+            </div>
+         </div>
+
+         {/* Multi-color Progress Bar */}
+         <div className="w-full h-4 bg-slate-800 rounded-full flex overflow-hidden">
+            {/* Sleep (Blue) */}
+            <div 
+              style={{ width: `${widthSleep}%` }} 
+              className="bg-blue-500/50 h-full"
+              title={`Sleep: ${formatDuration(sleepMinutes)}`}
+            />
+            {/* Work (Green) */}
+            <div 
+              style={{ width: `${widthProductive}%` }} 
+              className="bg-emerald-500 h-full"
+              title={`Work: ${formatDuration(productiveMinutes)}`}
+            />
+            {/* Wasted (Red/Empty) */}
+            <div 
+               style={{ width: `${widthWasted}%` }}
+               className="bg-rose-500/20 h-full"
+               title={`Unaccounted: ${formatDuration(wastedMinutes)}`}
+            />
+         </div>
+         
+         {!todaySleepLog && (
+            <div className="text-center text-xs text-orange-400/80 mt-1">
+               ⚠️ Sleep not tracked yet. "Wasted" includes sleep time.
+            </div>
+         )}
       </div>
 
       {/* Sleep/Wake Button */}

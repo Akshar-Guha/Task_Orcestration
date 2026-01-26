@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { setupPushNotifications } from '@/lib/push';
+import { useUserSettings, useUpdateUserSettings } from '@/lib/hooks/useSupabase';
 
 // iOS detection
 function isIOS() {
@@ -187,6 +188,9 @@ export default function NotificationsPage() {
           )}
         </div>
       </div>
+      
+      {/* Schedule & Preferences */}
+      <NotificationPreferences />
 
       {/* Actions */}
       <div className="bg-slate-900/50 border border-slate-800 rounded-xl p-6">
@@ -263,6 +267,113 @@ export default function NotificationsPage() {
             <li className="font-semibold text-blue-300">• iOS 16.4+ required for Web Push</li>
           )}
         </ul>
+      </div>
+    </div>
+  );
+}
+
+function NotificationPreferences() {
+  const { data: settings } = useUserSettings();
+  const { mutate: updateSettings } = useUpdateUserSettings();
+
+  if (!settings) return null;
+
+  return (
+    <div className="bg-slate-900/50 border border-slate-800 rounded-xl p-6">
+      <h3 className="text-lg font-semibold text-white mb-4">Schedule & Preferences</h3>
+      
+      <div className="space-y-6">
+        {/* Morning Briefing */}
+        <div className="flex items-center justify-between">
+          <div className="space-y-1">
+            <div className="text-sm font-medium text-slate-200">Morning Briefing</div>
+            <div className="text-xs text-slate-500">Daily agenda and focus goals</div>
+          </div>
+          <div className="flex items-center gap-3">
+            <input
+              type="time"
+              value={settings.dailyMorningTime || '07:00'}
+              onChange={(e) => updateSettings({ dailyMorningTime: e.target.value })}
+              className="bg-slate-800 border border-slate-700 rounded-lg px-2 py-1 text-sm text-white focus:outline-none focus:border-violet-500"
+              disabled={!settings.enableMorningReminder}
+            />
+            <button
+              onClick={() => updateSettings({ enableMorningReminder: !settings.enableMorningReminder })}
+              className={`w-11 h-6 rounded-full transition-colors relative ${
+                settings.enableMorningReminder ? 'bg-violet-500' : 'bg-slate-700'
+              }`}
+            >
+              <div className={`absolute top-1 left-1 w-4 h-4 rounded-full bg-white transition-transform ${
+                settings.enableMorningReminder ? 'translate-x-5' : 'translate-x-0'
+              }`} />
+            </button>
+          </div>
+        </div>
+
+        {/* Evening Reflection */}
+        <div className="flex items-center justify-between">
+          <div className="space-y-1">
+            <div className="text-sm font-medium text-slate-200">Evening Reflection</div>
+            <div className="text-xs text-slate-500">Diary prompt and day summary</div>
+          </div>
+          <div className="flex items-center gap-3">
+            <input
+              type="time"
+              value={settings.dailySummaryTime || '20:00'}
+              onChange={(e) => updateSettings({ dailySummaryTime: e.target.value })}
+              className="bg-slate-800 border border-slate-700 rounded-lg px-2 py-1 text-sm text-white focus:outline-none focus:border-violet-500"
+              disabled={!settings.enableDailySummaryReminder}
+            />
+            <button
+              onClick={() => updateSettings({ enableDailySummaryReminder: !settings.enableDailySummaryReminder })}
+              className={`w-11 h-6 rounded-full transition-colors relative ${
+                settings.enableDailySummaryReminder ? 'bg-violet-500' : 'bg-slate-700'
+              }`}
+            >
+              <div className={`absolute top-1 left-1 w-4 h-4 rounded-full bg-white transition-transform ${
+                settings.enableDailySummaryReminder ? 'translate-x-5' : 'translate-x-0'
+              }`} />
+            </button>
+          </div>
+        </div>
+
+        <div className="h-px bg-slate-800 my-4" />
+
+        {/* Goal Deadlines */}
+        <div className="flex items-center justify-between">
+          <div className="space-y-1">
+            <div className="text-sm font-medium text-slate-200">Goal Deadlines</div>
+            <div className="text-xs text-slate-500">Alerts 1 day before due date</div>
+          </div>
+          <button
+            onClick={() => updateSettings({ enableGoalNotifications: !settings.enableGoalNotifications })}
+            className={`w-11 h-6 rounded-full transition-colors relative ${
+              settings.enableGoalNotifications !== false ? 'bg-violet-500' : 'bg-slate-700'
+            }`}
+          >
+            <div className={`absolute top-1 left-1 w-4 h-4 rounded-full bg-white transition-transform ${
+              settings.enableGoalNotifications !== false ? 'translate-x-5' : 'translate-x-0'
+            }`} />
+          </button>
+        </div>
+
+        {/* Task Completions */}
+        <div className="flex items-center justify-between">
+          <div className="space-y-1">
+            <div className="text-sm font-medium text-slate-200">Task Updates</div>
+            <div className="text-xs text-slate-500">Celebrations and progress</div>
+          </div>
+          <button
+            onClick={() => updateSettings({ enableTaskNotifications: !settings.enableTaskNotifications })}
+            className={`w-11 h-6 rounded-full transition-colors relative ${
+              settings.enableTaskNotifications !== false ? 'bg-violet-500' : 'bg-slate-700'
+            }`}
+          >
+            <div className={`absolute top-1 left-1 w-4 h-4 rounded-full bg-white transition-transform ${
+              settings.enableTaskNotifications !== false ? 'translate-x-5' : 'translate-x-0'
+            }`} />
+          </button>
+        </div>
       </div>
     </div>
   );

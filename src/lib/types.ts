@@ -239,6 +239,12 @@ export interface UserSettings {
   enableDailySummaryReminder: boolean;
   defaultTaskDuration: number;  // NEW: Default duration for new tasks
   wakingHoursPerDay: number;    // NEW: For productivity % calculation
+  
+  // Notification Schedule
+  dailyMorningTime?: string;    // "07:00"
+  enableMorningReminder?: boolean;
+  enableTaskNotifications?: boolean;
+  enableGoalNotifications?: boolean;
 }
 
 // ========================================

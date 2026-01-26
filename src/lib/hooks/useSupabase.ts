@@ -354,25 +354,52 @@ export function useCompleteTask() {
   const userId = getCurrentUserId();
   
   return useMutation({
-    mutationFn: async (taskId: string) => {
+    mutationFn: async (task: Task) => {
       const now = new Date().toISOString();
+      const today = now.split('T')[0];
       
-      const { data, error } = await supabase
+      // 1. Mark task as completed
+      const { data: taskData, error: taskError } = await supabase
         .from('tasks')
         .update({
           is_completed: true,
           completed_at: now,
         })
-        .eq('id', taskId)
+        .eq('id', task.id)
         .eq('user_id', userId)
         .select()
         .single();
       
-      if (error) throw error;
-      return data;
+      if (taskError) throw taskError;
+
+      // 2. Update Productivity Log
+      // Fetch existing or init default
+      const { data: existingLog } = await supabase
+        .from('productivity_logs')
+        .select('*')
+        .eq('user_id', userId)
+        .eq('date', today)
+        .single();
+        
+      const currentMinutes = existingLog?.productive_minutes || 0;
+      const newMinutes = currentMinutes + task.estimatedMinutes;
+      
+      const { error: logError } = await supabase
+        .from('productivity_logs')
+        .upsert({
+          user_id: userId,
+          date: today,
+          productive_minutes: newMinutes,
+          updated_at: now
+        }, { onConflict: 'date,user_id' });
+        
+      if (logError) throw logError;
+
+      return taskData;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['tasks'] });
+      queryClient.invalidateQueries({ queryKey: ['productivity'] });
     },
   });
 }
@@ -724,6 +751,12 @@ export function useUserSettings() {
         dailySummaryTime: data?.daily_summary_time || '20:00', // Default
         enableDailySummaryReminder: data?.enable_daily_summary_reminder ?? true,
         // Map other fields as needed
+        // Notification settings
+        dailyMorningTime: data?.daily_morning_time || '07:00',
+        enableMorningReminder: data?.enable_morning_reminder ?? true,
+        enableTaskNotifications: data?.enable_task_notifications ?? true,
+        enableGoalNotifications: data?.enable_goal_notifications ?? true,
+        
         data: data // Keep raw data accessible if needed
       };
     },
@@ -743,6 +776,12 @@ export function useUpdateUserSettings() {
       if (updates.dailySummaryTime !== undefined) dbUpdates.daily_summary_time = updates.dailySummaryTime;
       if (updates.enableDailySummaryReminder !== undefined) dbUpdates.enable_daily_summary_reminder = updates.enableDailySummaryReminder;
       if (updates.theme !== undefined) dbUpdates.theme = updates.theme;
+      
+      // New notification fields
+      if (updates.dailyMorningTime !== undefined) dbUpdates.daily_morning_time = updates.dailyMorningTime;
+      if (updates.enableMorningReminder !== undefined) dbUpdates.enable_morning_reminder = updates.enableMorningReminder;
+      if (updates.enableTaskNotifications !== undefined) dbUpdates.enable_task_notifications = updates.enableTaskNotifications;
+      if (updates.enableGoalNotifications !== undefined) dbUpdates.enable_goal_notifications = updates.enableGoalNotifications;
       
       // Upsert to handle creation if not exists
       const { data, error } = await supabase
