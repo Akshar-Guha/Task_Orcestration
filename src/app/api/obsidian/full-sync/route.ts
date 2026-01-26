@@ -198,6 +198,35 @@ ${await formatDiaryDetails(entry.id, supabase)}
                      { path, content },
                      `[MTO] Sync diary: ${entry.date}`
                  );
+                 
+                 // SNAPSHOT: Save Daily Tasks as individual files in the Date Folder
+                 // This ensures history is preserved even if the main Task resets.
+                 for (const evt of dayEvents) {
+                    const task = taskMap.get(evt.task_id);
+                    if (task) {
+                        const cleanTitle = (task.title || 'Untitled').replace(/[^a-z0-9\s-]/gi, '').trim().replace(/\s+/g, '-');
+                        // MTO/Diary/YYYY/MM/DD/TaskTitle.md
+                        const taskPath = `MTO/Diary/${year}/${month}/${day}/${cleanTitle}.md`;
+                        
+                        const taskContent = `---
+id: "${task.id}"
+task_id: "${task.id}"
+date: "${entry.date}"
+completed_at: "${evt.timestamp}"
+type: "daily_snapshot"
+---
+# ${task.title}
+
+**Completed at:** ${new Date(evt.timestamp).toLocaleTimeString()}
+
+${task.description || ''}
+`;
+                        await github.upsertFile(
+                            { path: taskPath, content: taskContent },
+                            `[MTO] Snapshot task: ${task.title}`
+                        );
+                    }
+                 }
              } catch (e) {
                  console.error("Diary sync error", e);
              }
