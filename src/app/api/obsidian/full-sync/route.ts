@@ -128,6 +128,28 @@ export async function POST() {
       }
     }
 
+    // Create Task Map for history lookup
+    const taskMap = new Map<string, any>();
+    if (tasks) {
+        tasks.forEach(t => taskMap.set(t.id, t));
+    }
+
+    // Fetch Task Completion History (Timeline Events)
+    const { data: historyEvents, error: historyErr } = await supabase
+        .from('timeline_events')
+        .select('*')
+        .eq('user_id', userId)
+        .eq('event_type', 'task_completed');
+
+    const historyByDate = new Map<string, any[]>();
+    if (historyEvents) {
+        historyEvents.forEach(evt => {
+            const date = evt.timestamp.split('T')[0];
+            if (!historyByDate.has(date)) historyByDate.set(date, []);
+            historyByDate.get(date)?.push(evt);
+        });
+    }
+
     // Fetch and sync Daily Entries (Diary)
     const { data: diaryEntries, error: diaryErr } = await supabase
         .from('daily_entries')
@@ -140,7 +162,17 @@ export async function POST() {
                  const [year, month, day] = entry.date.split('-');
                  const path = `MTO/Diary/${year}/${month}/${entry.date}.md`;
                  
-                 // Reuse logic or simple markdown
+                 // Get completed tasks for this date
+                 const dayEvents = historyByDate.get(entry.date) || [];
+                 const completedTaskLines = dayEvents.map(evt => {
+                     const task = taskMap.get(evt.task_id);
+                     const title = task ? task.title : 'Unknown Task';
+                     const time = new Date(evt.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+                     return `- [x] ${title} (${time})`;
+                 }).join('\n');
+
+                 const completedSection = completedTaskLines ? `\n## ✅ Completed Tasks\n${completedTaskLines}\n` : '';
+
                  const content = `---
 id: "${entry.id}"
 date: "${entry.date}"
@@ -154,6 +186,8 @@ synced_at: "${new Date().toISOString()}"
 ## Mood: ${entry.mood}/5 | Energy: ${entry.energy_level || 'N/A'}/10
 
 ${entry.summary ? `## Summary\n${entry.summary}` : ''}
+
+${completedSection}
 
 ${await formatDiaryDetails(entry.id, supabase)}
 `;
