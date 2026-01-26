@@ -265,32 +265,41 @@ ${diaryDetails}
                  { path, content },
                  `[MTO] Sync daily note: ${date}`
              );
-             
-             // SNAPSHOT: Save Daily Tasks as individual files (Still logic)
-             for (const evt of dayEvents) {
-                const task = taskMap.get(evt.task_id);
-                if (task) {
-                    const cleanTitle = (task.title || 'Untitled').replace(/[^a-z0-9\s-]/gi, '').trim().replace(/\s+/g, '-');
-                    const taskPath = `MTO/Diary/${year}/${month}/${day}/${cleanTitle}.md`;
-                    const taskContent = `---
+                          // SNAPSHOT: Save Daily Tasks as individual files in TASKS/COMPLETED
+                 // This ensures accurate history storage ("storing data accurately forever")
+                 for (const evt of dayEvents) {
+                    const task = taskMap.get(evt.task_id);
+                    if (task) {
+                        const cleanTitle = (task.title || 'Untitled').replace(/[^a-z0-9\s-]/gi, '').trim().replace(/\s+/g, '-');
+                        // Path: MTO/Tasks/completed/YYYY/MM/DD/TaskTitle.md
+                        // This mirrors the Diary nesting but for Tasks
+                        const taskPath = `MTO/Tasks/completed/${year}/${month}/${day}/${cleanTitle}.md`;
+                        
+                        const taskContent = `---
 id: "${task.id}"
 task_id: "${task.id}"
 date: "${date}"
 completed_at: "${evt.timestamp}"
-type: "daily_snapshot"
+type: "task_snapshot"
+is_daily: ${task.is_daily}
 ---
 # ${task.title}
 
 **Completed at:** ${new Date(evt.timestamp).toLocaleTimeString()}
 
+## Description
 ${task.description || ''}
+
+## Context
+- **Date:** ${date}
+- **Diary Entry:** [[MTO/Diary/${year}/${month}/${day}/Diary|Diary for ${date}]]
 `;
-                    await github.upsertFile(
-                        { path: taskPath, content: taskContent },
-                        `[MTO] Snapshot task: ${task.title}`
-                    );
-                }
-             }
+                        await github.upsertFile(
+                            { path: taskPath, content: taskContent },
+                            `[MTO] Snapshot task: ${task.title}`
+                        );
+                    }
+                 }
          } catch (e) {
              console.error(`Daily Note sync error for ${date}`, e);
          }
