@@ -20,8 +20,8 @@ function ensureVapidConfigured(): boolean {
   try {
     webpush.setVapidDetails(
       'mailto:notifications@goal-tracker-web.vercel.app',
-      VAPID_PUBLIC_KEY,
-      VAPID_PRIVATE_KEY
+      VAPID_PUBLIC_KEY.trim(),
+      VAPID_PRIVATE_KEY.trim()
     );
     vapidConfigured = true;
     return true;
