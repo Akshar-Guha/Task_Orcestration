@@ -258,7 +258,7 @@ function getTaskPath(task: Task): string {
   let folder = 'active';
   let subPath = '';
 
-  if (task.isCompleted) {
+  if (task.isCompleted && !task.isDaily) {
       folder = 'completed';
       const date = new Date(task.completedAt || task.createdAt);
       subPath = `${date.getFullYear()}/${String(date.getMonth() + 1).padStart(2, '0')}/`;

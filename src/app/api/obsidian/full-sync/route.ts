@@ -124,7 +124,7 @@ export async function POST() {
           let statusFolder = 'active';
           let subPath = '';
 
-          if (task.is_completed) {
+          if (task.is_completed && !task.is_daily) {
               statusFolder = 'completed';
               // Use completed_at or fallback to created_at
               const date = new Date(task.completed_at || task.created_at); 
