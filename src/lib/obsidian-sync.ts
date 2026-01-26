@@ -45,6 +45,13 @@ export function getSyncStatus(): SyncStatus {
 }
 
 /**
+ * Manually update sync status (e.g. after server-side full sync)
+ */
+export function updateLocalSyncStatus(status: Partial<SyncStatus>) {
+  syncStatus = { ...syncStatus, ...status };
+}
+
+/**
  * Convert Goal to Obsidian markdown
  */
 function goalToMarkdown(goal: Goal): string {

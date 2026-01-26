@@ -8,7 +8,18 @@
  */
 
 import { useState, useEffect } from 'react';
-import { getSyncStatus } from '@/lib/obsidian-sync';
+import { getSyncStatus, updateLocalSyncStatus } from '@/lib/obsidian-sync';
+
+// ... (inside component)
+
+              if (data.success) {
+                setStatus('success');
+                setMessage(`Synced Daily Warehouse: ${data.results?.history?.synced || 0} daily entries updated!`);
+                updateLocalSyncStatus({ 
+                    lastSync: new Date().toISOString(),
+                    error: null
+                });
+              } else {
 
 interface SyncStatusState {
   lastSync: string | null;

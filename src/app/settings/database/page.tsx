@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { SyncStatus } from '@/components/SyncStatus';
+import { updateLocalSyncStatus } from '@/lib/obsidian-sync';
 
 interface DbTestResult {
   success: boolean;
@@ -164,6 +165,10 @@ export default function DatabaseSettingsPage() {
               if (data.success) {
                 setStatus('success');
                 setMessage(`Synced Daily Warehouse: ${data.results?.history?.synced || 0} daily entries updated!`);
+                updateLocalSyncStatus({ 
+                    lastSync: new Date().toISOString(),
+                    error: null
+                });
               } else {
                 setStatus('error');
                 setMessage(data.error || 'Sync failed');
