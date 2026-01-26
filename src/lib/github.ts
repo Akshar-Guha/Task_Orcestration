@@ -205,13 +205,123 @@ class GitHubAPI {
   }
 
   /**
-   * Batch upsert multiple files (with rate limiting)
+   * Create a Commit with multiple files (Atomic Batch)
+   * Drastically faster than individual upserts.
+   */
+  async createTreeCommit(
+    files: GitHubFile[],
+    message: string
+  ): Promise<boolean> {
+    if (!this.isConfigured() || files.length === 0) return false;
+
+    try {
+      // 1. Get current branch SHA
+      // Note: We use 'heads/main' or configurable branch
+      const branchRef = `heads/${this.config.branch}`;
+      const refRes = await fetch(
+        `${this.baseUrl}/repos/${this.config.owner}/${this.config.repo}/git/refs/${branchRef}`,
+        { headers: this.headers }
+      );
+      
+      if (!refRes.ok) throw new Error(`Failed to get ref: ${refRes.status}`);
+      const refData = await refRes.json();
+      const latestCommitSha = refData.object.sha;
+
+      // 2. Get the Tree SHA of the latest commit
+      const commitRes = await fetch(
+        `${this.baseUrl}/repos/${this.config.owner}/${this.config.repo}/git/commits/${latestCommitSha}`,
+        { headers: this.headers }
+      );
+      const commitData = await commitRes.json();
+      const baseTreeSha = commitData.tree.sha;
+
+      // 3. Create a new Tree (with specific files overridden)
+      // GitHub limit: If content is large, should create blobs. 
+      // For Markdown text, usually passing 'content' directly works if under limit.
+      const tree = files.map(file => ({
+        path: file.path,
+        mode: '100644', // blob/file
+        type: 'blob',
+        content: file.content
+      }));
+
+      const newTreeRes = await fetch(
+        `${this.baseUrl}/repos/${this.config.owner}/${this.config.repo}/git/trees`,
+        {
+          method: 'POST',
+          headers: this.headers,
+          body: JSON.stringify({
+            base_tree: baseTreeSha,
+            tree: tree
+          })
+        }
+      );
+      
+      if (!newTreeRes.ok) {
+         // If 422, it might be content size issue?
+         const err = await newTreeRes.json();
+         console.warn(`[GitHub] Tree creation failed: ${err.message}`);
+         throw new Error(`Tree creation failed: ${err.message}`);
+      }
+      const newTreeData = await newTreeRes.json();
+      const newTreeSha = newTreeData.sha;
+
+      // 4. Create a new Commit
+      const newCommitRes = await fetch(
+        `${this.baseUrl}/repos/${this.config.owner}/${this.config.repo}/git/commits`,
+        {
+          method: 'POST',
+          headers: this.headers,
+          body: JSON.stringify({
+            message,
+            tree: newTreeSha,
+            parents: [latestCommitSha]
+          })
+        }
+      );
+      const newCommitData = await newCommitRes.json();
+      const newCommitSha = newCommitData.sha;
+
+      // 5. Update the Reference (Advance the branch)
+      const updateRefRes = await fetch(
+        `${this.baseUrl}/repos/${this.config.owner}/${this.config.repo}/git/refs/${branchRef}`,
+        {
+          method: 'PATCH',
+          headers: this.headers,
+          body: JSON.stringify({
+            sha: newCommitSha,
+            force: false
+          })
+        }
+      );
+
+      return updateRefRes.ok;
+
+    } catch (error) {
+      console.error('[GitHub] Atomic Commit failed:', error);
+      return false;
+    }
+  }
+
+  /**
+   * Batch upsert multiple files (legacy serial)
    */
   async batchUpsert(
     files: GitHubFile[],
     messagePrefix: string,
     delayMs = 500
   ): Promise<{ success: number; failed: number }> {
+    // Legacy fallback or just use it?
+    // Let's optimize: try Atomic Commit first!
+    if (files.length > 1) { // Only batch if multiple
+        console.log(`[GitHub] Attempting atomic commit for ${files.length} files...`);
+        const success = await this.createTreeCommit(files, `${messagePrefix} (Batch ${files.length})`);
+        if (success) {
+            return { success: files.length, failed: 0 };
+        }
+        console.warn("[GitHub] Atomic failed, falling back to serial upsert...");
+    }
+
     let success = 0;
     let failed = 0;
 

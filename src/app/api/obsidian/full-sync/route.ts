@@ -184,23 +184,16 @@ export async function POST() {
     }
 
     // 3. Generate Warehouse Files
+    // We will collect ALL files to sync and do a SINGLE ATOMIC COMMIT
+    const filesToSync: { path: string; content: string }[] = [];
+
     for (const [date, bucket] of dataByDate) {
         try {
             const [year, month, day] = date.split('-');
             const basePath = `MTO/Data/${year}/${month}/${day}`;
 
             // A. Diary.md etc (Keep existing logic)
-            // ... (We assume previous code block for Diary/Sleep is kept if outside this replace range, 
-            // but checked lines 156-185 are inside 'Generate Warehouse Files' loop? 
-            // The previous replace covered lines. I need to be careful not to delete Diary/Sleep logic.
-            // Wait, implementation above effectively REPLACED the loop start.
-            // I need to include the Diary Logic in my ReplacementContent or ensure StartLine maps correctly.
-            // My StartLine is 108 (Start of "Index Completed Tasks").
-            // My EndLine is 239 (End of Loop).
-            // So I am rewriting the Entire Indexing + Loop logic.
-            // I MUST include Diary/Sleep loop body.
-            
-            // Re-inserting Diary/Sleep Logic:
+            // A. Diary.md (The Hub)
             let diaryContent = `---
 date: "${date}"
 type: "daily_record"
@@ -222,12 +215,12 @@ synced_at: "${new Date().toISOString()}"
                 const duration = s.sleep_duration_minutes 
                     ? `${Math.floor(s.sleep_duration_minutes / 60)}h ${s.sleep_duration_minutes % 60}m` : 'N/A';
                 diaryContent += `## 😴 Sleep\n- **Duration**: ${duration}\n- **Wake**: ${s.wake_up_time}\n- **Mood**: ${s.wake_up_mood}/5\n\n`;
+                
                 const sleepPath = `${basePath}/Sleep.md`;
-                await github.upsertFile({ path: sleepPath, content: JSON.stringify(bucket.sleep, null, 2) }, `[MTO] Sleep data`);
+                filesToSync.push({ path: sleepPath, content: JSON.stringify(bucket.sleep, null, 2) });
             }
 
-             await github.upsertFile({ path: `${basePath}/Diary.md`, content: diaryContent }, `[MTO] Diary ${date}`);
-
+            filesToSync.push({ path: `${basePath}/Diary.md`, content: diaryContent });
 
             // B. TASKS (Detailed Dump)
             for (const task of bucket.tasks) {
@@ -260,7 +253,7 @@ synced_at: "${new Date().toISOString()}"
 ## Details
 ${task.description || ''}
 `;
-                await github.upsertFile({ path, content }, `[MTO] Task Log: ${filename}`);
+                filesToSync.push({ path, content });
             }
 
             // C. GOALS (Detailed Dump)
@@ -291,14 +284,28 @@ synced_at: "${new Date().toISOString()}"
 ## Details
 ${goal.description || ''}
 `;
-                await github.upsertFile({ path, content }, `[MTO] Goal Log: ${filename}`);
+                filesToSync.push({ path, content });
             }
-
-            results.history.synced++;
+            
+            // Just counting items
+            results.history.synced += bucket.tasks.length + bucket.goals.length + (bucket.diary ? 1 : 0) + (bucket.sleep ? 1 : 0);
 
         } catch (e) {
-            console.error(`Error syncing date ${date}`, e);
+            console.error(`Error processing date ${date}`, e);
             results.history.failed++;
+        }
+    }
+
+    // PERFORM ATOMIC SYNC
+    if (filesToSync.length > 0) {
+        console.log(`Syncing ${filesToSync.length} files in separate batches...`);
+        // We use createTreeCommit from our optimized github helper
+        // But createTreeCommit implementation inside github.batchUpsert handles it.
+        // Wait, github.batchUpsert is what we should call.
+        const batchRes = await github.batchUpsert(filesToSync, `[MTO] Full Warehouse Sync (${filesToSync.length} files)`);
+        
+        if (batchRes.failed > 0) {
+            console.error(`Batch sync warnings: ${batchRes.failed} failed`);
         }
     }
 
