@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { getCurrentUserId } from '@/lib/user';
+import { sendPushNotification } from '@/lib/push/server';
 
 export async function POST() {
   console.log('[API] Test notification requested');
@@ -11,23 +12,12 @@ export async function POST() {
       return NextResponse.json({ error: 'User not found' }, { status: 400 });
     }
 
-    // Call the send endpoint internally
-    const baseUrl = process.env.NEXT_PUBLIC_SITE_URL || 
-                    process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : 
-                    'http://localhost:3000';
-
-    const response = await fetch(`${baseUrl}/api/push/send`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        title: '🧪 Test Notification',
-        body: 'If you see this, push notifications are working!',
-        url: '/settings/notifications',
-        userId
-      })
+    // Call logic directly, DO NOT use fetch() to avoid loopback issues in Vercel
+    const result = await sendPushNotification(userId, {
+      title: '🧪 Test Notification',
+      body: 'If you see this, push notifications are working!',
+      url: '/settings/notifications'
     });
-
-    const result = await response.json();
     
     if (result.success) {
       return NextResponse.json({ 
