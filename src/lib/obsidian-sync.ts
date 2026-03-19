@@ -5,7 +5,7 @@
  * Converts app data to markdown format with proper folder structure.
  */
 
-import type { Goal, Task, TimeSlot, SleepWakeLog, ProductivityLog } from './types';
+import type { Goal, Task, SleepWakeLog } from './types';
 import type { DailyEntry, Question, QuestionAnswer } from './diary-types';
 
 // Schema version for migration support
@@ -233,35 +233,18 @@ function sanitizeFilename(name: string): string {
   return (name || 'Untitled').replace(/[^a-z0-9\s-]/gi, '').trim().replace(/\s+/g, '-');
 }
 
-/**
- * Get goal folder path based on status
- */
-/**
- * Get goal folder path based on status
- */
 // ===================================
-// DATA WAREHOUSE PATHS (Archive Only)
+// DATA WAREHOUSE PATHS (Stable by ID)
 // ===================================
 
 function getGoalPath(goal: Goal): string {
-    // Only used for deleting/archiving logic or if app still calls it.
-    // If goal is active, we don't sync inactive state anymore as per Refactor.
-    // But if we MUST return a path, return a daily path if completed?
-    // Client sync usually updates state "Now".
-    // If we want to support "Active" snapshot for Today:
-    const now = new Date();
-    const basePath = `MTO/Data/${now.getFullYear()}/${String(now.getMonth()+1).padStart(2,'0')}/${String(now.getDate()).padStart(2,'0')}`;
-    
     const cleanTitle = sanitizeFilename(goal.title);
-    return `${basePath}/Goals/${cleanTitle}.md`;
+    return `MTO/Goals/${goal.id}-${cleanTitle}.md`;
 }
 
 function getTaskPath(task: Task): string {
-  const now = new Date();
-  const basePath = `MTO/Data/${now.getFullYear()}/${String(now.getMonth()+1).padStart(2,'0')}/${String(now.getDate()).padStart(2,'0')}`;
-  
   const cleanTitle = sanitizeFilename(task.title);
-  return `${basePath}/Tasks/${cleanTitle}.md`;
+  return `MTO/Tasks/${task.id}-${cleanTitle}.md`;
 }
 
 /**

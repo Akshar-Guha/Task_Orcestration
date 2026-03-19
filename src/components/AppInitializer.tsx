@@ -14,8 +14,7 @@ export function AppInitializer() {
   // Hooks for data
   const { data: tasks = [], isLoading: tasksLoading } = useTasks();
   const { data: sleepLogs = [], isLoading: sleepLoading } = useSleepLogs();
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  const { data: timeSlots = [] } = useTimeSlots();
+  useTimeSlots(); // Pre-fetch time slots for downstream components
   
   const resetDailyTasksMutation = useResetDailyTasks();
 

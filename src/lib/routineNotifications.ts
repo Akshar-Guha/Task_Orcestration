@@ -9,7 +9,7 @@
 
 import { useEffect, useRef } from 'react';
 import { useGoals, useTasks, useTimeSlots, useUserSettings } from '@/lib/hooks/useSupabase';
-import type { TimeSlot } from '@/lib/types';
+import type { TimeSlot, Goal, Task } from '@/lib/types';
 
 // Check if browser notifications are supported
 const isNotificationSupported = () => {
@@ -76,7 +76,7 @@ function msUntilSlotEnd(slot: TimeSlot): number {
 }
 
 // Generate summary for a time slot
-function generateRoutineSummary(slot: TimeSlot, goals: any[], tasks: any[]): string {
+function generateRoutineSummary(slot: TimeSlot, goals: Goal[], tasks: Task[]): string {
   const slotGoals = goals.filter(g => slot.goalIds.includes(g.id));
   const slotTasks = tasks.filter(t => slotGoals.some(g => g.id === t.goalId));
   const completed = slotTasks.filter(t => t.isCompleted);

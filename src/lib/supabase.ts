@@ -34,9 +34,14 @@ export const getSupabaseAdmin = (): SupabaseClient => {
 };
 
 // For backward compatibility (only use in server components/API routes)
-export const supabaseAdmin = typeof window === 'undefined' 
+// Throws at runtime if accidentally used on the client
+export const supabaseAdmin: SupabaseClient = typeof window === 'undefined'
   ? createClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL || '',
       process.env.SUPABASE_SERVICE_ROLE_KEY || ''
     )
-  : null as unknown as SupabaseClient;
+  : new Proxy({} as SupabaseClient, {
+      get() {
+        throw new Error('supabaseAdmin cannot be used on the client side');
+      }
+    });

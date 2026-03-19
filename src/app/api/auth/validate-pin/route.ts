@@ -12,8 +12,8 @@ export async function POST(request: Request) {
     
     const valid = pin.trim() === sitePin.trim();
     
-    // Debug log (remove in production)
-    console.log('[Auth] PIN validation:', { received: pin, expected: sitePin, valid });
+    // Log result only (never log actual PIN values)
+    console.log('[Auth] PIN validation result:', { valid });
     
     return NextResponse.json({ valid });
   } catch (error) {

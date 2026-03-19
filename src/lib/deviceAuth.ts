@@ -143,7 +143,7 @@ export async function revokeAllSessions(): Promise<boolean> {
     const { error } = await supabase
       .from('authorized_devices')
       .delete()
-      .neq('id', '00000000-0000-0000-0000-000000000000'); // Delete all rows
+      .gte('created_at', '1970-01-01'); // Delete all rows (matches everything)
     
     if (error) {
       console.error('[DeviceAuth] Failed to revoke sessions:', error);

@@ -105,7 +105,10 @@ export default function PlannerPage() {
 
 
   const handleTaskClick = (taskId: string) => {
-    completeTaskMutation.mutate(taskId);
+    const task = tasks.find(t => t.id === taskId);
+    if (task) {
+      completeTaskMutation.mutate(task);
+    }
   };
 
   // Calculate stats
@@ -500,7 +503,7 @@ export default function PlannerPage() {
                       key={goal.id}
                       className={`relative p-5 rounded-2xl border transition-all ${
                         goal.status === 'completed' 
-                          ? 'bg-emulator-900/20 border-emerald-500/30' 
+                          ? 'bg-emerald-900/20 border-emerald-500/30' 
                           : isBlocked
                             ? 'bg-slate-900/80 border-slate-800 opacity-80'
                             : 'bg-slate-900 border-slate-700 hover:border-violet-500/50'

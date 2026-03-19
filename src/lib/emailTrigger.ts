@@ -5,15 +5,20 @@
  * Triggers the appropriate email Edge Function.
  */
 
-const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
-const SUPABASE_ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
+const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL;
+const SUPABASE_ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
 type EmailType = 'wake-up' | 'sleep';
 
 export async function triggerEmail(type: EmailType, data?: Record<string, unknown>): Promise<boolean> {
+  if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
+    console.error('[Email] Missing SUPABASE_URL or SUPABASE_ANON_KEY environment variables');
+    return false;
+  }
+
   try {
     console.log(`[Email] Triggering ${type} email...`, data);
-    
+
     // Use correct Edge Function URLs
     const functionUrl = `${SUPABASE_URL}/functions/v1/${type}-email`;
     

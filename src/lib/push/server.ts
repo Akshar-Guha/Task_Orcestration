@@ -2,9 +2,13 @@ import { createClient } from '@supabase/supabase-js';
 import webpush from 'web-push';
 
 // Initialize Supabase with Service Role for admin access (fetching any user's subs)
+const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+if (!serviceRoleKey) {
+  console.error('[Push Lib] SUPABASE_SERVICE_ROLE_KEY is missing — push notifications will not work');
+}
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+  serviceRoleKey || ''
 );
 
 // VAPID keys

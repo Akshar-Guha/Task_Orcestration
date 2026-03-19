@@ -65,7 +65,8 @@ export default function DiaryEntryPage() {
     year: 'numeric',
   });
 
-  const moodEmoji = entry?.mood ? ['😢', '😕', '😐', '🙂', '😊'][entry.mood - 1] : '❓';
+  const moodEmojis = ['😢', '😕', '😐', '🙂', '😊'];
+  const moodEmoji = entry?.mood ? (moodEmojis[entry.mood - 1] || '❓') : '❓';
   const energyBar = entry?.energyLevel 
     ? '█'.repeat(entry.energyLevel) + '░'.repeat(10 - entry.energyLevel)
     : 'N/A';

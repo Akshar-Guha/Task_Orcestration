@@ -23,25 +23,22 @@ export default function NotificationsPage() {
   const [isSubscribed, setIsSubscribed] = useState(false);
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState('');
-  const [iosDevice, setIosDevice] = useState(() => isIOS());
-  const [standaloneMode, setStandaloneMode] = useState(() => isStandalone());
-
-  const checkSubscriptionStatus = async () => {
-    if ('serviceWorker' in navigator) {
-      const registration = await navigator.serviceWorker.getRegistration();
-      if (registration) {
-        const subscription = await registration.pushManager.getSubscription();
-        setIsSubscribed(!!subscription);
-      }
-    }
-  };
+  const iosDevice = isIOS();
+  const standaloneMode = isStandalone();
 
   useEffect(() => {
-
-
-    // Check platform
-    // Check if already subscribed
+    let cancelled = false;
+    async function checkSubscriptionStatus() {
+      if ('serviceWorker' in navigator) {
+        const registration = await navigator.serviceWorker.getRegistration();
+        if (registration) {
+          const subscription = await registration.pushManager.getSubscription();
+          if (!cancelled) setIsSubscribed(!!subscription);
+        }
+      }
+    }
     checkSubscriptionStatus();
+    return () => { cancelled = true; };
   }, []);
 
   const handleEnableNotifications = async () => {

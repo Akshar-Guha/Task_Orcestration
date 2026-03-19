@@ -6,8 +6,7 @@ export default function ProfileSettingsPage() {
   const { data: userSettings } = useUserSettings();
   const updateSettingsMutation = useUpdateUserSettings();
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const updateSettings = (updates: any) => {
+  const updateSettings = (updates: Partial<import('@/lib/types').UserSettings>) => {
     updateSettingsMutation.mutate(updates);
   };
 

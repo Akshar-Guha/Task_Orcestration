@@ -170,10 +170,10 @@ function getStatusEmoji(status: string): string {
 
 function getPriorityLabel(priority: number): string {
   switch (priority) {
-    case 1: return '🟢 Low';
-    case 2: return '🟡 Normal';
-    case 3: return '🔴 Critical';
-    default: return '🟡 Normal';
+    case 1: return '🔴 Critical';
+    case 2: return '🟡 Important';
+    case 3: return '🟢 Nice-to-have';
+    default: return '🟡 Important';
   }
 }
 

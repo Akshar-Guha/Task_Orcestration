@@ -15,6 +15,7 @@ export function QuickEditModal({ goal, onClose }: QuickEditModalProps) {
   const [description, setDescription] = useState(goal.description || '');
   const [status, setStatus] = useState(goal.status);
   const [deadline, setDeadline] = useState(goal.deadline ? goal.deadline.split('T')[0] : '');
+  const [priority, setPriority] = useState<1 | 2 | 3>(goal.priority || 2);
 
   const handleSave = async () => {
     updateGoalMutation.mutate({

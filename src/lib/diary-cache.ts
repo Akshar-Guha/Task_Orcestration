@@ -34,6 +34,10 @@ class MemoryCache {
       return null;
     }
 
+    // Move to end for true LRU eviction (most recently accessed last)
+    this.cache.delete(key);
+    this.cache.set(key, entry);
+
     return entry.data;
   }
 
