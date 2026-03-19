@@ -20,10 +20,9 @@ export async function POST() {
     });
     
     if (result.success) {
-      return NextResponse.json({ 
-        success: true, 
+      return NextResponse.json({
+        ...result,
         message: `Test notification sent to ${result.sent} device(s)`,
-        ...result
       });
     } else {
       return NextResponse.json({ 
