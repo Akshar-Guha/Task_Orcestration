@@ -177,7 +177,7 @@ function getPriorityLabel(priority: number): string {
   }
 }
 
-function getMoodEmoji(mood?: string): string {
+function getMoodEmoji(mood?: string | number): string {
   switch (mood) {
     case 'great': return '😊';
     case 'good': return '🙂';
