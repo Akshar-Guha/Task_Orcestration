@@ -3,7 +3,7 @@ import { triggerSleepEmail } from '@/lib/emailTrigger';
 
 export async function GET() {
   try {
-    const FALLBACK_USER_ID = '2c32a446-1bbc-4294-8a29-3e4fef5649e6';
+    const FALLBACK_USER_ID = process.env.NEXT_PUBLIC_USER_ID || '2c32a446-1bbc-4294-8a29-3e4fef5649e6';
     // Trigger sleep email
     // Inject user_id for context
     await import('@/lib/emailTrigger').then(mod => mod.triggerEmail('sleep', { user_id: FALLBACK_USER_ID }));

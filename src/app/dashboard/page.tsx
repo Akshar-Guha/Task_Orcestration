@@ -3,6 +3,7 @@
 import { useAppStore } from '@/lib/store';
 import { SleepButton } from '@/components/sleep/SleepButton';
 import { formatDuration, TIME_SLOT_LABELS } from '@/lib/types';
+import { calculateSleepMinutesSoFar } from '@/lib/date-utils';
 import Link from 'next/link';
 import { 
   useGoals, 
@@ -60,17 +61,7 @@ export default function DashboardPage() {
   
   // If currently sleeping (start time exists, wake time doesn't), calculate duration so far
   if (todaySleepLog?.sleepTime && !todaySleepLog.wakeUpTime) {
-     const [h, m] = todaySleepLog.sleepTime.split(':').map(Number);
-     const sleepStartMins = h * 60 + m;
-     const now = new Date();
-     const currentMins = now.getHours() * 60 + now.getMinutes();
-     
-     if (currentMins >= sleepStartMins) {
-       sleepMinutes = currentMins - sleepStartMins;
-     } else {
-       // Values wrapped midnight - rare case for single day view, handle if needed 
-       // For now assume same day sleep
-     }
+    sleepMinutes = calculateSleepMinutesSoFar(todaySleepLog.sleepTime);
   }
 
   const productiveMinutes = prodStats.todayMinutes;

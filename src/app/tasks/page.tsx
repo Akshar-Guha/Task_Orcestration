@@ -81,7 +81,7 @@ export default function TasksPage() {
                     <button
                       onClick={() => {
                         if (task.isCompleted) {
-                          uncompleteTaskMutation.mutate(task.id);
+                          uncompleteTaskMutation.mutate(task);
                         } else {
                           completeTaskMutation.mutate(task);
                         }

@@ -81,3 +81,69 @@ export function getLocalISOString(): string {
   
   return now.toISOString().replace('Z', offsetStr);
 }
+
+// ========================================
+// SLEEP & TIME CALCULATION UTILITIES
+// ========================================
+
+/**
+ * Parse "HH:MM" time string into total minutes since midnight.
+ */
+export function parseTimeToMinutes(time: string): number {
+  const [h, m] = time.split(':').map(Number);
+  return h * 60 + m;
+}
+
+/**
+ * Calculate sleep minutes from a sleep start time to now,
+ * correctly handling midnight crossover.
+ */
+export function calculateSleepMinutesSoFar(sleepTime: string): number {
+  const sleepStartMins = parseTimeToMinutes(sleepTime);
+  const now = new Date();
+  const currentMins = now.getHours() * 60 + now.getMinutes();
+
+  if (currentMins >= sleepStartMins) {
+    return currentMins - sleepStartMins;
+  }
+  // Crossed midnight: e.g. slept at 23:00, now 06:00
+  return (1440 - sleepStartMins) + currentMins;
+}
+
+/**
+ * Calculate sleep duration between a sleep time and wake time,
+ * correctly handling midnight crossover.
+ * Both times are "HH:MM" strings.
+ */
+export function calculateSleepDuration(sleepTime: string, wakeTime: string): number {
+  const sleepMins = parseTimeToMinutes(sleepTime);
+  const wakeMins = parseTimeToMinutes(wakeTime);
+
+  if (wakeMins > sleepMins) {
+    // Same-day sleep (e.g. nap 14:00 -> 16:00)
+    return wakeMins - sleepMins;
+  }
+  // Normal overnight: e.g. 23:00 -> 07:00
+  return (1440 - sleepMins) + wakeMins;
+}
+
+/**
+ * Get yesterday's date string in YYYY-MM-DD format (local timezone).
+ */
+export function getYesterdayDateStr(): string {
+  const d = new Date();
+  d.setDate(d.getDate() - 1);
+  return getLocalDateString(d);
+}
+
+/**
+ * Get the Monday of the current week as YYYY-MM-DD.
+ */
+export function getMondayOfCurrentWeek(): string {
+  const now = new Date();
+  const day = now.getDay(); // 0=Sun, 1=Mon, ...
+  const diff = now.getDate() - day + (day === 0 ? -6 : 1);
+  const monday = new Date(now);
+  monday.setDate(diff);
+  return getLocalDateString(monday);
+}

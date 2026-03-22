@@ -2,8 +2,8 @@
 
 import Link from 'next/link';
 import { useMemo } from 'react';
-import { TimelineEvent } from '@/lib/types';
-import { useTimelineEvents, useSleepLogs, useProductivity } from '@/lib/hooks/useSupabase';
+import { TimelineEvent, formatDuration } from '@/lib/types';
+import { useTimelineEvents, useSleepLogs, useProductivity, useGoals, useTasks } from '@/lib/hooks/useSupabase';
 
 // Get all days from Jan 1, 2026 up to today (max 365 days)
 function getLast365Days() {
@@ -25,6 +25,15 @@ export default function ProfilePage() {
   const { data: timelineEvents = [] } = useTimelineEvents();
   const { data: sleepLogs = [] } = useSleepLogs();
   const { data: productivityData } = useProductivity();
+  const { data: goals = [] } = useGoals();
+  const { data: tasks = [] } = useTasks();
+
+  // Goal & Task stats
+  const activeGoals = goals.filter(g => !g.isArchived);
+  const completedGoals = activeGoals.filter(g => g.status === 'completed');
+  const todayStr = new Date().toISOString().split('T')[0];
+  const tasksDoneToday = tasks.filter(t => t.isCompleted && t.completedAt?.startsWith(todayStr)).length;
+  const totalTasksDone = tasks.filter(t => t.isCompleted).length;
 
   // Helper to calculate sleep stats (previously in store)
   const sleepStats = useMemo(() => {
@@ -136,6 +145,31 @@ export default function ProfilePage() {
             </Link>
           </div>
 
+          {/* Goals & Tasks Stats */}
+          <div className="grid grid-cols-2 gap-4">
+            <div className="p-4 bg-slate-900/50 border border-slate-800 rounded-xl">
+              <div className="text-slate-400 text-sm mb-1">Goals Completed</div>
+              <div className="text-2xl font-bold text-emerald-400">{completedGoals.length}<span className="text-base text-slate-500 font-normal">/{activeGoals.length}</span></div>
+              <div className="text-xs text-slate-500 mt-1">Active goals</div>
+            </div>
+            <div className="p-4 bg-slate-900/50 border border-slate-800 rounded-xl">
+              <div className="text-slate-400 text-sm mb-1">Tasks Today</div>
+              <div className="text-2xl font-bold text-violet-400">{tasksDoneToday}</div>
+              <div className="text-xs text-slate-500 mt-1">{totalTasksDone} total completed</div>
+            </div>
+            <div className="p-4 bg-slate-900/50 border border-slate-800 rounded-xl">
+              <div className="text-slate-400 text-sm mb-1">This Week</div>
+              <div className="text-2xl font-bold text-cyan-400">{formatDuration(productivityData?.weekMinutes || 0)}</div>
+              <div className="text-xs text-slate-500 mt-1">Productive time</div>
+            </div>
+            <div className="p-4 bg-slate-900/50 border border-slate-800 rounded-xl">
+              <div className="text-slate-400 text-sm mb-1">Daily Average</div>
+              <div className="text-2xl font-bold text-amber-400">{formatDuration(productivityData?.weeklyAverage || 0)}</div>
+              <div className="text-xs text-slate-500 mt-1">This week</div>
+            </div>
+          </div>
+
+          {/* Sleep Stats */}
           <div className="grid grid-cols-2 gap-4">
             <Link href="/sleep" className="block group">
               <div className="p-4 bg-slate-900/50 border border-slate-800 rounded-xl group-hover:border-indigo-500/50 group-hover:bg-slate-900/80 transition-all cursor-pointer h-full">

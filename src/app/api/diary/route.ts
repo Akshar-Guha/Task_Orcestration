@@ -15,6 +15,7 @@ const supabase = createClient(
 
 // GET /api/diary - List all diary entries for the user
 // GET /api/diary?date=2026-01-17 - Get a specific entry by date
+// GET /api/diary?startDate=2026-01-01&endDate=2026-01-31 - Get entries in date range
 export async function GET(request: NextRequest) {
   try {
     const userId = getCurrentUserId();
@@ -24,6 +25,8 @@ export async function GET(request: NextRequest) {
 
     const { searchParams } = new URL(request.url);
     const date = searchParams.get('date');
+    const startDate = searchParams.get('startDate');
+    const endDate = searchParams.get('endDate');
     const limit = parseInt(searchParams.get('limit') || '30');
     const offset = parseInt(searchParams.get('offset') || '0');
 
@@ -35,6 +38,8 @@ export async function GET(request: NextRequest) {
 
     if (date) {
       query = query.eq('date', date);
+    } else if (startDate && endDate) {
+      query = query.gte('date', startDate).lte('date', endDate);
     } else {
       query = query.range(offset, offset + limit - 1);
     }

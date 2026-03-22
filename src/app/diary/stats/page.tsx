@@ -3,14 +3,37 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 
-interface Stats {
-  streak: { current: number; longest: number; total: number };
-  weekly: { avgMood: number; avgEnergy: number; totalDeepWork: number; entriesCount: number };
-  monthly: { avgMood: number; avgEnergy: number; totalDeepWork: number; entriesCount: number };
+interface ApiResponse {
+  streak: {
+    current_streak: number;
+    longest_streak: number;
+    last_entry_date: string | null;
+  };
+  weeklyStats: Array<{
+    week_start: string;
+    entries_count: number;
+    avg_mood: number | null;
+    avg_energy: number | null;
+    total_deep_work: number;
+    total_exercise: number;
+    total_wins: number;
+    total_challenges: number;
+  }>;
+  monthlyStats: Array<{
+    month_start: string;
+    entries_count: number;
+    avg_mood: number | null;
+    avg_energy: number | null;
+    total_deep_work: number;
+    total_shallow_work: number;
+    total_exercise: number;
+    good_mood_days: number;
+    bad_mood_days: number;
+  }>;
 }
 
 export default function DiaryStatsPage() {
-  const [stats, setStats] = useState<Stats | null>(null);
+  const [data, setData] = useState<ApiResponse | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -20,8 +43,8 @@ export default function DiaryStatsPage() {
   async function fetchStats() {
     try {
       const res = await fetch('/api/diary/stats');
-      const data = await res.json();
-      setStats(data);
+      const json = await res.json();
+      setData(json);
     } catch (err) {
       console.error('Failed to fetch stats:', err);
     } finally {
@@ -36,6 +59,11 @@ export default function DiaryStatsPage() {
       </div>
     );
   }
+
+  const streak = data?.streak;
+  const weekly = data?.weeklyStats?.[0];
+  const monthly = data?.monthlyStats?.[0];
+  const totalEntries = data?.weeklyStats?.reduce((sum, w) => sum + w.entries_count, 0) ?? 0;
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900">
@@ -56,80 +84,105 @@ export default function DiaryStatsPage() {
           <h2 className="text-2xl font-bold text-white mb-4">🔥 Journaling Streak</h2>
           <div className="grid grid-cols-3 gap-6">
             <div className="text-center">
-              <div className="text-4xl font-bold text-purple-300">{stats?.streak.current || 0}</div>
+              <div className="text-4xl font-bold text-purple-300">{streak?.current_streak ?? 0}</div>
               <div className="text-white/60 text-sm mt-1">Current</div>
             </div>
             <div className="text-center">
-              <div className="text-4xl font-bold text-purple-300">{stats?.streak.longest || 0}</div>
+              <div className="text-4xl font-bold text-purple-300">{streak?.longest_streak ?? 0}</div>
               <div className="text-white/60 text-sm mt-1">Longest</div>
             </div>
             <div className="text-center">
-              <div className="text-4xl font-bold text-purple-300">{stats?.streak.total || 0}</div>
-              <div className="text-white/60 text-sm mt-1">Total Entries</div>
+              <div className="text-4xl font-bold text-purple-300">{totalEntries}</div>
+              <div className="text-white/60 text-sm mt-1">Total (4 wks)</div>
             </div>
           </div>
+          {streak?.last_entry_date && (
+            <div className="text-center text-white/40 text-xs mt-4">
+              Last entry: {new Date(streak.last_entry_date).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}
+            </div>
+          )}
         </div>
 
         {/* Weekly Stats */}
         <div className="bg-white/5 border border-white/10 rounded-2xl p-6">
           <h2 className="text-xl font-bold text-white mb-4">📅 This Week</h2>
-          <div className="grid grid-cols-2 gap-4">
-            <div className="bg-white/5 rounded-lg p-4">
-              <div className="text-sm text-white/60 mb-1">Avg Mood</div>
-              <div className="text-2xl font-bold text-green-400">
-                {stats?.weekly.avgMood?.toFixed(1) || 'N/A'}/5
+          {weekly ? (
+            <div className="grid grid-cols-2 gap-4">
+              <div className="bg-white/5 rounded-lg p-4">
+                <div className="text-sm text-white/60 mb-1">Avg Mood</div>
+                <div className="text-2xl font-bold text-green-400">
+                  {weekly.avg_mood != null ? `${weekly.avg_mood.toFixed(1)}/5` : 'N/A'}
+                </div>
               </div>
-            </div>
-            <div className="bg-white/5 rounded-lg p-4">
-              <div className="text-sm text-white/60 mb-1">Avg Energy</div>
-              <div className="text-2xl font-bold text-blue-400">
-                {stats?.weekly.avgEnergy?.toFixed(1) || 'N/A'}/10
+              <div className="bg-white/5 rounded-lg p-4">
+                <div className="text-sm text-white/60 mb-1">Avg Energy</div>
+                <div className="text-2xl font-bold text-blue-400">
+                  {weekly.avg_energy != null ? `${weekly.avg_energy.toFixed(1)}/10` : 'N/A'}
+                </div>
               </div>
-            </div>
-            <div className="bg-white/5 rounded-lg p-4">
-              <div className="text-sm text-white/60 mb-1">Deep Work</div>
-              <div className="text-2xl font-bold text-purple-400">
-                {stats?.weekly.totalDeepWork || 0}m
+              <div className="bg-white/5 rounded-lg p-4">
+                <div className="text-sm text-white/60 mb-1">Deep Work</div>
+                <div className="text-2xl font-bold text-purple-400">{weekly.total_deep_work ?? 0}m</div>
               </div>
-            </div>
-            <div className="bg-white/5 rounded-lg p-4">
-              <div className="text-sm text-white/60 mb-1">Entries</div>
-              <div className="text-2xl font-bold text-white">
-                {stats?.weekly.entriesCount || 0}
+              <div className="bg-white/5 rounded-lg p-4">
+                <div className="text-sm text-white/60 mb-1">Entries</div>
+                <div className="text-2xl font-bold text-white">{weekly.entries_count ?? 0}</div>
               </div>
+              {weekly.total_wins > 0 && (
+                <div className="bg-white/5 rounded-lg p-4">
+                  <div className="text-sm text-white/60 mb-1">Wins</div>
+                  <div className="text-2xl font-bold text-emerald-400">{weekly.total_wins}</div>
+                </div>
+              )}
+              {weekly.total_exercise > 0 && (
+                <div className="bg-white/5 rounded-lg p-4">
+                  <div className="text-sm text-white/60 mb-1">Exercise</div>
+                  <div className="text-2xl font-bold text-orange-400">{weekly.total_exercise}m</div>
+                </div>
+              )}
             </div>
-          </div>
+          ) : (
+            <div className="text-white/40 text-center py-6">No entries this week yet</div>
+          )}
         </div>
 
         {/* Monthly Stats */}
         <div className="bg-white/5 border border-white/10 rounded-2xl p-6">
           <h2 className="text-xl font-bold text-white mb-4">📆 This Month</h2>
-          <div className="grid grid-cols-2 gap-4">
-            <div className="bg-white/5 rounded-lg p-4">
-              <div className="text-sm text-white/60 mb-1">Avg Mood</div>
-              <div className="text-2xl font-bold text-green-400">
-                {stats?.monthly.avgMood?.toFixed(1) || 'N/A'}/5
+          {monthly ? (
+            <div className="grid grid-cols-2 gap-4">
+              <div className="bg-white/5 rounded-lg p-4">
+                <div className="text-sm text-white/60 mb-1">Avg Mood</div>
+                <div className="text-2xl font-bold text-green-400">
+                  {monthly.avg_mood != null ? `${monthly.avg_mood.toFixed(1)}/5` : 'N/A'}
+                </div>
+              </div>
+              <div className="bg-white/5 rounded-lg p-4">
+                <div className="text-sm text-white/60 mb-1">Avg Energy</div>
+                <div className="text-2xl font-bold text-blue-400">
+                  {monthly.avg_energy != null ? `${monthly.avg_energy.toFixed(1)}/10` : 'N/A'}
+                </div>
+              </div>
+              <div className="bg-white/5 rounded-lg p-4">
+                <div className="text-sm text-white/60 mb-1">Deep Work</div>
+                <div className="text-2xl font-bold text-purple-400">{monthly.total_deep_work ?? 0}m</div>
+              </div>
+              <div className="bg-white/5 rounded-lg p-4">
+                <div className="text-sm text-white/60 mb-1">Entries</div>
+                <div className="text-2xl font-bold text-white">{monthly.entries_count ?? 0}</div>
+              </div>
+              <div className="bg-white/5 rounded-lg p-4">
+                <div className="text-sm text-white/60 mb-1">Good Mood Days</div>
+                <div className="text-2xl font-bold text-emerald-400">{monthly.good_mood_days ?? 0}</div>
+              </div>
+              <div className="bg-white/5 rounded-lg p-4">
+                <div className="text-sm text-white/60 mb-1">Tough Mood Days</div>
+                <div className="text-2xl font-bold text-rose-400">{monthly.bad_mood_days ?? 0}</div>
               </div>
             </div>
-            <div className="bg-white/5 rounded-lg p-4">
-              <div className="text-sm text-white/60 mb-1">Avg Energy</div>
-              <div className="text-2xl font-bold text-blue-400">
-                {stats?.monthly.avgEnergy?.toFixed(1) || 'N/A'}/10
-              </div>
-            </div>
-            <div className="bg-white/5 rounded-lg p-4">
-              <div className="text-sm text-white/60 mb-1">Deep Work</div>
-              <div className="text-2xl font-bold text-purple-400">
-                {stats?.monthly.totalDeepWork || 0}m
-              </div>
-            </div>
-            <div className="bg-white/5 rounded-lg p-4">
-              <div className="text-sm text-white/60 mb-1">Entries</div>
-              <div className="text-2xl font-bold text-white">
-                {stats?.monthly.entriesCount || 0}
-              </div>
-            </div>
-          </div>
+          ) : (
+            <div className="text-white/40 text-center py-6">No entries this month yet</div>
+          )}
         </div>
       </main>
     </div>

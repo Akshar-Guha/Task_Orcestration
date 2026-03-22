@@ -30,7 +30,7 @@ export async function GET() {
     // Unless the Edge Function takes `user_id` in body.
     
     // Use FALLBACK_USER_ID from full-sync if needed, or query users.
-    const FALLBACK_USER_ID = '2c32a446-1bbc-4294-8a29-3e4fef5649e6';
+    const FALLBACK_USER_ID = process.env.NEXT_PUBLIC_USER_ID || '2c32a446-1bbc-4294-8a29-3e4fef5649e6';
     
     const today = new Date().toISOString().split('T')[0];
     const { data: log } = await supabase

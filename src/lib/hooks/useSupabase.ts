@@ -8,9 +8,9 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../supabase';
 import { getCurrentUserId } from '../user';
-import type { Goal, Task, 
-  TimeSlot, 
-  TimelineEvent, 
+import type { Goal, Task,
+  TimeSlot,
+  TimelineEvent,
   TimelineEventType,
   SleepWakeLog,
   MoodLevel,
@@ -18,6 +18,7 @@ import type { Goal, Task,
   CreateTimeSlotInput,
 } from '../types';
 import { TIME_SLOT_COLORS } from '../types';
+import { calculateSleepDuration, getYesterdayDateStr } from '../date-utils';
 
 // ============================================
 // TIMELINE EVENTS
@@ -166,6 +167,8 @@ export function useAddGoal() {
       priority?: 1 | 2 | 3;
       timeSlotId?: string;
       deadline?: string;
+      dependsOn?: string[];
+      unlocks?: string[];
     }) => {
       const { data, error } = await supabase
         .from('goals')
@@ -179,6 +182,8 @@ export function useAddGoal() {
           priority: input.priority || 2,
           time_slot_id: input.timeSlotId,
           deadline: input.deadline,
+          depends_on: input.dependsOn || [],
+          unlocks: input.unlocks || [],
           is_archived: false,
         })
         .select()
@@ -395,11 +400,57 @@ export function useCompleteTask() {
         
       if (logError) throw logError;
 
+      // 3. Auto-update goal status based on task completions
+      if (task.goalId) {
+        const { data: goalTasks } = await supabase
+          .from('tasks')
+          .select('id, is_completed')
+          .eq('user_id', userId)
+          .eq('goal_id', task.goalId)
+          .eq('is_archived', false);
+
+        if (goalTasks && goalTasks.length > 0) {
+          const allCompleted = goalTasks.every(t => t.id === task.id ? true : t.is_completed);
+          const { data: goal } = await supabase
+            .from('goals')
+            .select('status')
+            .eq('id', task.goalId)
+            .eq('user_id', userId)
+            .single();
+
+          if (goal) {
+            if (allCompleted && goal.status !== 'completed') {
+              // All tasks done → mark goal completed
+              await supabase
+                .from('goals')
+                .update({ status: 'completed', completed_at: now, last_activity_at: now })
+                .eq('id', task.goalId)
+                .eq('user_id', userId);
+            } else if (!allCompleted && goal.status === 'not_started') {
+              // First task completed → mark goal in_progress
+              await supabase
+                .from('goals')
+                .update({ status: 'in_progress', started_at: now, last_activity_at: now })
+                .eq('id', task.goalId)
+                .eq('user_id', userId);
+            } else {
+              // Just update last activity
+              await supabase
+                .from('goals')
+                .update({ last_activity_at: now })
+                .eq('id', task.goalId)
+                .eq('user_id', userId);
+            }
+          }
+        }
+      }
+
       return taskData;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['tasks'] });
       queryClient.invalidateQueries({ queryKey: ['productivity'] });
+      queryClient.invalidateQueries({ queryKey: ['goals'] });
     },
   });
 }
@@ -486,25 +537,73 @@ export function useArchiveTask() {
 export function useUncompleteTask() {
   const queryClient = useQueryClient();
   const userId = getCurrentUserId();
-  
+
   return useMutation({
-    mutationFn: async (taskId: string) => {
+    mutationFn: async (task: Task) => {
+      const now = new Date().toISOString();
+      const today = now.split('T')[0];
+
+      // 1. Mark task as uncompleted
       const { data, error } = await supabase
         .from('tasks')
         .update({
           is_completed: false,
           completed_at: null,
         })
-        .eq('id', taskId)
+        .eq('id', task.id)
         .eq('user_id', userId)
         .select()
         .single();
-      
+
       if (error) throw error;
+
+      // 2. Subtract minutes from today's productivity log
+      const { data: existingLog } = await supabase
+        .from('productivity_logs')
+        .select('*')
+        .eq('user_id', userId)
+        .eq('date', today)
+        .single();
+
+      if (existingLog) {
+        const currentMinutes = existingLog.productive_minutes || 0;
+        const newMinutes = Math.max(0, currentMinutes - task.estimatedMinutes);
+
+        await supabase
+          .from('productivity_logs')
+          .update({
+            productive_minutes: newMinutes,
+            updated_at: now,
+          })
+          .eq('user_id', userId)
+          .eq('date', today);
+      }
+
+      // 3. Revert goal status if needed
+      if (task.goalId) {
+        const { data: goal } = await supabase
+          .from('goals')
+          .select('status')
+          .eq('id', task.goalId)
+          .eq('user_id', userId)
+          .single();
+
+        if (goal?.status === 'completed') {
+          // Goal was completed but now a task is uncompleted → revert to in_progress
+          await supabase
+            .from('goals')
+            .update({ status: 'in_progress', completed_at: null, last_activity_at: now })
+            .eq('id', task.goalId)
+            .eq('user_id', userId);
+        }
+      }
+
       return data;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['tasks'] });
+      queryClient.invalidateQueries({ queryKey: ['productivity'] });
+      queryClient.invalidateQueries({ queryKey: ['goals'] });
     },
   });
 }
@@ -573,18 +672,35 @@ export function useProductivity() {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const todayLog = logs.find((l: any) => l.date === today);
       const productiveMinutes = todayLog?.productive_minutes || 0;
-      
-      // Default waking hours (16h) if not found - TODO: Fetch from settings
-      const totalWaking = 16 * 60;
-      
+
+      // Calculate actual waking minutes from today's sleep log
+      const { data: sleepLog } = await supabase
+        .from('sleep_wake_logs')
+        .select('wake_up_time')
+        .eq('user_id', userId)
+        .eq('date', today)
+        .single();
+
+      let totalWaking = 16 * 60; // Default fallback
+      if (sleepLog?.wake_up_time) {
+        const [wh, wm] = sleepLog.wake_up_time.split(':').map(Number);
+        const wakeUpMins = wh * 60 + wm;
+        const now = new Date();
+        const currentMins = now.getHours() * 60 + now.getMinutes();
+        totalWaking = Math.max(1, currentMins - wakeUpMins);
+      }
+
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const daysWithLogs = logs.filter((l: any) => l.productive_minutes > 0).length;
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const weekMinutes = logs.reduce((sum: number, l: any) => sum + (l.productive_minutes || 0), 0);
-      
+
       return {
         todayMinutes: productiveMinutes,
-        todayPercentage: Math.round((productiveMinutes / totalWaking) * 100),
+        todayPercentage: Math.min(100, Math.round((productiveMinutes / totalWaking) * 100)),
+        totalWakingMinutes: totalWaking,
         weekMinutes,
-        weeklyAverage: Math.round(weekMinutes / 7),
+        weeklyAverage: Math.round(weekMinutes / Math.max(1, daysWithLogs)),
         logs,
       };
     },
@@ -638,7 +754,7 @@ export function useRecordWakeUp() {
       const now = new Date();
       now.setMinutes(now.getMinutes() - adjustedMinutes);
       const wakeUpTime = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
-      
+
       const { data, error } = await supabase
         .from('sleep_wake_logs')
         .upsert({
@@ -651,11 +767,30 @@ export function useRecordWakeUp() {
         }, { onConflict: 'date,user_id' })
         .select()
         .single();
-        
+
       if (error) throw error;
-      
-      // Trigger email (Fire and forget)
-      // Email trigger removed as per user request (Scheduled only)
+
+      // Calculate sleep duration from previous day's sleep log
+      const yesterday = getYesterdayDateStr();
+      const { data: yesterdayLog } = await supabase
+        .from('sleep_wake_logs')
+        .select('sleep_time, sleep_duration_minutes')
+        .eq('user_id', userId)
+        .eq('date', yesterday)
+        .single();
+
+      if (yesterdayLog?.sleep_time && !yesterdayLog.sleep_duration_minutes) {
+        const duration = calculateSleepDuration(yesterdayLog.sleep_time, wakeUpTime);
+        // Update yesterday's log with calculated duration
+        await supabase
+          .from('sleep_wake_logs')
+          .update({
+            sleep_duration_minutes: duration,
+            updated_at: new Date().toISOString()
+          })
+          .eq('user_id', userId)
+          .eq('date', yesterday);
+      }
 
       return data;
     },
@@ -797,10 +932,13 @@ export function useUpdateUserSettings() {
 export function useResetDailyTasks() {
   const queryClient = useQueryClient();
   const userId = getCurrentUserId();
-  
+
   return useMutation({
     mutationFn: async () => {
-      // Reset all daily tasks for the user
+      // Only reset daily tasks completed BEFORE today (preserve today's completions)
+      const todayStart = new Date();
+      todayStart.setHours(0, 0, 0, 0);
+
       const { error } = await supabase
         .from('tasks')
         .update({
@@ -809,8 +947,10 @@ export function useResetDailyTasks() {
           actual_minutes: null
         })
         .eq('user_id', userId)
-        .eq('is_daily', true);
-        
+        .eq('is_daily', true)
+        .eq('is_completed', true)
+        .lt('completed_at', todayStart.toISOString());
+
       if (error) throw error;
     },
     onSuccess: () => {

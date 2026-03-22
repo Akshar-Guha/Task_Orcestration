@@ -2,13 +2,15 @@
 
 import { useState } from 'react';
 import { formatDuration, LEVEL_LABELS } from '@/lib/types';
+import { calculateSleepMinutesSoFar } from '@/lib/date-utils';
 import Link from 'next/link';
-import { 
-  useGoals, 
-  useTasks, 
-  useTimeSlots, 
+import {
+  useGoals,
+  useTasks,
+  useTimeSlots,
   useProductivity,
-  useSleepLogs
+  useSleepLogs,
+  useTaskGoalLinks
 } from '@/lib/hooks/useSupabase';
 
 type ViewTab = 'goals' | 'productivity';
@@ -20,8 +22,9 @@ export default function TimelinePage() {
   const { data: timeSlots = [] } = useTimeSlots();
   const { data: productivityData } = useProductivity();
   const { data: sleepLogs = [] } = useSleepLogs();
+  const { data: taskGoalLinks = [] } = useTaskGoalLinks();
 
-  // Helper calculation functions (previously in store)
+  // Helper calculation functions
   const getTasksForGoal = (goalId: string) => {
     return tasks.filter((t) => t.goalId === goalId && !t.isArchived);
   };
@@ -30,14 +33,25 @@ export default function TimelinePage() {
     const goalTasks = getTasksForGoal(goalId);
     const tasksTotal = goalTasks.length;
     const tasksCompleted = goalTasks.filter(t => t.isCompleted).length;
-    
+
     // Calculate minutes spent
     const minutesSpent = goalTasks.reduce((sum, t) => {
-      // For tasks, we use estimatedMinutes as "spent" if completed
-      // Or actualMinutes if available
       if (t.isCompleted) return sum + (t.actualMinutes || t.estimatedMinutes);
       return sum + (t.actualMinutes || 0);
     }, 0);
+
+    // Calculate weighted progress if contribution weights exist
+    const links = taskGoalLinks.filter(l => l.goalId === goalId);
+    let weightedProgress: number | null = null;
+    if (links.length > 0) {
+      const totalWeight = links.reduce((sum, l) => sum + l.contributionWeight, 0);
+      if (totalWeight > 0) {
+        const completedWeight = links
+          .filter(l => tasks.find(t => t.id === l.taskId)?.isCompleted)
+          .reduce((sum, l) => sum + l.contributionWeight, 0);
+        weightedProgress = Math.round((completedWeight / totalWeight) * 100);
+      }
+    }
 
     // Calculate age in days
     const created = new Date(goals.find(g => g.id === goalId)?.createdAt || new Date());
@@ -48,7 +62,8 @@ export default function TimelinePage() {
       tasksTotal,
       tasksCompleted,
       minutesSpent,
-      totalDays
+      totalDays,
+      weightedProgress,
     };
   };
 
@@ -63,12 +78,28 @@ export default function TimelinePage() {
     return true;
   });
 
+  // Calculate top goals from today's completed tasks
+  const todayStr = new Date().toISOString().split('T')[0];
+  const todayCompletedTasks = tasks.filter(t =>
+    t.isCompleted && t.completedAt?.startsWith(todayStr)
+  );
+  const goalMinutesMap: Record<string, number> = {};
+  todayCompletedTasks.forEach(t => {
+    if (t.goalId) {
+      goalMinutesMap[t.goalId] = (goalMinutesMap[t.goalId] || 0) + t.estimatedMinutes;
+    }
+  });
+  const topGoals = Object.entries(goalMinutesMap)
+    .map(([goalId, minutes]) => ({ goalId, minutes }))
+    .sort((a, b) => b.minutes - a.minutes)
+    .slice(0, 5);
+
   const productivity = {
     todayMinutes: productivityData?.todayMinutes || 0,
     todayPercentage: productivityData?.todayPercentage || 0,
     weekMinutes: productivityData?.weekMinutes || 0,
     weeklyAverage: productivityData?.weeklyAverage || 0,
-    topGoals: [], // TODO: Calculate top goals from tasks
+    topGoals,
   };
 
   // Get last 7 days of productivity
@@ -179,9 +210,12 @@ export default function TimelinePage() {
                   
                   const statusConfig = getGoalStatusConfig(goal.status);
 
-                  const progress = stats.tasksTotal > 0 
-                    ? Math.round((stats.tasksCompleted / stats.tasksTotal) * 100) 
-                    : 0;
+                  // Use weighted progress if contribution weights exist, otherwise count-based
+                  const progress = stats.weightedProgress !== null
+                    ? stats.weightedProgress
+                    : stats.tasksTotal > 0
+                      ? Math.round((stats.tasksCompleted / stats.tasksTotal) * 100)
+                      : 0;
 
                   return (
                     <div
@@ -283,16 +317,9 @@ export default function TimelinePage() {
 
                   let sleepMinutes = todaySleepLog?.sleepDurationMinutes || 0;
 
-                  // Active Sleep Calculation
+                  // Active Sleep Calculation (handles midnight crossover)
                   if (todaySleepLog?.sleepTime && !todaySleepLog.wakeUpTime) {
-                     const [h, m] = todaySleepLog.sleepTime.split(':').map(Number);
-                     const sleepStartMins = h * 60 + m;
-                     const now = new Date();
-                     const currentMins = now.getHours() * 60 + now.getMinutes();
-                     
-                     if (currentMins >= sleepStartMins) {
-                        sleepMinutes = currentMins - sleepStartMins;
-                     }
+                    sleepMinutes = calculateSleepMinutesSoFar(todaySleepLog.sleepTime);
                   }
 
                   const productiveMinutes = productivity.todayMinutes;
