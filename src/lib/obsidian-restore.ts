@@ -6,7 +6,7 @@
  */
 
 import { github } from './github';
-import type { Goal, Task, SleepWakeLog } from './types';
+import type { Goal, Task } from './types';
 
 interface ParsedFrontmatter {
   [key: string]: unknown;
@@ -111,9 +111,10 @@ function parseGoal(content: string, filePath: string): Goal | null {
       unlocks: (frontmatter.unlocks as string[]) || [],
       timeSlotId: frontmatter.time_slot_id as string | undefined,
       isArchived,
-      createdAt: frontmatter.created_at as string || new Date().toISOString(),
-      startedAt: frontmatter.started_at as string | undefined,
-      completedAt: frontmatter.completed_at as string | undefined,
+      // full-sync writes 'created', 'started', 'completed' (no _at suffix)
+      createdAt: (frontmatter.created_at ?? frontmatter.created) as string || new Date().toISOString(),
+      startedAt: (frontmatter.started_at ?? frontmatter.started) as string | undefined,
+      completedAt: (frontmatter.completed_at ?? frontmatter.completed) as string | undefined,
     };
   } catch (error) {
     console.error('[Restore] Failed to parse goal:', filePath, error);
@@ -121,71 +122,13 @@ function parseGoal(content: string, filePath: string): Goal | null {
   }
 }
 
-/**
- * Parse Task from Obsidian markdown
- */
-function parseTask(content: string, filePath: string): Task | null {
-  try {
-    const frontmatter = parseFrontmatter(content);
-    
-    if (!frontmatter.id || !frontmatter.title) {
-      console.warn('[Restore] Invalid task file:', filePath);
-      return null;
-    }
-
-    // Determine completion from folder
-    let isCompleted = frontmatter.is_completed as boolean || false;
-    if (filePath.includes('/completed/')) {
-      isCompleted = true;
-    }
-
-    return {
-      id: frontmatter.id as string,
-      title: frontmatter.title as string,
-      description: frontmatter.description as string | undefined,
-      goalId: frontmatter.goal_id as string | undefined,
-      isCompleted,
-      isDaily: frontmatter.is_daily as boolean || false,
-      isArchived: frontmatter.is_archived as boolean || false,
-      estimatedMinutes: frontmatter.estimated_minutes as number || 30,
-      actualMinutes: frontmatter.actual_minutes as number | undefined,
-      createdAt: frontmatter.created_at as string || new Date().toISOString(),
-      completedAt: frontmatter.completed_at as string | undefined,
-    };
-  } catch (error) {
-    console.error('[Restore] Failed to parse task:', filePath, error);
-    return null;
-  }
-}
 
 /**
- * List all goal files from Obsidian
+ * List all goal files from Obsidian (current vault structure: MTO/Goals/)
  */
 async function listGoalFiles(): Promise<string[]> {
-  const folders = ['goals/active', 'goals/completed', 'goals/archive'];
-  const allFiles: string[] = [];
-
-  for (const folder of folders) {
-    const files = await github.listFiles(folder);
-    allFiles.push(...files.filter(f => f.endsWith('.md') && !f.includes('_schema')));
-  }
-
-  return allFiles;
-}
-
-/**
- * List all task files from Obsidian
- */
-async function listTaskFiles(): Promise<string[]> {
-  const folders = ['tasks/active', 'tasks/completed'];
-  const allFiles: string[] = [];
-
-  for (const folder of folders) {
-    const files = await github.listFiles(folder);
-    allFiles.push(...files.filter(f => f.endsWith('.md') && !f.includes('_schema')));
-  }
-
-  return allFiles;
+  const files = await github.listFiles('MTO/Goals');
+  return files.filter(f => f.endsWith('.md'));
 }
 
 /**
@@ -222,34 +165,11 @@ export async function restoreGoals(): Promise<{ goals: Goal[]; errors: string[] 
 
 /**
  * Restore all tasks from Obsidian
+ * Tasks are embedded inside goal files (MTO/Goals/) — not individual files.
+ * Full task restore requires reading from Supabase directly.
  */
 export async function restoreTasks(): Promise<{ tasks: Task[]; errors: string[] }> {
-  const tasks: Task[] = [];
-  const errors: string[] = [];
-
-  if (!github.isConfigured()) {
-    return { tasks, errors: ['GitHub not configured'] };
-  }
-
-  try {
-    const files = await listTaskFiles();
-    
-    for (const filePath of files) {
-      const file = await github.getFile(filePath);
-      if (!file) continue;
-
-      const task = parseTask(file.content, filePath);
-      if (task) {
-        tasks.push(task);
-      } else {
-        errors.push(`Failed to parse: ${filePath}`);
-      }
-    }
-  } catch (error) {
-    errors.push(`Error listing tasks: ${error}`);
-  }
-
-  return { tasks, errors };
+  return { tasks: [], errors: ['Tasks are embedded in goal files. Restore from Supabase instead.'] };
 }
 
 /**
@@ -301,7 +221,7 @@ export async function hasBackup(): Promise<boolean> {
   if (!github.isConfigured()) return false;
 
   try {
-    const goalFiles = await github.listFiles('goals/active');
+    const goalFiles = await github.listFiles('MTO/Goals');
     return goalFiles.length > 0;
   } catch {
     return false;

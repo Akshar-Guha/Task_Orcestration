@@ -1,8 +1,11 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 /**
- * Full Obsidian Sync API
- * 
- * Syncs ALL goals and tasks from Supabase to Obsidian.
- * Used for manual sync trigger from the settings page.
+ * Full Obsidian Sync API — Time-Series Data Warehouse
+ *
+ * Vault structure:
+ *   MTO/Goals/{slug}.md         — 1 file per goal, always current state
+ *   MTO/Daily/{date}.md         — 1 file per day from daily_entries (immutable once written)
+ *   MTO/Sleep/{year}-{month}.md — monthly sleep log
  */
 
 import { NextResponse } from 'next/server';
@@ -11,7 +14,15 @@ import { github } from '@/lib/github';
 
 const FALLBACK_USER_ID = '2c32a446-1bbc-4294-8a29-3e4fef5649e6';
 
-function goalToMarkdown(goal: Record<string, unknown>): string {
+function slugify(title: string): string {
+  return (title || 'Untitled').replace(/[^a-z0-9\s-]/gi, '').trim().replace(/\s+/g, '-');
+}
+
+function goalToMarkdown(goal: any, goalTasks: any[]): string {
+  const taskLines = goalTasks.length > 0
+    ? goalTasks.map((t: any) => `- ${t.title} (${t.estimated_minutes}min/day)`).join('\n')
+    : '*No tasks*';
+
   return `---
 id: "${goal.id}"
 title: "${goal.title}"
@@ -20,6 +31,8 @@ status: "${goal.status}"
 priority: ${goal.priority || 2}
 is_archived: ${goal.is_archived || false}
 created_at: "${goal.created_at}"
+started_at: ${goal.started_at ? `"${goal.started_at}"` : 'null'}
+completed_at: ${goal.completed_at ? `"${goal.completed_at}"` : 'null'}
 synced_at: "${new Date().toISOString()}"
 ---
 
@@ -27,36 +40,82 @@ synced_at: "${new Date().toISOString()}"
 
 ${goal.description || '*No description*'}
 
-## Status
-${goal.status?.toString().replace('_', ' ')}
+## Daily Tasks
+${taskLines}
 `;
 }
 
-function taskToMarkdown(task: Record<string, unknown>): string {
+function dailyToMarkdown(
+  entry: any,
+  completedTasks: any[],
+  allDailyTasks: any[],
+  sleep: any | null
+): string {
+  const date = entry.date as string;
+
+  const completedIds = new Set(completedTasks.map((t: any) => t.task_id));
+
+  const taskLines = allDailyTasks.map((t: any) => {
+    const done = completedIds.has(t.id);
+    const completion = completedTasks.find((c: any) => c.task_id === t.id);
+    const minStr = completion?.minutes_spent ? ` (${completion.minutes_spent}min)` : '';
+    const goalName = t.goal_title ? ` — ${t.goal_title}` : '';
+    return `- [${done ? 'x' : ' '}] ${t.title}${minStr}${goalName}`;
+  }).join('\n') || '*No tasks defined*';
+
+  const wins = Array.isArray(entry.wins) && entry.wins.length > 0
+    ? `\n**Wins:** ${(entry.wins as string[]).join(', ')}` : '';
+  const challenges = Array.isArray(entry.challenges) && entry.challenges.length > 0
+    ? `\n**Challenges:** ${(entry.challenges as string[]).join(', ')}` : '';
+
+  let sleepSection = '';
+  if (sleep) {
+    const duration = sleep.sleep_duration_minutes
+      ? `${Math.floor(sleep.sleep_duration_minutes / 60)}h ${sleep.sleep_duration_minutes % 60}m` : 'N/A';
+    sleepSection = `\n## Sleep\nWake: ${sleep.wake_up_time || 'N/A'} | Mood: ${sleep.wake_up_mood || 'N/A'}/5 | Sleep: ${sleep.sleep_time || 'N/A'} | Duration: ${duration}\n`;
+  }
+
   return `---
-id: "${task.id}"
-title: "${task.title}"
-goal_id: ${task.goal_id ? `"${task.goal_id}"` : 'null'}
-is_completed: ${task.is_completed || false}
-is_daily: ${task.is_daily || false}
-created_at: "${task.created_at}"
+date: "${date}"
+mood: ${entry.mood ?? 'null'}
+energy: ${entry.energy_level ?? 'null'}
 synced_at: "${new Date().toISOString()}"
 ---
 
-# ${task.title}
+# ${date}
 
-${task.description || '*No description*'}
+## Diary
+${entry.summary || '*No summary*'}
+${wins}${challenges}
 
-## Status
-${task.is_completed ? '✅ Completed' : '⏳ Pending'}
+## Tasks
+${taskLines}
+${sleepSection}`;
+}
+
+function sleepMonthToMarkdown(logs: any[], month: string): string {
+  const entries = logs
+    .filter((log: any) => log.date.startsWith(month))
+    .sort((a: any, b: any) => a.date.localeCompare(b.date))
+    .map((log: any) => {
+      const duration = log.sleep_duration_minutes
+        ? `${Math.floor(log.sleep_duration_minutes / 60)}h ${log.sleep_duration_minutes % 60}m` : 'N/A';
+      return `### ${log.date}\n- Wake: ${log.wake_up_time || 'N/A'} | Mood: ${log.wake_up_mood || 'N/A'}/5\n- Sleep: ${log.sleep_time || 'N/A'} | Duration: ${duration}`;
+    }).join('\n\n');
+
+  return `---
+month: "${month}"
+type: "sleep-log"
+synced_at: "${new Date().toISOString()}"
+---
+
+# Sleep Log — ${month}
+
+${entries || '*No entries this month*'}
 `;
 }
 
 export async function POST() {
-  const results = {
-    history: { synced: 0, failed: 0, errors: [] as string[] }
-  };
-
   try {
     if (!github.isConfigured()) {
       return NextResponse.json({ success: false, error: 'GitHub not configured' }, { status: 503 });
@@ -64,296 +123,118 @@ export async function POST() {
 
     const { data: { user } } = await supabase.auth.getUser();
     const userId = user?.id || FALLBACK_USER_ID;
-
-    // 1. Fetch ALL Data
-    const { data: goals } = await supabase.from('goals').select('*').eq('user_id', userId);
-    const { data: tasks } = await supabase.from('tasks').select('*').eq('user_id', userId);
-    const { data: sleepLogs } = await supabase.from('sleep_wake_logs').select('*').eq('user_id', userId);
-    const { data: diaryEntries } = await supabase.from('daily_entries').select('*').eq('user_id', userId);
-    
-    // Timeline Events (Task Completions)
-    const { data: historyEvents } = await supabase
-        .from('timeline_events')
-        .select('*')
-        .eq('user_id', userId)
-        .eq('event_type', 'task_completed');
-
-    // 2. Index Data by Date
-    const dataByDate = new Map<string, {
-        diary?: any,
-        sleep?: any,
-        tasks: any[],
-        goals: any[] // Goals completed on this date
-    }>();
-
-    const getDayBucket = (date: string) => {
-        if (!dataByDate.has(date)) {
-            dataByDate.set(date, { tasks: [], goals: [] });
-        }
-        return dataByDate.get(date)!;
-    };
-
-    // Index Diary
-    diaryEntries?.forEach(entry => {
-        getDayBucket(entry.date).diary = entry;
-    });
-
-    // Index Sleep
-    sleepLogs?.forEach(log => {
-        getDayBucket(log.date).sleep = log;
-    });
-
-    // ===================================
-    // MULTI-DATE INDEXING (The "Unconstrained Log")
-    // ===================================
-    // We place each item into EVERY date bucket it is relevant to.
-    // 1. Creation Date (Log: Created)
-    // 2. Completion Date(s) (Log: Completed)
-    // 3. Today (Log: Active/Pending if applicable)
-    
-    // Helper to add data to a specific date bucket
-    const addToBucket = (dateStr: string, type: 'tasks' | 'goals', item: any, logType: 'Created' | 'Completed' | 'Active' | 'Pending') => {
-        if (!dateStr || isNaN(new Date(dateStr).getTime())) return;
-        const date = dateStr.split('T')[0];
-        const bucket = getDayBucket(date);
-        // Add meta for logging
-        bucket[type].push({ ...item, _log_status: logType, _log_date: date });
-    };
-
     const todayStr = new Date().toISOString().split('T')[0];
 
-    // PROCESS TASKS
-    if (tasks) {
-        // Map for timeline lookup
-        const taskMap = new Map(tasks.map(t => [t.id, t]));
+    // 1. Fetch all data in parallel
+    const [
+      { data: goals },
+      { data: tasks },
+      { data: dailyEntries },
+      { data: dailyTaskStatus },
+      { data: sleepLogs },
+    ] = await Promise.all([
+      supabase.from('goals').select('*').eq('user_id', userId),
+      supabase.from('tasks').select('*, goals(title)').eq('user_id', userId),
+      supabase.from('daily_entries').select('*').eq('user_id', userId).order('date', { ascending: true }),
+      supabase.from('daily_task_status').select('*').eq('user_id', userId),
+      supabase.from('sleep_wake_logs').select('*').eq('user_id', userId),
+    ]);
 
-        tasks.forEach(task => {
-            // A. Log Creation
-            if (task.created_at) {
-                addToBucket(task.created_at, 'tasks', task, 'Created');
-            }
+    // 2. Build lookup maps
+    const tasksByGoalId = new Map<string, any[]>();
+    const dailyTasks: any[] = [];
 
-            // B. Log Completions (via Timeline)
-            // (If no timeline, fallback to completed_at)
-            let hasTimeline = false;
-            if (historyEvents) {
-                const events = historyEvents.filter((e: any) => e.task_id === task.id);
-                events.forEach((evt: any) => {
-                    hasTimeline = true;
-                    addToBucket(evt.timestamp, 'tasks', { ...task, completion_evt: evt }, 'Completed');
-                });
-            }
-            
-            if (!hasTimeline && task.is_completed && task.completed_at) {
-                addToBucket(task.completed_at, 'tasks', task, 'Completed');
-            }
+    (tasks || []).forEach((t: any) => {
+      if (t.goal_id) {
+        if (!tasksByGoalId.has(t.goal_id)) tasksByGoalId.set(t.goal_id, []);
+        tasksByGoalId.get(t.goal_id)!.push({ ...t, goal_title: t.goals?.title });
+      }
+      if (t.is_daily) {
+        dailyTasks.push({ ...t, goal_title: t.goals?.title });
+      }
+    });
 
-            // C. Log Active State (Today)
-            // If it is NOT completed, OR if it IS completed but is_daily (resets)
-            // We log it as "Pending" or "Active" for Today.
-            if (!task.is_completed || task.is_daily) {
-                // If it's done today, we already logged "Completed". 
-                // But daily tasks also exist as "Pending" for tomorrow (conceptually).
-                // User wants "Active state".
-                // If it IS completed today, we might want to skip "Active" to avoid double noise?
-                // User said "Active or any state... entire logs".
-                // We will add it as "Active" to Today.
-                addToBucket(todayStr, 'tasks', task, 'Pending'); // "Pending" implies "To Do"
-            }
-        });
+    const dailyTaskStatusByDate = new Map<string, any[]>();
+    (dailyTaskStatus || []).forEach((s: any) => {
+      if (!dailyTaskStatusByDate.has(s.date)) dailyTaskStatusByDate.set(s.date, []);
+      dailyTaskStatusByDate.get(s.date)!.push(s);
+    });
+
+    const sleepByDate = new Map<string, any>();
+    (sleepLogs || []).forEach((s: any) => { sleepByDate.set(s.date, s); });
+
+    // 3. Check which Daily files already exist (preserve historical immutability)
+    const existingDailyFiles = new Set<string>();
+    try {
+      const files = await github.listFiles('MTO/Daily');
+      files.forEach((f: string) => {
+        const match = f.match(/(\d{4}-\d{2}-\d{2})\.md$/);
+        if (match) existingDailyFiles.add(match[1]);
+      });
+    } catch {
+      // Directory may not exist yet — fine
     }
 
-    // PROCESS GOALS
-    if (goals) {
-        goals.forEach(goal => {
-            // A. Log Creation
-            if (goal.created_at) {
-                addToBucket(goal.created_at, 'goals', goal, 'Created');
-            }
-
-            // B. Log Completion
-            if (goal.status === 'completed' && goal.completed_at) {
-                addToBucket(goal.completed_at, 'goals', goal, 'Completed');
-            }
-
-            // C. Log Active (Today)
-            if (goal.status !== 'completed' && !goal.is_archived) {
-                addToBucket(todayStr, 'goals', goal, 'Active');
-            }
-        });
-    }
-
-    // 3. Generate Warehouse Files
-    // We will collect ALL files to sync and do a SINGLE ATOMIC COMMIT
+    // 4. Build files to sync
     const filesToSync: { path: string; content: string }[] = [];
 
-    for (const [date, bucket] of dataByDate) {
-        try {
-            const [year, month, day] = date.split('-');
-            const basePath = `MTO/Data/${year}/${month}/${day}`;
+    // Goal files — always overwrite (current state)
+    (goals || []).forEach((goal: any) => {
+      const slug = slugify(goal.title);
+      const goalTasks = tasksByGoalId.get(goal.id) || [];
+      filesToSync.push({ path: `MTO/Goals/${slug}.md`, content: goalToMarkdown(goal, goalTasks) });
+    });
 
-            // A. Diary.md etc (Keep existing logic)
-            // A. Diary.md (The Hub)
-            let diaryContent = `---
-date: "${date}"
-type: "daily_record"
-synced_at: "${new Date().toISOString()}"
----
-# 📅 Daily Record: ${date}
+    // Daily files — skip historical ones that already exist
+    (dailyEntries || []).forEach((entry: any) => {
+      const date = entry.date as string;
+      if (date !== todayStr && existingDailyFiles.has(date)) return; // immutable
 
-`;
-            if (bucket.diary) {
-                const e = bucket.diary;
-                diaryContent += `## 🧠 Mindset\n- **Mood**: ${e.mood}/5\n- **Energy**: ${e.energy_level}/10\n\n`;
-                if (e.summary) diaryContent += `## 📝 Summary\n${e.summary}\n\n`;
-                const details = await formatDiaryDetails(e.id, supabase);
-                if (details) diaryContent += details + '\n';
-            }
+      const completedTasks = dailyTaskStatusByDate.get(date) || [];
+      // Only include tasks that existed on this date (created_at <= date)
+      const tasksOnDate = dailyTasks.filter((t: any) =>
+        t.created_at.split('T')[0] <= date
+      );
+      filesToSync.push({
+        path: `MTO/Daily/${date}.md`,
+        content: dailyToMarkdown(entry, completedTasks, tasksOnDate, sleepByDate.get(date) ?? null),
+      });
+    });
 
-            if (bucket.sleep) {
-                const s = bucket.sleep;
-                const duration = s.sleep_duration_minutes 
-                    ? `${Math.floor(s.sleep_duration_minutes / 60)}h ${s.sleep_duration_minutes % 60}m` : 'N/A';
-                diaryContent += `## 😴 Sleep\n- **Duration**: ${duration}\n- **Wake**: ${s.wake_up_time}\n- **Mood**: ${s.wake_up_mood}/5\n\n`;
-                
-                const sleepPath = `${basePath}/Sleep.md`;
-                filesToSync.push({ path: sleepPath, content: JSON.stringify(bucket.sleep, null, 2) });
-            }
+    // Sleep files — monthly
+    const months = [...new Set((sleepLogs || []).map((s: any) => s.date.substring(0, 7)))];
+    months.forEach(month => {
+      const [year, monthNum] = month.split('-');
+      filesToSync.push({
+        path: `MTO/Sleep/${year}-${monthNum}.md`,
+        content: sleepMonthToMarkdown(sleepLogs || [], month),
+      });
+    });
 
-            filesToSync.push({ path: `${basePath}/Diary.md`, content: diaryContent });
-
-            // B. TASKS (Detailed Dump)
-            for (const task of bucket.tasks) {
-                const cleanTitle = (task.title || 'Untitled').replace(/[^a-z0-9\s-]/gi, '').trim().replace(/\s+/g, '-');
-                const logStatus = task._log_status || 'Unknown';
-                const filename = `${cleanTitle} (${logStatus}).md`;
-                const path = `${basePath}/Tasks/${filename}`;
-                
-                // FULL ATTRIBUTE DUMP
-                const content = `---
-id: "${task.id}"
-log_status: "${logStatus}"
-log_date: "${date}"
-title: "${task.title}"
-is_completed: ${task.is_completed}
-is_daily: ${task.is_daily}
-priority: ${task.priority}
-estimated_minutes: ${task.estimated_minutes}
-actual_minutes: ${task.actual_minutes}
-created_at: "${task.created_at}"
-completed_at: "${task.completed_at || ''}"
-goal_id: "${task.goal_id || ''}"
-synced_at: "${new Date().toISOString()}"
----
-# ${task.title}
-
-**Log Status**: ${logStatus}
-**Date**: ${date}
-
-## Details
-${task.description || ''}
-`;
-                filesToSync.push({ path, content });
-            }
-
-            // C. GOALS (Detailed Dump)
-            for (const goal of bucket.goals) {
-                const cleanTitle = (goal.title || 'Untitled').replace(/[^a-z0-9\s-]/gi, '').trim().replace(/\s+/g, '-');
-                const logStatus = goal._log_status || 'Unknown';
-                const filename = `${cleanTitle} (${logStatus}).md`;
-                const path = `${basePath}/Goals/${filename}`;
-                
-                const content = `---
-id: "${goal.id}"
-log_status: "${logStatus}"
-log_date: "${date}"
-title: "${goal.title}"
-status: "${goal.status}"
-priority: ${goal.priority}
-level: "${goal.level}"
-is_archived: ${goal.is_archived}
-created_at: "${goal.created_at}"
-completed_at: "${goal.completed_at || ''}"
-synced_at: "${new Date().toISOString()}"
----
-# ${goal.title}
-
-**Log Status**: ${logStatus}
-**Date**: ${date}
-
-## Details
-${goal.description || ''}
-`;
-                filesToSync.push({ path, content });
-            }
-            
-            // Just counting items
-            results.history.synced += bucket.tasks.length + bucket.goals.length + (bucket.diary ? 1 : 0) + (bucket.sleep ? 1 : 0);
-
-        } catch (e) {
-            console.error(`Error processing date ${date}`, e);
-            results.history.failed++;
-        }
-    }
-
-    // PERFORM ATOMIC SYNC
+    // 5. Atomic commit
+    let synced = 0;
+    let failed = 0;
     if (filesToSync.length > 0) {
-        console.log(`Syncing ${filesToSync.length} files in separate batches...`);
-        // We use createTreeCommit from our optimized github helper
-        // But createTreeCommit implementation inside github.batchUpsert handles it.
-        // Wait, github.batchUpsert is what we should call.
-        const batchRes = await github.batchUpsert(filesToSync, `[MTO] Full Warehouse Sync (${filesToSync.length} files)`);
-        
-        if (batchRes.failed > 0) {
-            console.error(`Batch sync warnings: ${batchRes.failed} failed`);
-        }
+      const result = await github.batchUpsert(filesToSync, `[MTO] Time-series sync (${filesToSync.length} files)`);
+      synced = result.success;
+      failed = result.failed;
     }
 
-    // 4. CLEANUP LEGACY FOLDERS (Active State)
-    // We delete 'MTO/Tasks', 'MTO/Goals', AND 'MTO/Diary' (Old root)
-    try {
-        console.log("Cleaning up legacy structure...");
-        // List root items to find leftovers
-        const legacyPaths = [
-            'MTO/Tasks/active', 'MTO/Tasks/completed', 
-            'MTO/Goals/active', 'MTO/Goals/archive', 'MTO/Goals/completed',
-            'MTO/Diary', // Clean up old Diary root if it exists, assuming all migrated to Data
-        ];
-        
-        for (const dir of legacyPaths) {
-            // We only want to delete invalid structure, not Data
-            if (dir === 'MTO/Diary') {
-                 // Listing MTO/Diary might return YYYY folders if we used MTO/Diary/2026 before.
-                 // But wait, the new structure uses MTO/Data. So MTO/Diary is old.
-                 // We should proceed carefully. Is MTO/Diary/2026/01/27 the same as MTO/Data/2026/01/27?
-                 // No, I changed it to MTO/Data.
-                 // So entire MTO/Diary can be considered legacy if user accepted the "Data" rename.
-                 // Let's delete it.
-            }
-            
-            const files = await github.listFiles(dir);
-            for (const file of files) {
-                // Determine if this file is in the new MTO/Data structure? No, it's in legacyPaths.
-                // Just delete it.
-                await github.softDeleteFile(file, '[MTO] Cleanup legacy structure (Moving to Warehouse)');
-            }
+    // 6. Cleanup old structure (best-effort)
+    for (const dir of ['MTO/Data', 'MTO/Diary', 'MTO/Tasks', 'trash/MTO']) {
+      try {
+        const files = await github.listFiles(dir);
+        for (const file of files) {
+          await github.softDeleteFile(file, '[MTO] Cleanup legacy structure');
         }
-    } catch (e) {
-        console.warn("Cleanup warning:", e);
+      } catch {
+        // Directory doesn't exist — skip
+      }
     }
 
-    return NextResponse.json({ success: true, results });
+    return NextResponse.json({ success: true, results: { synced, failed, files: filesToSync.length } });
 
   } catch (error) {
     return NextResponse.json({ success: false, error: String(error) }, { status: 500 });
   }
-}
-
-// Helper to fetch details for diary
-async function formatDiaryDetails(entryId: string, supabaseClient: any) {
-    // Fetch answers
-    const { data: answers } = await supabaseClient.from('diary_answers').select('*, questions(question_text)').eq('entry_id', entryId);
-    if (!answers?.length) return '';
-    
-    return `## Reflections\n` + answers.map((a: any) => `### ${a.questions?.question_text || 'Question'}\n${a.answer}\n`).join('\n');
 }

@@ -103,45 +103,6 @@ ${completionStats}
 `;
 }
 
-/**
- * Convert Task to Obsidian markdown
- */
-function taskToMarkdown(task: Task): string {
-  const folder = task.isCompleted ? 'completed' : 'active';
-
-  return `---
-schema_version: "${SCHEMA_VERSION}"
-id: "${task.id}"
-title: "${task.title}"
-description: "${(task.description || '').replace(/"/g, '\\"')}"
-goal_id: ${task.goalId ? `"${task.goalId}"` : 'null'}
-is_completed: ${task.isCompleted}
-is_daily: ${task.isDaily}
-is_archived: ${task.isArchived || false}
-estimated_minutes: ${task.estimatedMinutes || 30}
-actual_minutes: ${task.actualMinutes || 'null'}
-created_at: "${task.createdAt}"
-completed_at: ${task.completedAt ? `"${task.completedAt}"` : 'null'}
-metadata:
-  source: "mto-app"
-  synced_at: "${new Date().toISOString()}"
-  folder: "${folder}"
----
-
-# Task: ${task.title}
-
-${task.description || '*No description*'}
-
-## Status
-${task.isCompleted ? '✅ Completed' : '⏳ Pending'}
-
-## Time
-- Estimated: ${task.estimatedMinutes || 30} minutes
-${task.actualMinutes ? `- Actual: ${task.actualMinutes} minutes` : ''}
-
-${task.goalId ? `## Linked Goal\nGoal ID: \`${task.goalId}\`` : '## Standalone Task'}
-`;
-}
 
 /**
  * Convert SleepWakeLog to monthly markdown
@@ -239,12 +200,7 @@ function sanitizeFilename(name: string): string {
 
 function getGoalPath(goal: Goal): string {
     const cleanTitle = sanitizeFilename(goal.title);
-    return `MTO/Goals/${goal.id}-${cleanTitle}.md`;
-}
-
-function getTaskPath(task: Task): string {
-  const cleanTitle = sanitizeFilename(task.title);
-  return `MTO/Tasks/${task.id}-${cleanTitle}.md`;
+    return `MTO/Goals/${cleanTitle}.md`;
 }
 
 /**
@@ -288,17 +244,6 @@ export async function syncGoal(goal: Goal, action: 'upsert' | 'delete' = 'upsert
 }
 
 /**
- * Sync a single task to Obsidian
- */
-export async function syncTask(task: Task, action: 'upsert' | 'delete' = 'upsert'): Promise<boolean> {
-  const path = getTaskPath(task);
-  const content = action === 'delete' ? null : taskToMarkdown(task);
-  const message = `[MTO] ${action === 'delete' ? 'Delete' : task.isCompleted ? 'Complete' : 'Update'} task: ${task.title}`;
-
-  return await callSyncApi(path, action, content, message);
-}
-
-/**
  * Sync a diary entry to Obsidian
  */
 export async function syncDiaryEntry(
@@ -307,8 +252,7 @@ export async function syncDiaryEntry(
   questions?: Question[],
   action: 'upsert' | 'delete' = 'upsert'
 ): Promise<boolean> {
-  const [year, month, day] = entry.date.split('-');
-  const path = `MTO/Diary/${year}/${month}/${day}/Diary.md`;
+  const path = `MTO/Daily/${entry.date}.md`;
   const content = action === 'delete' ? null : diaryEntryToMarkdown(entry, answers, questions);
   const message = `[MTO] ${action === 'delete' ? 'Delete' : 'Sync'} diary: ${entry.date}`;
 
@@ -344,8 +288,6 @@ async function processQueue(): Promise<void> {
     try {
       if (item.type === 'goal') {
         await syncGoal(item.data as Goal, item.action);
-      } else if (item.type === 'task') {
-        await syncTask(item.data as Task, item.action);
       }
     } catch (error) {
       console.error('[Obsidian] Sync error:', error);
@@ -368,7 +310,7 @@ async function processQueue(): Promise<void> {
  */
 export async function fullSync(
   goals: Goal[],
-  tasks: Task[],
+  _tasks: Task[],
   sleepLogs: SleepWakeLog[]
 ): Promise<SyncResult> {
   syncStatus.syncing = true;
@@ -390,19 +332,12 @@ export async function fullSync(
       else failed++;
     }
 
-    // Sync all tasks
-    for (const task of tasks) {
-      const success = await syncTask(task);
-      if (success) synced++;
-      else failed++;
-    }
-
     // Sync sleep logs by month
     const months = [...new Set(sleepLogs.map(log => log.date.substring(0, 7)))];
     for (const month of months) {
       const content = sleepLogToMarkdown(sleepLogs, month);
       const [year, monthNum] = month.split('-');
-      const path = `MTO/Sleep/${year}/${monthNum}.md`;
+      const path = `MTO/Sleep/${year}-${monthNum}.md`;
       const success = await callSyncApi(path, 'upsert', content, `[MTO] Sync sleep log: ${month}`);
       
       if (success) synced++;
