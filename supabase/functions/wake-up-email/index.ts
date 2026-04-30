@@ -17,6 +17,7 @@ const corsHeaders = {
 const RESEND_API_KEY = Deno.env.get('RESEND_API_KEY') || '';
 const USER_EMAIL = Deno.env.get('USER_EMAIL') || '';
 const USER_ID = Deno.env.get('DEFAULT_USER_ID') || '';
+const APP_URL = Deno.env.get('APP_URL') || 'https://your-goal-tracker.vercel.app';
 
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
@@ -47,7 +48,7 @@ serve(async (req) => {
 
     const today = new Date().toISOString().split('T')[0];
 
-    // 1. Get today's goals
+    // 1. Get top 3 active goals (critical → important → nice-to-have)
     const { data: goals } = await supabase
       .from('goals')
       .select('id, title, status, priority')
@@ -55,16 +56,17 @@ serve(async (req) => {
       .eq('is_archived', false)
       .in('status', ['not_started', 'in_progress'])
       .order('priority', { ascending: false })
-      .limit(5);
+      .limit(3);
 
-    // 2. Get today's tasks
-    const { data: tasks } = await supabase
+    // 2. Get pending task counts per goal
+    const goalIds = goals?.map(g => g.id) || [];
+    const { data: tasks } = goalIds.length ? await supabase
       .from('tasks')
-      .select('id, title, is_completed, estimated_minutes')
+      .select('id, goal_id')
       .eq('user_id', USER_ID)
       .eq('is_archived', false)
       .eq('is_completed', false)
-      .limit(10);
+      .in('goal_id', goalIds) : { data: [] };
 
     // 3. Get yesterday's stats
     const yesterday = new Date();
@@ -79,17 +81,22 @@ serve(async (req) => {
       .single();
 
     // 4. Build email content
-    const goalsHtml = goals?.length
-      ? goals.map(g => `<li><strong>${g.title}</strong> - ${g.status}</li>`).join('')
-      : '<li>No active goals</li>';
+    const taskCountByGoal: Record<string, number> = {};
+    for (const t of (tasks || [])) {
+      if (t.goal_id) taskCountByGoal[t.goal_id] = (taskCountByGoal[t.goal_id] || 0) + 1;
+    }
 
-    const tasksHtml = tasks?.length
-      ? tasks.map(t => `<li>${t.title} (${t.estimated_minutes || 30} min)</li>`).join('')
-      : '<li>No pending tasks - add some!</li>';
+    const goalsHtml = goals?.length
+      ? goals.map((g: { id: string; title: string; status: string }) => {
+          const count = taskCountByGoal[g.id] || 0;
+          const taskBadge = count > 0 ? `<span style="color:#94a3b8;font-size:12px;"> · ${count} task${count !== 1 ? 's' : ''}</span>` : '';
+          return `<li><strong>${g.title}</strong>${taskBadge}</li>`;
+        }).join('')
+      : '<li>No active goals — <a href="${APP_URL}/create" style="color:#a78bfa;">add one</a></li>';
 
     const yesterdaySummary = yesterdayLog
       ? `You were productive for <strong>${yesterdayLog.productive_minutes || 0} minutes</strong> yesterday.`
-      : 'No data from yesterday.';
+      : 'No productivity data from yesterday.';
 
     const moodEmoji = {
       'great': '😊',
@@ -110,31 +117,26 @@ serve(async (req) => {
     ul { padding-left: 20px; }
     li { margin: 8px 0; }
     .summary { background: #1e1e1e; padding: 16px; border-radius: 8px; margin: 16px 0; }
-    .motivation { background: linear-gradient(135deg, #1e3a5f, #2d1f4e); padding: 20px; border-radius: 12px; margin-top: 24px; text-align: center; }
+    .cta { display:block; margin: 24px auto 0; padding: 14px 28px; background: #7c3aed; color: #fff; text-decoration: none; border-radius: 10px; font-weight: 600; font-size: 15px; text-align: center; max-width: 200px; }
     .footer { margin-top: 32px; text-align: center; color: #666; font-size: 12px; }
   </style>
 </head>
 <body>
   <h1>${moodEmoji} Good Morning!</h1>
-  
-  <p>Rise and shine! Here's your daily briefing for <strong>${today}</strong>.</p>
-  
+
+  <p>Here's your focus for <strong>${today}</strong>.</p>
+
   <div class="summary">
     ${yesterdaySummary}
   </div>
-  
-  <h2>🎯 Today's Goals</h2>
+
+  <h2>🎯 Today's Top Goals</h2>
   <ul>${goalsHtml}</ul>
-  
-  <h2>✅ Tasks to Complete</h2>
-  <ul>${tasksHtml}</ul>
-  
-  <div class="motivation">
-    <p style="font-size: 18px; margin: 0;">💪 You've got this! One task at a time.</p>
-  </div>
-  
+
+  <a href="${APP_URL}/dashboard" class="cta">View Today's Plan →</a>
+
   <div class="footer">
-    <p>Sent by MTO Second Brain • <a href="https://your-goal-tracker.vercel.app" style="color: #60a5fa;">Open Dashboard</a></p>
+    <p>Sent by MTO Second Brain • <a href="${APP_URL}/dashboard" style="color: #60a5fa;">Open Dashboard</a></p>
   </div>
 </body>
 </html>

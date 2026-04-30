@@ -18,6 +18,7 @@ const corsHeaders = {
 const RESEND_API_KEY = Deno.env.get('RESEND_API_KEY') || '';
 const USER_EMAIL = Deno.env.get('USER_EMAIL') || '';
 const USER_ID = Deno.env.get('DEFAULT_USER_ID') || '';
+const APP_URL = Deno.env.get('APP_URL') || 'https://your-goal-tracker.vercel.app';
 
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
@@ -103,6 +104,21 @@ serve(async (req) => {
       ? completedGoals.map(g => `<li>🎯 ${g.title}</li>`).join('')
       : '';
 
+    const moodButtons = [
+      { value: 1, emoji: '😢', label: 'Rough' },
+      { value: 2, emoji: '😕', label: 'Meh' },
+      { value: 3, emoji: '😐', label: 'OK' },
+      { value: 4, emoji: '🙂', label: 'Good' },
+      { value: 5, emoji: '😊', label: 'Great' },
+    ].map(m => `
+      <a href="${APP_URL}/api/diary/quick?mood=${m.value}"
+         style="display:inline-block;padding:14px 12px;background:#1e293b;color:#e0e0e0;
+                text-decoration:none;border-radius:12px;margin:4px;text-align:center;
+                min-width:64px;border:1px solid #334155;font-size:13px;">
+        <div style="font-size:26px;margin-bottom:4px;">${m.emoji}</div>
+        <div>${m.label}</div>
+      </a>`).join('');
+
     const emailHtml = `
 <!DOCTYPE html>
 <html>
@@ -117,15 +133,22 @@ serve(async (req) => {
     .stat { background: #1e1e1e; padding: 16px; border-radius: 8px; text-align: center; }
     .stat-value { font-size: 28px; font-weight: bold; color: #60a5fa; }
     .stat-label { font-size: 12px; color: #888; margin-top: 4px; }
+    .checkin { background: #0f172a; border: 1px solid #334155; padding: 24px; border-radius: 16px; margin: 24px 0; text-align: center; }
     .motivation { background: linear-gradient(135deg, #1f2937, #1e1e1e); padding: 20px; border-radius: 12px; margin-top: 24px; text-align: center; border: 1px solid #374151; }
     .footer { margin-top: 32px; text-align: center; color: #666; font-size: 12px; }
   </style>
 </head>
 <body>
   <h1>🌙 Daily Summary</h1>
-  
-  <p>Great work today! Here's what you accomplished on <strong>${today}</strong>.</p>
-  
+
+  <div class="checkin">
+    <p style="margin:0 0 16px;font-size:16px;color:#cbd5e1;">How was your day?</p>
+    <div style="margin-bottom:12px;">${moodButtons}</div>
+    <p style="margin:0;font-size:12px;color:#475569;">Tap your mood — it saves instantly ✓</p>
+  </div>
+
+  <p>Here's what you accomplished on <strong>${today}</strong>.</p>
+
   <div class="stats">
     <div class="stat">
       <div class="stat-value">${tasksCompleted}</div>
@@ -158,7 +181,7 @@ serve(async (req) => {
   </div>
   
   <div class="footer">
-    <p>Sent by MTO Second Brain • <a href="https://your-goal-tracker.vercel.app" style="color: #60a5fa;">Open Dashboard</a></p>
+    <p>Sent by MTO Second Brain • <a href="${APP_URL}/dashboard" style="color: #60a5fa;">Open Dashboard</a></p>
   </div>
 </body>
 </html>

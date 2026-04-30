@@ -10,7 +10,7 @@ import { supabase } from '@/lib/supabase';
 const FALLBACK_USER_ID = '2c32a446-1bbc-4294-8a29-3e4fef5649e6';
 
 export async function POST() {
-  const testId = `test-${Date.now()}`;
+  const testId = crypto.randomUUID();
   
   try {
     // Try to insert a test goal

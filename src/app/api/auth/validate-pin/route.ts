@@ -10,6 +10,9 @@ export async function POST(request: Request) {
       return NextResponse.json({ valid: false, error: 'PIN not configured' }, { status: 500 });
     }
     
+    if (!pin || typeof pin !== 'string') {
+      return NextResponse.json({ valid: false, error: 'PIN required' }, { status: 400 });
+    }
     const valid = pin.trim() === sitePin.trim();
     
     // Log result only (never log actual PIN values)
