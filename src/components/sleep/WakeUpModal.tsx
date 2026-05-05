@@ -11,33 +11,33 @@ interface WakeUpModalProps {
 export function WakeUpModal({ onClose }: WakeUpModalProps) {
   const recordWakeUpMutation = useRecordWakeUp();
   const resetDailyTasksMutation = useResetDailyTasks();
-  
+
   // Get current time as default
   const now = new Date();
   const defaultTime = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
-  
+
   const [wakeTime, setWakeTime] = useState(defaultTime);
   const [mood, setMood] = useState<MoodLevel | undefined>();
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const handleSubmit = async () => {
     if (!mood) return;
-    
+
     setIsSubmitting(true);
-    
+
     try {
       // Calculate adjusted minutes from selected time vs now
       const [hours, minutes] = wakeTime.split(':').map(Number);
       const selectedTime = new Date();
       selectedTime.setHours(hours, minutes, 0, 0);
       const adjustedMinutes = Math.round((now.getTime() - selectedTime.getTime()) / (1000 * 60));
-      
+
       // 1. Reset daily tasks (server-side via mutation)
       await resetDailyTasksMutation.mutateAsync();
-      
+
       // 2. Record wake-up time and mood
       await recordWakeUpMutation.mutateAsync({ adjustedMinutes, mood });
-      
+
       onClose();
     } catch (err) {
       console.error('[WakeUpModal] Error:', err);
@@ -48,53 +48,111 @@ export function WakeUpModal({ onClose }: WakeUpModalProps) {
     }
   };
 
-  const moods: { level: MoodLevel; emoji: string; label: string }[] = [
-    { level: 5, emoji: '🤩', label: 'Amazing' },
-    { level: 4, emoji: '🙂', label: 'Good' },
-    { level: 3, emoji: '😐', label: 'Okay' },
-    { level: 2, emoji: '😫', label: 'Tired' },
-    { level: 1, emoji: '💀', label: 'Awful' },
+  const moods: { level: MoodLevel; label: string; icon: string }[] = [
+    { level: 5, label: 'Amazing', icon: '★★★' },
+    { level: 4, label: 'Good',    icon: '★★'  },
+    { level: 3, label: 'Okay',    icon: '★'   },
+    { level: 2, label: 'Tired',   icon: '—'   },
+    { level: 1, label: 'Awful',   icon: '✕'   },
   ];
 
   return (
-    <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4">
-      <div className="bg-slate-900 border border-slate-700 rounded-2xl p-6 max-w-md w-full animate-in fade-in zoom-in duration-300">
-        <h2 className="text-2xl font-bold text-white mb-2">Good Morning! 🌅</h2>
-        <p className="text-slate-400 text-sm mb-6">New day, fresh start! Yesterday&apos;s tasks will reset.</p>
+    <div
+      className="fixed inset-0 flex items-center justify-center z-50 p-4"
+      style={{ background: 'rgba(6,11,17,0.92)' }}
+    >
+      <div
+        className="max-w-md w-full rounded-2xl p-6"
+        style={{
+          background: 'var(--surface)',
+          border: '1px solid var(--border)',
+          fontFamily: 'var(--font-family-body)',
+        }}
+      >
+        {/* Header */}
+        <div className="mb-5">
+          <h2
+            className="text-2xl font-semibold leading-tight"
+            style={{ color: 'var(--text)' }}
+          >
+            Good Morning
+          </h2>
+          <p
+            className="text-sm mt-1"
+            style={{ color: 'var(--text-2)' }}
+          >
+            New day, fresh start — yesterday&apos;s tasks will reset.
+          </p>
+        </div>
+
+        {/* Divider */}
+        <div
+          className="mb-5"
+          style={{ height: '1px', background: 'var(--border)' }}
+        />
 
         {/* Wake Time Picker */}
-        <div className="mb-6">
-          <label className="block text-sm text-slate-400 mb-2">
-            What time did you wake up?
+        <div className="mb-5">
+          <label
+            className="block text-xs font-medium mb-2 uppercase tracking-widest"
+            style={{ color: 'var(--text-2)' }}
+          >
+            Wake-up time
           </label>
           <input
             type="time"
             value={wakeTime}
             onChange={(e) => setWakeTime(e.target.value)}
-            className="w-full px-4 py-3 bg-slate-800 border border-slate-700 rounded-lg text-white text-center text-xl"
+            className="w-full px-4 py-3 rounded-xl text-center text-xl outline-none transition-colors"
+            style={{
+              background: 'var(--elevated)',
+              border: '1px solid var(--border)',
+              color: 'var(--text)',
+              fontFamily: 'var(--font-family-mono)',
+            }}
           />
         </div>
 
         {/* Mood Selector */}
         <div className="mb-6">
-          <label className="block text-sm text-slate-400 mb-2">
+          <label
+            className="block text-xs font-medium mb-2 uppercase tracking-widest"
+            style={{ color: 'var(--text-2)' }}
+          >
             How are you feeling?
           </label>
           <div className="grid grid-cols-5 gap-2">
-            {moods.map((m) => (
-              <button
-                key={m.level}
-                onClick={() => setMood(m.level)}
-                className={`p-3 rounded-xl border-2 transition-all ${
-                  mood === m.level
-                    ? 'border-violet-500 bg-violet-500/20 scale-105'
-                    : 'border-slate-700 hover:border-slate-600'
-                }`}
-              >
-                <div className="text-2xl mb-1">{m.emoji}</div>
-                <div className="text-[10px] text-slate-400">{m.label}</div>
-              </button>
-            ))}
+            {moods.map((m) => {
+              const isSelected = mood === m.level;
+              return (
+                <button
+                  key={m.level}
+                  onClick={() => setMood(m.level)}
+                  className="py-3 rounded-xl flex flex-col items-center gap-1 transition-all active:scale-95"
+                  style={{
+                    background: isSelected ? 'var(--gold-dim)' : 'var(--elevated)',
+                    border: isSelected
+                      ? '1px solid var(--gold)'
+                      : '1px solid var(--border)',
+                    color: isSelected ? 'var(--gold)' : 'var(--text-2)',
+                    transform: isSelected ? 'scale(1.05)' : 'scale(1)',
+                  }}
+                >
+                  <span
+                    className="text-sm font-bold"
+                    style={{ fontFamily: 'var(--font-family-mono)' }}
+                  >
+                    {m.icon}
+                  </span>
+                  <span
+                    className="text-[10px] leading-tight text-center"
+                    style={{ color: isSelected ? 'var(--gold)' : 'var(--text-2)' }}
+                  >
+                    {m.label}
+                  </span>
+                </button>
+              );
+            })}
           </div>
         </div>
 
@@ -102,16 +160,26 @@ export function WakeUpModal({ onClose }: WakeUpModalProps) {
         <div className="flex gap-3">
           <button
             onClick={onClose}
-            className="flex-1 py-3 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl transition-colors"
+            className="flex-1 py-3 rounded-xl text-sm font-medium transition-colors"
+            style={{
+              background: 'var(--elevated)',
+              border: '1px solid var(--border)',
+              color: 'var(--text-2)',
+            }}
           >
             Skip
           </button>
           <button
             onClick={handleSubmit}
             disabled={!mood || isSubmitting}
-            className="flex-1 py-3 bg-gradient-to-r from-violet-500 to-cyan-500 text-white font-semibold rounded-xl disabled:opacity-40 transition-all"
+            className="flex-1 py-3 rounded-xl text-sm font-semibold transition-all disabled:opacity-40"
+            style={{
+              background: mood ? 'var(--sky-dim)' : 'var(--elevated)',
+              border: `1px solid ${mood ? 'var(--sky)' : 'var(--border)'}`,
+              color: mood ? 'var(--sky)' : 'var(--text-2)',
+            }}
           >
-            {isSubmitting ? 'Starting Day...' : 'Start Day ✓'}
+            {isSubmitting ? 'Starting Day...' : 'Start Day'}
           </button>
         </div>
       </div>

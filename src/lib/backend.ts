@@ -15,6 +15,7 @@ export async function createMemory(
       content,
       embedding,
       metadata,
+      embedding_model: 'Supabase/gte-small',
       created_at: new Date().toISOString(),
     })
     .select()

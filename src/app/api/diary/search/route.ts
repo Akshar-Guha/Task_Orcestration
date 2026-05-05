@@ -168,7 +168,7 @@ export async function PUT(request: NextRequest) {
 
       const { error: updateError } = await supabase
         .from('daily_entries')
-        .update({ embedding })
+        .update({ embedding, embedding_model: EMBEDDING_MODEL })
         .eq('id', entry.id);
 
       if (updateError) {

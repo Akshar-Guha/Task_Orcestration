@@ -4,6 +4,7 @@ import { Suspense, useState, useRef } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import type { ProductivityData } from '@/lib/diary-types';
+import { getLocalDateString } from '@/lib/date-utils';
 
 interface ExtractionResult {
   mood?: number;
@@ -21,7 +22,7 @@ type Step = 'capture' | 'review' | 'questions' | 'confirm';
 function NewDiaryEntryContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const dateParam = searchParams.get('date') || new Date().toISOString().split('T')[0];
+  const dateParam = searchParams.get('date') || getLocalDateString();
   
   const [step, setStep] = useState<Step>('capture');
   const [freeformText, setFreeformText] = useState('');
@@ -36,6 +37,7 @@ function NewDiaryEntryContent() {
   const [challenges, setChallenges] = useState<string[]>([]);
   const [productivityData, setProductivityData] = useState<ProductivityData>({});
   const [summary, setSummary] = useState('');
+  const [extractionModel, setExtractionModel] = useState<string | null>(null);
   
   const [isSaving, setIsSaving] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -58,7 +60,7 @@ function NewDiaryEntryContent() {
       const res = await fetch('/api/diary/extract', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ text: freeformText }),
+        body: JSON.stringify({ text: freeformText, date: dateParam }),
       });
       
       const data = await res.json();
@@ -69,6 +71,7 @@ function NewDiaryEntryContent() {
       
       const ext = data.extraction as ExtractionResult;
       setExtraction(ext);
+      setExtractionModel(typeof data.model === 'string' ? data.model : null);
       
       // Pre-fill editable fields
       if (ext.mood) setMood(ext.mood);
@@ -98,7 +101,10 @@ function NewDiaryEntryContent() {
     try {
       const res = await fetch('/api/diary', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          'x-user-timezone': Intl.DateTimeFormat().resolvedOptions().timeZone,
+        },
         body: JSON.stringify({
           date: dateParam,
           mood,
@@ -107,6 +113,7 @@ function NewDiaryEntryContent() {
           wins: wins.length > 0 ? wins : undefined,
           challenges: challenges.length > 0 ? challenges : undefined,
           productivityData: Object.keys(productivityData).length > 0 ? productivityData : undefined,
+          extractionModel: extractionModel || undefined,
         }),
       });
       

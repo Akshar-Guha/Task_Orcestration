@@ -1020,7 +1020,7 @@ export function useAddTimeSlot() {
       return data;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['time_slots'] });
+      queryClient.invalidateQueries({ queryKey: ['timeslots'] });
     },
   });
 }
@@ -1076,7 +1076,7 @@ export function useUpdateTimeSlot() {
       if (error) throw error;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['time_slots'] });
+      queryClient.invalidateQueries({ queryKey: ['timeslots'] });
     },
   });
 }
@@ -1096,7 +1096,7 @@ export function useDeleteTimeSlot() {
       if (error) throw error;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['time_slots'] });
+      queryClient.invalidateQueries({ queryKey: ['timeslots'] });
     },
   });
 }

@@ -6,16 +6,30 @@ import type { DailyEntryRow, DailyEntry } from '@/lib/diary-types';
 import type { MoodLevel, EnergyLevel } from '@/lib/diary-types';
 import { syncDiaryEntry } from '@/lib/obsidian-sync';
 import { generateEmbedding, combineTextForEmbedding } from '@/lib/server-embedding';
+import { clampPageSize, resolveUserTimeZone } from '@/lib/server-user-context';
 
-// Initialize Supabase client
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
 );
 
-// GET /api/diary - List all diary entries for the user
-// GET /api/diary?date=2026-01-17 - Get a specific entry by date
-// GET /api/diary?startDate=2026-01-01&endDate=2026-01-31 - Get entries in date range
+function rowToEntry(row: DailyEntryRow): DailyEntry {
+  return {
+    id: row.id,
+    userId: row.user_id,
+    date: row.date,
+    mood: row.mood as MoodLevel ?? undefined,
+    energyLevel: row.energy_level as EnergyLevel ?? undefined,
+    summary: row.summary ?? undefined,
+    wins: row.wins ?? undefined,
+    challenges: row.challenges ?? undefined,
+    productivityData: row.productivity_data ?? {},
+    customFields: row.custom_fields ?? undefined,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  };
+}
+
 export async function GET(request: NextRequest) {
   try {
     const userId = getCurrentUserId();
@@ -27,8 +41,8 @@ export async function GET(request: NextRequest) {
     const date = searchParams.get('date');
     const startDate = searchParams.get('startDate');
     const endDate = searchParams.get('endDate');
-    const limit = parseInt(searchParams.get('limit') || '30');
-    const offset = parseInt(searchParams.get('offset') || '0');
+    const limit = clampPageSize(searchParams.get('limit'));
+    const cursor = searchParams.get('cursor');
 
     let query = supabase
       .from('daily_entries')
@@ -37,49 +51,46 @@ export async function GET(request: NextRequest) {
       .order('date', { ascending: false });
 
     if (date) {
-      query = query.eq('date', date);
+      query = query.eq('date', date).limit(10);
     } else if (startDate && endDate) {
       query = query.gte('date', startDate).lte('date', endDate);
     } else {
-      query = query.range(offset, offset + limit - 1);
+      if (cursor) query = query.lt('date', cursor);
+      query = query.limit(limit + 1);
     }
 
     const { data, error } = await query;
-
     if (error) {
       console.error('[Diary API] Error fetching entries:', error);
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
-    // Convert snake_case to camelCase
-    const entries: DailyEntry[] = (data || []).map((row: DailyEntryRow) => ({
-      id: row.id,
-      userId: row.user_id,
-      date: row.date,
-      mood: row.mood as MoodLevel ?? undefined,
-      energyLevel: row.energy_level as EnergyLevel ?? undefined,
-      summary: row.summary ?? undefined,
-      wins: row.wins ?? undefined,
-      challenges: row.challenges ?? undefined,
-      productivityData: row.productivity_data ?? {},
-      customFields: row.custom_fields ?? undefined,
-      createdAt: row.created_at,
-      updatedAt: row.updated_at,
-    }));
+    const rows = (data || []) as Array<DailyEntryRow & { user_timezone?: string | null }>;
+    const entries = rows.map(rowToEntry);
 
-    // If querying by date, return single entry or null
     if (date) {
-      return NextResponse.json({ entry: entries[0] || null });
+      const timezone = await resolveUserTimeZone(supabase, userId, request);
+      const match = rows.find((row) => row.user_timezone === timezone || row.user_timezone == null);
+      const entry = match ? rowToEntry(match) : entries[0] || null;
+      return NextResponse.json({ entry });
     }
 
-    return NextResponse.json({ entries, total: entries.length });
+    const hasMore = !startDate && !endDate && entries.length > limit;
+    const pagedEntries = hasMore ? entries.slice(0, limit) : entries;
+    const nextCursor = hasMore ? pagedEntries[pagedEntries.length - 1]?.date ?? null : null;
+
+    return NextResponse.json({
+      entries: pagedEntries,
+      total: pagedEntries.length,
+      nextCursor,
+      hasMore,
+    });
   } catch (error) {
     console.error('[Diary API] Unexpected error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }
 
-// POST /api/diary - Create a new diary entry
 export async function POST(request: NextRequest) {
   try {
     const userId = getCurrentUserId();
@@ -88,8 +99,6 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    
-    // Validate input
     const parseResult = createDailyEntrySchema.safeParse(body);
     if (!parseResult.success) {
       return NextResponse.json(
@@ -99,15 +108,19 @@ export async function POST(request: NextRequest) {
     }
 
     const input = parseResult.data;
+    if (input.energyLevel !== undefined && (input.energyLevel < 1 || input.energyLevel > 10)) {
+      return NextResponse.json({ error: 'energyLevel must be between 1 and 10' }, { status: 400 });
+    }
 
-    // Check if entry already exists for this date
-    const { data: existing } = await supabase
+    const userTimezone = await resolveUserTimeZone(supabase, userId, request, body.timezone);
+    const { data: existingRows } = await supabase
       .from('daily_entries')
-      .select('id')
+      .select('id,user_timezone')
       .eq('user_id', userId)
       .eq('date', input.date)
-      .single();
+      .limit(10);
 
+    const existing = (existingRows || []).find((row) => row.user_timezone === userTimezone || row.user_timezone == null);
     if (existing) {
       return NextResponse.json(
         { error: 'Entry already exists for this date', existingId: existing.id },
@@ -115,15 +128,17 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Generate embedding from diary content (non-blocking on failure)
     const embeddingText = combineTextForEmbedding({
       summary: input.summary,
       wins: input.wins,
       challenges: input.challenges,
     });
-    const embedding = await generateEmbedding(embeddingText);
+    const { embedding, modelName } = await generateEmbedding(embeddingText);
+    const customExtractionModel =
+      typeof input.customFields?.['extractionModel'] === 'string'
+        ? input.customFields['extractionModel']
+        : null;
 
-    // Create the entry
     const { data, error } = await supabase
       .from('daily_entries')
       .insert({
@@ -136,7 +151,10 @@ export async function POST(request: NextRequest) {
         challenges: input.challenges,
         productivity_data: input.productivityData || {},
         custom_fields: input.customFields,
-        embedding: embedding, // Store the embedding vector
+        embedding,
+        embedding_model: modelName,
+        extraction_model: body.extractionModel || customExtractionModel,
+        user_timezone: userTimezone,
       })
       .select()
       .single();
@@ -146,24 +164,8 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
-    // Convert to camelCase
-    const entry: DailyEntry = {
-      id: data.id,
-      userId: data.user_id,
-      date: data.date,
-      mood: data.mood ?? undefined,
-      energyLevel: data.energy_level ?? undefined,
-      summary: data.summary ?? undefined,
-      wins: data.wins ?? undefined,
-      challenges: data.challenges ?? undefined,
-      productivityData: data.productivity_data ?? {},
-      customFields: data.custom_fields ?? undefined,
-      createdAt: data.created_at,
-      updatedAt: data.updated_at,
-    };
-
-    // Sync to Obsidian (fire and forget to not block response)
-    syncDiaryEntry(entry).catch(err => 
+    const entry = rowToEntry(data as DailyEntryRow);
+    syncDiaryEntry(entry).catch((err) =>
       console.error('[Diary API] Failed to sync new entry to Obsidian:', err)
     );
 
@@ -174,7 +176,6 @@ export async function POST(request: NextRequest) {
   }
 }
 
-// PUT /api/diary - Update an existing diary entry
 export async function PUT(request: NextRequest) {
   try {
     const userId = getCurrentUserId();
@@ -183,8 +184,6 @@ export async function PUT(request: NextRequest) {
     }
 
     const body = await request.json();
-    
-    // Validate input
     const parseResult = updateDailyEntrySchema.safeParse(body);
     if (!parseResult.success) {
       return NextResponse.json(
@@ -194,8 +193,10 @@ export async function PUT(request: NextRequest) {
     }
 
     const { id, ...updates } = parseResult.data;
+    if (updates.energyLevel !== undefined && (updates.energyLevel < 1 || updates.energyLevel > 10)) {
+      return NextResponse.json({ error: 'energyLevel must be between 1 and 10' }, { status: 400 });
+    }
 
-    // Build update object
     const updateData: Record<string, unknown> = {
       updated_at: new Date().toISOString(),
     };
@@ -207,12 +208,13 @@ export async function PUT(request: NextRequest) {
     if (updates.challenges !== undefined) updateData.challenges = updates.challenges;
     if (updates.productivityData !== undefined) updateData.productivity_data = updates.productivityData;
     if (updates.customFields !== undefined) updateData.custom_fields = updates.customFields;
+    if (body.extractionModel !== undefined) updateData.extraction_model = body.extractionModel;
 
     const { data, error } = await supabase
       .from('daily_entries')
       .update(updateData)
       .eq('id', id)
-      .eq('user_id', userId) // Ensure user owns this entry
+      .eq('user_id', userId)
       .select()
       .single();
 
@@ -225,24 +227,8 @@ export async function PUT(request: NextRequest) {
       return NextResponse.json({ error: 'Entry not found' }, { status: 404 });
     }
 
-    // Convert to camelCase
-    const entry: DailyEntry = {
-      id: data.id,
-      userId: data.user_id,
-      date: data.date,
-      mood: data.mood ?? undefined,
-      energyLevel: data.energy_level ?? undefined,
-      summary: data.summary ?? undefined,
-      wins: data.wins ?? undefined,
-      challenges: data.challenges ?? undefined,
-      productivityData: data.productivity_data ?? {},
-      customFields: data.custom_fields ?? undefined,
-      createdAt: data.created_at,
-      updatedAt: data.updated_at,
-    };
-
-    // Sync to Obsidian (fire and forget)
-    syncDiaryEntry(entry).catch(err => 
+    const entry = rowToEntry(data as DailyEntryRow);
+    syncDiaryEntry(entry).catch((err) =>
       console.error('[Diary API] Failed to sync updated entry to Obsidian:', err)
     );
 
@@ -253,7 +239,6 @@ export async function PUT(request: NextRequest) {
   }
 }
 
-// DELETE /api/diary?id=uuid - Delete a diary entry
 export async function DELETE(request: NextRequest) {
   try {
     const userId = getCurrentUserId();
@@ -263,12 +248,10 @@ export async function DELETE(request: NextRequest) {
 
     const { searchParams } = new URL(request.url);
     const id = searchParams.get('id');
-
     if (!id) {
       return NextResponse.json({ error: 'Entry ID is required' }, { status: 400 });
     }
 
-    // Get entry first so we know what to delete from Obsidian
     const { data: entryData } = await supabase
       .from('daily_entries')
       .select('*')
@@ -279,32 +262,19 @@ export async function DELETE(request: NextRequest) {
       .from('daily_entries')
       .delete()
       .eq('id', id)
-      .eq('user_id', userId); // Ensure user owns this entry
+      .eq('user_id', userId);
 
     if (error) {
       console.error('[Diary API] Error deleting entry:', error);
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
-      // Sync delete to Obsidian
-      if (entryData) {
-        const entry: DailyEntry = {
-          id: entryData.id,
-          userId: entryData.user_id,
-          date: entryData.date,
-          mood: entryData.mood,
-          energyLevel: entryData.energy_level,
-          productivityData: {},
-          wins: [],
-          challenges: [],
-          createdAt: entryData.created_at,
-          updatedAt: entryData.updated_at,
-        };
-        
-        syncDiaryEntry(entry, undefined, undefined, 'delete').catch(err =>
-          console.error('[Diary API] Failed to sync delete to Obsidian:', err)
-        );
-      }
+    if (entryData) {
+      const entry = rowToEntry(entryData as DailyEntryRow);
+      syncDiaryEntry(entry, undefined, undefined, 'delete').catch((err) =>
+        console.error('[Diary API] Failed to sync delete to Obsidian:', err)
+      );
+    }
 
     return NextResponse.json({ success: true });
   } catch (error) {

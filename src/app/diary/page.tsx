@@ -23,12 +23,16 @@ export default function DiaryPage() {
   async function fetchEntries() {
     try {
       setLoading(true);
-      const res = await fetch('/api/diary?limit=30');
-      
+      const res = await fetch('/api/diary?limit=30', {
+        headers: {
+          'x-user-timezone': Intl.DateTimeFormat().resolvedOptions().timeZone,
+        },
+      });
+
       // Log the raw response for debugging
       const text = await res.text();
       console.log('[Diary] Raw response:', text.substring(0, 200));
-      
+
       let data;
       try {
         data = JSON.parse(text);
@@ -37,11 +41,11 @@ export default function DiaryPage() {
         console.error('[Diary] Response text:', text);
         throw new Error('API returned invalid JSON. Check console for details.');
       }
-      
+
       if (!res.ok) {
         throw new Error(data.error || 'Failed to fetch entries');
       }
-      
+
       setEntries(data.entries || []);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'An error occurred');
@@ -55,9 +59,9 @@ export default function DiaryPage() {
 
   // Mood emoji mapping
   const moodEmoji = (mood?: number) => {
-    if (!mood) return '❓';
+    if (!mood) return '—';
     const emojis = ['😢', '😕', '😐', '🙂', '😊'];
-    return emojis[mood - 1] || '❓';
+    return emojis[mood - 1] || '—';
   };
 
   // Energy bar
@@ -65,19 +69,53 @@ export default function DiaryPage() {
     if (!energy) return null;
     const filled = '█'.repeat(energy);
     const empty = '░'.repeat(10 - energy);
-    return <span className="font-mono text-xs">{filled}{empty}</span>;
+    return (
+      <span
+        className="text-xs"
+        style={{ fontFamily: 'var(--font-family-mono)', color: 'var(--jade)' }}
+      >
+        {filled}
+        <span style={{ color: 'var(--text-3)' }}>{empty}</span>
+      </span>
+    );
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900">
+    <div
+      className="min-h-screen"
+      style={{ background: 'var(--bg)', fontFamily: 'var(--font-family-body)' }}
+    >
       {/* Header */}
-      <header className="sticky top-0 z-10 backdrop-blur-xl bg-black/20 border-b border-white/10">
+      <header
+        className="sticky top-0 z-10"
+        style={{
+          background: 'var(--bg)',
+          borderBottom: '1px solid var(--border)',
+        }}
+      >
         <div className="max-w-4xl mx-auto px-4 py-4 flex items-center justify-between">
-          <h1 className="text-xl font-bold text-white">📔 Daily Diary</h1>
+          <h1
+            className="text-xl font-semibold tracking-wide"
+            style={{
+              color: 'var(--text)',
+              fontFamily: 'var(--font-family-display)',
+              fontStyle: 'italic',
+              letterSpacing: '0.04em',
+            }}
+          >
+            Daily Diary
+          </h1>
           {!hasToday && (
-            <Link 
+            <Link
               href={`/diary/new?date=${todayDate}`}
-              className="px-4 py-2 bg-gradient-to-r from-violet-600 to-purple-600 text-white rounded-lg font-medium hover:opacity-90 transition shadow-lg shadow-purple-500/20"
+              className="px-4 py-2 text-sm font-medium transition-opacity hover:opacity-85"
+              style={{
+                background: 'var(--gold-dim)',
+                border: '1px solid var(--gold)',
+                color: 'var(--gold)',
+                borderRadius: '10px',
+                fontFamily: 'var(--font-family-body)',
+              }}
             >
               + Today&apos;s Entry
             </Link>
@@ -90,24 +128,57 @@ export default function DiaryPage() {
       <main className="max-w-4xl mx-auto px-4 py-8">
         {loading && (
           <div className="flex items-center justify-center py-20">
-            <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-purple-500"></div>
+            <div
+              className="animate-spin rounded-full h-7 w-7"
+              style={{
+                border: '2px solid var(--border)',
+                borderTopColor: 'var(--gold)',
+              }}
+            />
           </div>
         )}
 
         {error && (
-          <div className="bg-red-500/20 border border-red-500/50 rounded-lg p-4 text-red-200">
+          <div
+            className="rounded-xl p-4 text-sm"
+            style={{
+              background: 'rgba(220,60,60,0.08)',
+              border: '1px solid rgba(220,60,60,0.3)',
+              color: '#e07070',
+            }}
+          >
             {error}
           </div>
         )}
 
         {!loading && !error && entries.length === 0 && (
-          <div className="text-center py-20">
-            <div className="text-6xl mb-4">📔</div>
-            <h2 className="text-2xl font-bold text-white mb-2">No Diary Entries Yet</h2>
-            <p className="text-white/60 mb-6">Start your journaling journey by creating your first entry.</p>
-            <Link 
+          <div className="text-center py-24">
+            <p
+              className="text-5xl mb-5"
+              style={{
+                fontFamily: 'var(--font-family-display)',
+                fontStyle: 'italic',
+                color: 'var(--text-3)',
+                fontSize: '3rem',
+              }}
+            >
+              No entries yet
+            </p>
+            <p
+              className="mb-8 text-sm"
+              style={{ color: 'var(--text-2)', lineHeight: 1.7 }}
+            >
+              Start your journaling journey by creating your first entry.
+            </p>
+            <Link
               href={`/diary/new?date=${todayDate}`}
-              className="inline-flex px-6 py-3 bg-gradient-to-r from-violet-600 to-purple-600 text-white rounded-lg font-medium hover:opacity-90 transition shadow-lg shadow-purple-500/20"
+              className="inline-flex px-6 py-3 text-sm font-medium transition-opacity hover:opacity-85"
+              style={{
+                background: 'var(--gold-dim)',
+                border: '1px solid var(--gold)',
+                color: 'var(--gold)',
+                borderRadius: '12px',
+              }}
             >
               Create First Entry
             </Link>
@@ -115,34 +186,65 @@ export default function DiaryPage() {
         )}
 
         {!loading && !error && entries.length > 0 && (
-          <div className="space-y-4">
+          <div className="space-y-3">
             {entries.map((entry) => {
               const isToday = entry.date === todayDate;
               const entryDate = new Date(entry.date + 'T00:00:00');
               const dayName = entryDate.toLocaleDateString('en-US', { weekday: 'long' });
-              const formattedDate = entryDate.toLocaleDateString('en-US', { 
-                month: 'short', 
+              const formattedDate = entryDate.toLocaleDateString('en-US', {
+                month: 'short',
                 day: 'numeric',
-                year: entryDate.getFullYear() !== new Date().getFullYear() ? 'numeric' : undefined
+                year:
+                  entryDate.getFullYear() !== new Date().getFullYear()
+                    ? 'numeric'
+                    : undefined,
               });
 
               return (
                 <Link
                   key={entry.id}
                   href={`/diary/${entry.date}`}
-                  className={`block p-5 rounded-xl border transition-all hover:scale-[1.01] ${
-                    isToday 
-                      ? 'bg-gradient-to-r from-purple-500/20 to-violet-500/20 border-purple-500/50' 
-                      : 'bg-white/5 border-white/10 hover:border-white/20'
-                  }`}
+                  className="block transition-all hover:scale-[1.005]"
+                  style={{
+                    background: isToday ? 'var(--gold-dim)' : 'var(--surface)',
+                    border: isToday
+                      ? '1px solid var(--gold)'
+                      : '1px solid var(--border)',
+                    borderRadius: '14px',
+                    padding: '20px 22px',
+                  }}
                 >
                   <div className="flex items-start justify-between gap-4">
                     {/* Date & Day */}
-                    <div className="flex-shrink-0">
-                      <div className="text-2xl font-bold text-white">{formattedDate}</div>
-                      <div className="text-sm text-white/60">{dayName}</div>
+                    <div className="flex-shrink-0" style={{ minWidth: '88px' }}>
+                      <div
+                        className="font-semibold"
+                        style={{
+                          fontFamily: 'var(--font-family-display)',
+                          fontStyle: 'italic',
+                          fontSize: '1.25rem',
+                          color: isToday ? 'var(--gold)' : 'var(--text)',
+                          lineHeight: 1.2,
+                        }}
+                      >
+                        {formattedDate}
+                      </div>
+                      <div
+                        className="text-xs mt-0.5"
+                        style={{ color: 'var(--text-2)' }}
+                      >
+                        {dayName}
+                      </div>
                       {isToday && (
-                        <span className="inline-block mt-1 px-2 py-0.5 bg-purple-500/30 text-purple-300 text-xs rounded-full">
+                        <span
+                          className="inline-block mt-2 px-2 py-0.5 text-xs font-medium"
+                          style={{
+                            background: 'var(--gold-dim)',
+                            color: 'var(--gold)',
+                            border: '1px solid var(--gold)',
+                            borderRadius: '6px',
+                          }}
+                        >
                           Today
                         </span>
                       )}
@@ -150,38 +252,72 @@ export default function DiaryPage() {
 
                     {/* Metrics */}
                     <div className="flex-grow">
-                      <div className="flex items-center gap-4 mb-3">
-                        <div className="flex items-center gap-2">
-                          <span className="text-2xl">{moodEmoji(entry.mood)}</span>
-                          {entry.mood && <span className="text-white/60 text-sm">{entry.mood}/5</span>}
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <span className="text-sm text-white/60">⚡</span>
-                          {energyBar(entry.energyLevel)}
-                          {entry.energyLevel && <span className="text-white/60 text-sm">{entry.energyLevel}/10</span>}
-                        </div>
+                      <div className="flex items-center gap-5 mb-3">
+                        {entry.mood && (
+                          <div className="flex items-center gap-2">
+                            <span className="text-base">{moodEmoji(entry.mood)}</span>
+                            <span
+                              className="text-xs"
+                              style={{ color: 'var(--text-2)' }}
+                            >
+                              {entry.mood}/5
+                            </span>
+                          </div>
+                        )}
+                        {entry.energyLevel && (
+                          <div className="flex items-center gap-2">
+                            {energyBar(entry.energyLevel)}
+                            <span
+                              className="text-xs"
+                              style={{ color: 'var(--text-2)' }}
+                            >
+                              {entry.energyLevel}/10
+                            </span>
+                          </div>
+                        )}
                       </div>
 
                       {/* Summary preview */}
                       {entry.summary && (
-                        <p className="text-white/80 line-clamp-2 text-sm">
+                        <p
+                          className="text-sm line-clamp-2"
+                          style={{
+                            color: 'var(--text)',
+                            lineHeight: 1.7,
+                          }}
+                        >
                           {entry.summary}
                         </p>
                       )}
 
                       {/* Wins & Challenges count */}
-                      <div className="flex gap-4 mt-3 text-xs">
+                      <div className="flex gap-4 mt-3">
                         {entry.wins && entry.wins.length > 0 && (
-                          <span className="text-green-400">✓ {entry.wins.length} wins</span>
+                          <span
+                            className="text-xs font-medium"
+                            style={{ color: 'var(--jade)' }}
+                          >
+                            {entry.wins.length} win{entry.wins.length !== 1 ? 's' : ''}
+                          </span>
                         )}
                         {entry.challenges && entry.challenges.length > 0 && (
-                          <span className="text-amber-400">⚠ {entry.challenges.length} challenges</span>
+                          <span
+                            className="text-xs font-medium"
+                            style={{ color: 'var(--gold)' }}
+                          >
+                            {entry.challenges.length} challenge{entry.challenges.length !== 1 ? 's' : ''}
+                          </span>
                         )}
                       </div>
                     </div>
 
                     {/* Arrow */}
-                    <div className="text-white/40 text-xl">→</div>
+                    <div
+                      className="text-sm flex-shrink-0 self-center"
+                      style={{ color: 'var(--text-3)' }}
+                    >
+                      &rarr;
+                    </div>
                   </div>
                 </Link>
               );

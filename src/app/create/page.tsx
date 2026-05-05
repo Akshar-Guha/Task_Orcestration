@@ -2,10 +2,13 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { Space_Mono } from 'next/font/google';
 import { useAppStore } from '@/lib/store';
 import { useGoals, useTimeSlots, useAddGoal, useAddTask } from '@/lib/hooks/useSupabase';
-import type { GoalLevel, CreateGoalInput, CreateTaskInput, GoalMetadata, TimeSlotType } from '@/lib/types';
-import { DURATION_OPTIONS, formatDuration, TIME_SLOT_LABELS } from '@/lib/types';
+import type { GoalLevel, CreateGoalInput, CreateTaskInput, GoalMetadata } from '@/lib/types';
+import { DURATION_OPTIONS, formatDuration } from '@/lib/types';
+
+const mono = Space_Mono({ weight: ['400', '700'], subsets: ['latin'], display: 'swap' });
 
 const LEVEL_OPTIONS: { value: GoalLevel; label: string; emoji: string }[] = [
   { value: 'weekly', label: 'Weekly', emoji: '📅' },
@@ -15,288 +18,547 @@ const LEVEL_OPTIONS: { value: GoalLevel; label: string; emoji: string }[] = [
   { value: 'uncategorized', label: 'Other', emoji: '📌' },
 ];
 
-const PRIORITY_OPTIONS: { value: 1 | 2 | 3; label: string; color: string }[] = [
-  { value: 1, label: 'Critical', color: 'bg-red-500' },
-  { value: 2, label: 'Important', color: 'bg-yellow-500' },
-  { value: 3, label: 'Nice-to-have', color: 'bg-green-500' },
+const PRIORITY_OPTIONS: { value: 1 | 2 | 3; label: string; border: string; active: string }[] = [
+  { value: 1, label: 'Critical', border: 'border-red-500/40', active: 'bg-red-500/20 border-red-500/60 text-red-300' },
+  { value: 2, label: 'Important', border: 'border-yellow-500/40', active: 'bg-yellow-500/20 border-yellow-500/60 text-yellow-300' },
+  { value: 3, label: 'Nice-to-have', border: 'border-green-500/40', active: 'bg-green-500/20 border-green-500/60 text-green-300' },
 ];
 
-export default function CreatePage() {
-  const router = useRouter();
+function getGoalMetadata(level: GoalLevel): GoalMetadata {
+  const now = new Date();
+  switch (level) {
+    case 'yearly':
+      return { type: 'yearly', year: now.getFullYear() };
+    case 'quarterly': {
+      const quarter = (Math.floor(now.getMonth() / 3) + 1) as 1 | 2 | 3 | 4;
+      return { type: 'quarterly', year: now.getFullYear(), quarter };
+    }
+    case 'monthly':
+      return { type: 'monthly', year: now.getFullYear(), month: now.getMonth() + 1 };
+    case 'weekly': {
+      const day = now.getDay();
+      const diff = now.getDate() - day + (day === 0 ? -6 : 1);
+      const monday = new Date(now);
+      monday.setDate(diff);
+      return { type: 'weekly', weekStartDate: monday.toISOString().split('T')[0] };
+    }
+    default:
+      return { type: 'uncategorized' };
+  }
+}
 
-  const { data: goals = [] } = useGoals();
-  const { data: timeSlots = [] } = useTimeSlots();
-  const addGoalMutation = useAddGoal();
-  const addTaskMutation = useAddTask();
+// ─── Shared field styles ─────────────────────────────────────────────────────
 
-  const focusGoalIds = useAppStore((state) => state.focusGoalIds);
+const inputCls =
+  'w-full px-4 py-3 bg-white/[0.04] border border-white/[0.08] rounded-2xl text-white placeholder:text-slate-600 focus:outline-none focus:border-violet-500/50 transition-all text-sm';
 
-  const [tab, setTab] = useState<'goal' | 'task'>('task');
+const labelCls = 'block text-[10px] text-slate-600 uppercase tracking-[0.15em] mb-2';
 
-  // Goal form
-  const [goalTitle, setGoalTitle] = useState('');
-  const [goalDescription, setGoalDescription] = useState('');
-  const [goalDeadline, setGoalDeadline] = useState('');
-  const [goalLevel, setGoalLevel] = useState<GoalLevel>('weekly');
-  const [goalPriority, setGoalPriority] = useState<1 | 2 | 3>(2);
-  const [selectedTimeSlotId, setSelectedTimeSlotId] = useState<string | null>(null);
-  const [dependsOn, setDependsOn] = useState<string[]>([]);
-  const [goalError, setGoalError] = useState('');
+// ─── Task Form ───────────────────────────────────────────────────────────────
 
-  // Task form
-  const [taskTitle, setTaskTitle] = useState('');
-  const [taskDescription, setTaskDescription] = useState('');
+function TaskForm({
+  goals,
+  focusGoalIds,
+  onSubmit,
+}: {
+  goals: ReturnType<typeof useGoals>['data'];
+  focusGoalIds: string[];
+  onSubmit: (input: CreateTaskInput) => void;
+}) {
+  const [title, setTitle] = useState('');
+  const [description, setDescription] = useState('');
   const [estimatedMinutes, setEstimatedMinutes] = useState(30);
   const [selectedGoalId, setSelectedGoalId] = useState<string | null>(null);
-  const [taskError, setTaskError] = useState('');
+  const [error, setError] = useState('');
+  const [showDetails, setShowDetails] = useState(false);
 
-  const getGoalMetadata = (level: GoalLevel): GoalMetadata => {
-    const now = new Date();
-    switch (level) {
-      case 'yearly':
-        return { type: 'yearly', year: now.getFullYear() };
-      case 'quarterly': {
-        const quarter = (Math.floor(now.getMonth() / 3) + 1) as 1 | 2 | 3 | 4;
-        return { type: 'quarterly', year: now.getFullYear(), quarter };
-      }
-      case 'monthly':
-        return { type: 'monthly', year: now.getFullYear(), month: now.getMonth() + 1 };
-      case 'weekly': {
-        const day = now.getDay();
-        const diff = now.getDate() - day + (day === 0 ? -6 : 1);
-        const monday = new Date(now);
-        monday.setDate(diff);
-        return { type: 'weekly', weekStartDate: monday.toISOString().split('T')[0] };
-      }
-      default:
-        return { type: 'uncategorized' };
-    }
-  };
+  const activeGoals = (goals ?? [])
+    .filter((g) => !g.isArchived)
+    .sort((a, b) => {
+      const af = focusGoalIds.includes(a.id) ? 0 : 1;
+      const bf = focusGoalIds.includes(b.id) ? 0 : 1;
+      if (af !== bf) return af - bf;
+      const so: Record<string, number> = { in_progress: 0, not_started: 1, completed: 2 };
+      return (so[a.status] ?? 1) - (so[b.status] ?? 1);
+    });
 
-  const handleCreateGoal = async (e: React.FormEvent) => {
+  const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    setGoalError('');
-    const title = goalTitle.trim();
-    if (!title) { setGoalError('Title is required'); return; }
-    if (title.length > 200) { setGoalError('Title must be under 200 characters'); return; }
-
-    const input: CreateGoalInput = {
-      title,
-      description: goalDescription.trim(),
-      level: goalLevel,
-      metadata: getGoalMetadata(goalLevel),
-      priority: goalPriority,
-      timeSlotId: selectedTimeSlotId || undefined,
-      deadline: goalDeadline ? new Date(goalDeadline).toISOString() : undefined,
-      dependsOn: dependsOn.length > 0 ? dependsOn : undefined,
-    };
-
-    addGoalMutation.mutate(input);
-    router.push('/dashboard');
-  };
-
-  const handleCreateTask = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setTaskError('');
-    const title = taskTitle.trim();
-    if (!title) { setTaskError('Title is required'); return; }
-    if (title.length > 200) { setTaskError('Title must be under 200 characters'); return; }
+    setError('');
+    const t = title.trim();
+    if (!t) { setError('Title required'); return; }
+    if (t.length > 200) { setError('Title max 200 chars'); return; }
     if (estimatedMinutes < 5 || estimatedMinutes > 480) {
-      setTaskError('Duration must be between 5 and 480 minutes'); return;
+      setError('Duration: 5–480 min'); return;
     }
-
-    const input: CreateTaskInput = {
-      title,
-      description: taskDescription.trim(),
-      estimatedMinutes,
-      goalId: selectedGoalId || undefined,
-    };
-
-    addTaskMutation.mutate(input);
-    router.push('/dashboard');
-  };
-
-  const handleOpenObsidian = () => {
-    const vaultName = process.env.NEXT_PUBLIC_OBSIDIAN_VAULT || 'Goal App';
-    const encodedVault = encodeURIComponent(vaultName);
-    window.location.href = `obsidian://new?vault=${encodedVault}&name=Untitled`;
-  };
-
-  const activeGoals = goals.filter((g) => !g.isArchived);
-  const sortedGoals = [...activeGoals].sort((a, b) => {
-    const aIsFocus = (focusGoalIds || []).includes(a.id) ? 1 : 0;
-    const bIsFocus = (focusGoalIds || []).includes(b.id) ? 1 : 0;
-    if (aIsFocus !== bIsFocus) return bIsFocus - aIsFocus;
-    const statusOrder = { 'in_progress': 0, 'not_started': 1, 'completed': 2 };
-    if (statusOrder[a.status] !== statusOrder[b.status]) return statusOrder[a.status] - statusOrder[b.status];
-    return (a.priority || 2) - (b.priority || 2);
-  });
-  const activeSlots = timeSlots.filter((ts) => ts.isActive);
-
-  const toggleDependency = (goalId: string) => {
-    setDependsOn(prev => prev.includes(goalId) ? prev.filter(id => id !== goalId) : [...prev, goalId]);
+    onSubmit({ title: t, description: description.trim(), estimatedMinutes, goalId: selectedGoalId ?? undefined });
   };
 
   return (
-    <div className="min-h-screen bg-slate-950 pb-24">
-      <div className="max-w-md mx-auto px-4 py-6">
-        <h1 className="text-2xl font-bold text-white mb-6">Create New</h1>
-
-        {/* Obsidian Launcher */}
-        <button onClick={handleOpenObsidian} className="w-full mb-6 p-4 bg-purple-900/30 border-2 border-purple-500/50 hover:border-purple-500 rounded-xl flex items-center justify-between group transition-all">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-purple-500/20 rounded-lg flex items-center justify-center text-2xl">📝</div>
-            <div className="text-left">
-              <div className="text-white font-semibold">Open in Obsidian</div>
-              <div className="text-xs text-purple-300">Create note in canvas</div>
-            </div>
-          </div>
-          <div className="text-purple-400 group-hover:text-purple-300 transition-colors">→</div>
-        </button>
-
-        {/* Tabs */}
-        <div className="flex gap-2 mb-6">
-          <button onClick={() => setTab('task')} className={`flex-1 py-3 rounded-xl font-medium transition-all ${tab === 'task' ? 'bg-violet-500 text-white' : 'bg-slate-900 text-slate-500 border border-slate-800'}`}>✅ Task</button>
-          <button onClick={() => setTab('goal')} className={`flex-1 py-3 rounded-xl font-medium transition-all ${tab === 'goal' ? 'bg-violet-500 text-white' : 'bg-slate-900 text-slate-500 border border-slate-800'}`}>🎯 Goal</button>
+    <form onSubmit={handleSubmit} className="space-y-4">
+      {error && (
+        <div className="px-4 py-2.5 bg-red-500/10 border border-red-500/20 rounded-xl text-red-400 text-xs">
+          {error}
         </div>
+      )}
 
-        {/* Task Form */}
-        {tab === 'task' && (
-          <form onSubmit={handleCreateTask} className="space-y-5">
-            {taskError && <div className="p-3 bg-red-500/10 border border-red-500/30 rounded-lg text-red-400 text-sm">{taskError}</div>}
+      {/* Title — primary */}
+      <div>
+        <label className={labelCls}>Task name</label>
+        <input
+          type="text"
+          value={title}
+          onChange={(e) => setTitle(e.target.value)}
+          placeholder="What needs doing?"
+          className={inputCls}
+          autoFocus
+          required
+          maxLength={200}
+        />
+      </div>
+
+      {/* Duration — prominent */}
+      <div>
+        <label className={labelCls}>How long?</label>
+        <div className="flex flex-wrap gap-2">
+          {DURATION_OPTIONS.map((m) => (
+            <button
+              key={m}
+              type="button"
+              onClick={() => setEstimatedMinutes(m)}
+              className={`${mono.className} px-3 py-2 rounded-xl text-xs font-bold border transition-all ${
+                estimatedMinutes === m
+                  ? 'bg-amber-500/20 border-amber-500/50 text-amber-300'
+                  : 'border-white/[0.07] text-slate-500 hover:border-white/[0.12] hover:text-slate-300'
+              }`}
+            >
+              {formatDuration(m)}
+            </button>
+          ))}
+          {/* Custom input */}
+          <div className="flex items-center gap-1.5 border border-white/[0.07] rounded-xl px-3 py-2">
+            <input
+              type="number"
+              min={5}
+              max={480}
+              value={estimatedMinutes}
+              onChange={(e) => setEstimatedMinutes(parseInt(e.target.value) || 30)}
+              className={`${mono.className} w-10 bg-transparent text-white text-xs text-center focus:outline-none`}
+            />
+            <span className="text-slate-700 text-xs">min</span>
+          </div>
+        </div>
+      </div>
+
+      {/* Goal picker */}
+      {activeGoals.length > 0 && (
+        <div>
+          <label className={labelCls}>Link to goal</label>
+          <div className="flex flex-col gap-1 max-h-44 overflow-y-auto rounded-2xl border border-white/[0.07] p-2">
+            <GoalChipRow
+              label="No goal"
+              active={selectedGoalId === null}
+              onClick={() => setSelectedGoalId(null)}
+            />
+            {activeGoals.map((g) => (
+              <GoalChipRow
+                key={g.id}
+                label={g.title}
+                active={selectedGoalId === g.id}
+                onClick={() => setSelectedGoalId(g.id)}
+              />
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Optional details toggle */}
+      <button
+        type="button"
+        onClick={() => setShowDetails((d) => !d)}
+        className="text-xs text-slate-600 hover:text-slate-400 transition-colors flex items-center gap-1"
+      >
+        <span>{showDetails ? '−' : '+'}</span>
+        <span>{showDetails ? 'Hide details' : 'Add description'}</span>
+      </button>
+
+      {showDetails && (
+        <div>
+          <label className={labelCls}>Description</label>
+          <textarea
+            value={description}
+            onChange={(e) => setDescription(e.target.value)}
+            placeholder="Any extra context…"
+            rows={2}
+            className={`${inputCls} resize-none`}
+          />
+        </div>
+      )}
+
+      <button
+        type="submit"
+        disabled={!title.trim()}
+        className="w-full py-3.5 bg-gradient-to-r from-violet-500/80 to-cyan-500/80 hover:from-violet-500 hover:to-cyan-500 text-white font-semibold rounded-2xl disabled:opacity-30 transition-all active:scale-[0.98] text-sm"
+      >
+        Create Task
+      </button>
+    </form>
+  );
+}
+
+function GoalChipRow({
+  label,
+  active,
+  onClick,
+}: {
+  label: string;
+  active: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={`flex items-center gap-2.5 px-3 py-2 rounded-xl text-left text-sm transition-all ${
+        active
+          ? 'bg-violet-500/15 border border-violet-500/30 text-violet-300'
+          : 'text-slate-400 hover:bg-white/[0.03] border border-transparent'
+      }`}
+    >
+      <div
+        className={`w-3 h-3 rounded-full border flex-shrink-0 flex items-center justify-center ${
+          active ? 'bg-violet-500 border-violet-500' : 'border-slate-600'
+        }`}
+      >
+        {active && <div className="w-1.5 h-1.5 bg-white rounded-full" />}
+      </div>
+      <span className="truncate">{label}</span>
+    </button>
+  );
+}
+
+// ─── Goal Form ───────────────────────────────────────────────────────────────
+
+function GoalForm({
+  timeSlots,
+  goals,
+  onSubmit,
+}: {
+  timeSlots: ReturnType<typeof useTimeSlots>['data'];
+  goals: ReturnType<typeof useGoals>['data'];
+  onSubmit: (input: CreateGoalInput) => void;
+}) {
+  const [title, setTitle] = useState('');
+  const [description, setDescription] = useState('');
+  const [level, setLevel] = useState<GoalLevel>('weekly');
+  const [priority, setPriority] = useState<1 | 2 | 3>(2);
+  const [deadline, setDeadline] = useState('');
+  const [timeSlotId, setTimeSlotId] = useState<string | null>(null);
+  const [dependsOn, setDependsOn] = useState<string[]>([]);
+  const [error, setError] = useState('');
+  const [showAdvanced, setShowAdvanced] = useState(false);
+
+  const activeSlots = (timeSlots ?? []).filter((ts) => ts.isActive);
+  const activeGoals = (goals ?? []).filter((g) => !g.isArchived);
+
+  const toggleDep = (id: string) =>
+    setDependsOn((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    setError('');
+    const t = title.trim();
+    if (!t) { setError('Title required'); return; }
+    if (t.length > 200) { setError('Title max 200 chars'); return; }
+    onSubmit({
+      title: t,
+      description: description.trim(),
+      level,
+      metadata: getGoalMetadata(level),
+      priority,
+      timeSlotId: timeSlotId ?? undefined,
+      deadline: deadline ? new Date(deadline).toISOString() : undefined,
+      dependsOn: dependsOn.length ? dependsOn : undefined,
+    });
+  };
+
+  return (
+    <form onSubmit={handleSubmit} className="space-y-4">
+      {error && (
+        <div className="px-4 py-2.5 bg-red-500/10 border border-red-500/20 rounded-xl text-red-400 text-xs">
+          {error}
+        </div>
+      )}
+
+      {/* Title */}
+      <div>
+        <label className={labelCls}>Goal title</label>
+        <input
+          type="text"
+          value={title}
+          onChange={(e) => setTitle(e.target.value)}
+          placeholder="What do you want to achieve?"
+          className={inputCls}
+          autoFocus
+          required
+          maxLength={200}
+        />
+      </div>
+
+      {/* Level — always visible, minimal */}
+      <div>
+        <label className={labelCls}>Timeframe</label>
+        <div className="flex gap-2 flex-wrap">
+          {LEVEL_OPTIONS.map((opt) => (
+            <button
+              key={opt.value}
+              type="button"
+              onClick={() => setLevel(opt.value)}
+              className={`px-3 py-2 rounded-xl text-xs font-medium border transition-all ${
+                level === opt.value
+                  ? 'bg-violet-500/20 border-violet-500/50 text-violet-300'
+                  : 'border-white/[0.07] text-slate-500 hover:border-white/[0.12] hover:text-slate-300'
+              }`}
+            >
+              {opt.emoji} {opt.label}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Priority — always visible */}
+      <div>
+        <label className={labelCls}>Priority</label>
+        <div className="grid grid-cols-3 gap-2">
+          {PRIORITY_OPTIONS.map((opt) => (
+            <button
+              key={opt.value}
+              type="button"
+              onClick={() => setPriority(opt.value)}
+              className={`py-2.5 rounded-xl text-xs font-semibold border transition-all ${
+                priority === opt.value
+                  ? opt.active
+                  : 'border-white/[0.07] text-slate-500 hover:text-slate-300'
+              }`}
+            >
+              {opt.label}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Advanced toggle */}
+      <button
+        type="button"
+        onClick={() => setShowAdvanced((d) => !d)}
+        className="text-xs text-slate-600 hover:text-slate-400 transition-colors flex items-center gap-1"
+      >
+        <span>{showAdvanced ? '−' : '+'}</span>
+        <span>{showAdvanced ? 'Hide options' : 'Deadline, time slot, dependencies'}</span>
+      </button>
+
+      {showAdvanced && (
+        <div className="space-y-4 pt-1">
+          {/* Description */}
+          <div>
+            <label className={labelCls}>Description</label>
+            <textarea
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              placeholder="More context…"
+              rows={2}
+              className={`${inputCls} resize-none`}
+            />
+          </div>
+
+          {/* Deadline */}
+          <div>
+            <label className={labelCls}>Target deadline</label>
+            <input
+              type="date"
+              value={deadline}
+              onChange={(e) => setDeadline(e.target.value)}
+              className={`${inputCls} [color-scheme:dark]`}
+            />
+          </div>
+
+          {/* Time slot */}
+          {activeSlots.length > 0 && (
             <div>
-              <label className="block text-xs text-slate-500 uppercase tracking-wider mb-2">Task Name</label>
-              <input type="text" value={taskTitle} onChange={(e) => setTaskTitle(e.target.value)} placeholder="e.g., Watch React tutorial" className="w-full px-4 py-3 bg-slate-900 border border-slate-800 rounded-xl text-white placeholder:text-slate-600 focus:outline-none focus:border-violet-500" autoFocus required maxLength={200} />
-            </div>
-            <div>
-              <label className="block text-xs text-slate-500 uppercase tracking-wider mb-2">Description <span className="text-slate-700">(optional)</span></label>
-              <textarea value={taskDescription} onChange={(e) => setTaskDescription(e.target.value)} placeholder="Add more details..." rows={2} className="w-full px-4 py-3 bg-slate-900 border border-slate-800 rounded-xl text-white placeholder:text-slate-600 focus:outline-none focus:border-violet-500 resize-none" />
-            </div>
-            <div className="p-4 bg-slate-900 border border-slate-800 rounded-xl">
-              <label className="block text-xs text-slate-500 uppercase tracking-wider mb-3">Estimated Duration</label>
-              <div className="flex items-center gap-3 mb-3">
-                <input type="number" min={5} max={480} value={estimatedMinutes} onChange={(e) => setEstimatedMinutes(parseInt(e.target.value) || 30)} className="w-24 px-4 py-3 bg-slate-700 border border-slate-600 rounded-lg text-white text-center text-lg font-semibold focus:outline-none focus:border-violet-500" />
-                <span className="text-slate-400">minutes</span>
-              </div>
-              <div className="flex flex-wrap gap-2">
-                {DURATION_OPTIONS.map((mins) => (
-                  <button key={mins} type="button" onClick={() => setEstimatedMinutes(mins)} className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-all ${estimatedMinutes === mins ? 'bg-violet-500 text-white' : 'bg-slate-700 text-slate-400 hover:bg-slate-600'}`}>{formatDuration(mins)}</button>
+              <label className={labelCls}>Time slot</label>
+              <div className="flex flex-col gap-1 rounded-2xl border border-white/[0.07] p-2">
+                <SlotRow
+                  label="No slot"
+                  time=""
+                  active={timeSlotId === null}
+                  onClick={() => setTimeSlotId(null)}
+                />
+                {activeSlots.map((s) => (
+                  <SlotRow
+                    key={s.id}
+                    label={s.name}
+                    time={`${s.startTime}–${s.endTime}`}
+                    active={timeSlotId === s.id}
+                    onClick={() => setTimeSlotId(s.id)}
+                  />
                 ))}
               </div>
             </div>
+          )}
+
+          {/* Depends on */}
+          {activeGoals.length > 0 && (
             <div>
-              <label className="block text-xs text-slate-500 uppercase tracking-wider mb-2">Link to Goal</label>
-              <div className="bg-slate-900 border border-slate-800 rounded-xl max-h-48 overflow-y-auto p-2 space-y-1">
-                {activeGoals.length === 0 ? (
-                  <div className="text-slate-500 text-sm p-2 text-center">No goals created yet.</div>
-                ) : (<>
-                  <button type="button" onClick={() => setSelectedGoalId(null)} className={`w-full flex items-center gap-3 p-2 rounded-lg text-left transition-colors ${selectedGoalId === null ? 'bg-slate-700/50 border border-slate-600' : 'hover:bg-slate-800 border border-transparent'}`}>
-                    <div className={`w-4 h-4 rounded-full border flex items-center justify-center ${selectedGoalId === null ? 'bg-slate-500 border-slate-500' : 'border-slate-600'}`}>{selectedGoalId === null && <span className="w-2 h-2 bg-white rounded-full"></span>}</div>
-                    <span className="text-sm text-slate-400">No linked goal (standalone task)</span>
-                  </button>
-                  {sortedGoals.map((goal) => {
-                    const isSelected = selectedGoalId === goal.id;
-                    const statusIcon = goal.status === 'completed' ? '🟢' : goal.status === 'in_progress' ? '🔵' : '🟡';
-                    const slot = timeSlots.find((ts) => ts.goalIds?.includes(goal.id));
-                    return (
-                      <button key={goal.id} type="button" onClick={() => setSelectedGoalId(goal.id)} className={`w-full flex items-center gap-3 p-2 rounded-lg text-left transition-colors ${isSelected ? 'bg-violet-500/20 border border-violet-500/50' : 'hover:bg-slate-800 border border-transparent'}`}>
-                        <div className={`w-4 h-4 rounded-full border flex items-center justify-center ${isSelected ? 'bg-violet-500 border-violet-500' : 'border-slate-600'}`}>{isSelected && <span className="w-2 h-2 bg-white rounded-full"></span>}</div>
-                        <span className="text-lg">{statusIcon}</span>
-                        <div className="flex-1 min-w-0">
-                          <div className={`text-sm font-medium truncate ${isSelected ? 'text-violet-200' : 'text-slate-300'}`}>{goal.title}</div>
-                          {slot && <div className="text-[10px] text-slate-500">{TIME_SLOT_LABELS[slot.type as TimeSlotType]}</div>}
-                        </div>
-                      </button>
-                    );
-                  })}
-                </>)}
+              <label className={labelCls}>Depends on</label>
+              <div className="flex flex-col gap-1 max-h-32 overflow-y-auto rounded-2xl border border-white/[0.07] p-2">
+                {activeGoals.map((g) => {
+                  const sel = dependsOn.includes(g.id);
+                  return (
+                    <button
+                      key={g.id}
+                      type="button"
+                      onClick={() => toggleDep(g.id)}
+                      className={`flex items-center gap-2.5 px-3 py-2 rounded-xl text-left text-sm transition-all ${
+                        sel
+                          ? 'bg-amber-500/10 border border-amber-500/30 text-amber-300'
+                          : 'text-slate-400 hover:bg-white/[0.03] border border-transparent'
+                      }`}
+                    >
+                      <div
+                        className={`w-3 h-3 rounded border flex-shrink-0 flex items-center justify-center text-[8px] ${
+                          sel ? 'bg-amber-500 border-amber-500 text-white' : 'border-slate-600'
+                        }`}
+                      >
+                        {sel && '✓'}
+                      </div>
+                      <span className="truncate">{g.title}</span>
+                    </button>
+                  );
+                })}
               </div>
             </div>
-            <button type="submit" disabled={!taskTitle.trim()} className="w-full py-4 bg-gradient-to-r from-violet-500 to-cyan-500 text-white font-bold rounded-xl disabled:opacity-40">✅ Create Task</button>
-          </form>
-        )}
+          )}
+        </div>
+      )}
 
-        {/* Goal Form */}
-        {tab === 'goal' && (
-          <form onSubmit={handleCreateGoal} className="space-y-5">
-            {goalError && <div className="p-3 bg-red-500/10 border border-red-500/30 rounded-lg text-red-400 text-sm">{goalError}</div>}
-            <div>
-              <label className="block text-xs text-slate-500 uppercase tracking-wider mb-2">Goal Title</label>
-              <input type="text" value={goalTitle} onChange={(e) => setGoalTitle(e.target.value)} placeholder="What do you want to achieve?" className="w-full px-4 py-3 bg-slate-900 border border-slate-800 rounded-xl text-white placeholder:text-slate-600 focus:outline-none focus:border-violet-500" required maxLength={200} />
-            </div>
-            <div>
-              <label className="block text-xs text-slate-500 uppercase tracking-wider mb-2">Description <span className="text-slate-700">(optional)</span></label>
-              <textarea value={goalDescription} onChange={(e) => setGoalDescription(e.target.value)} placeholder="Add more details..." rows={3} className="w-full px-4 py-3 bg-slate-900 border border-slate-800 rounded-xl text-white placeholder:text-slate-600 focus:outline-none focus:border-violet-500 resize-none" />
-            </div>
+      <button
+        type="submit"
+        disabled={!title.trim()}
+        className="w-full py-3.5 bg-gradient-to-r from-violet-500/80 to-cyan-500/80 hover:from-violet-500 hover:to-cyan-500 text-white font-semibold rounded-2xl disabled:opacity-30 transition-all active:scale-[0.98] text-sm"
+      >
+        Create Goal
+      </button>
+    </form>
+  );
+}
 
-            {/* Goal Level */}
-            <div>
-              <label className="block text-xs text-slate-500 uppercase tracking-wider mb-2">Goal Level</label>
-              <div className="flex flex-wrap gap-2">
-                {LEVEL_OPTIONS.map((opt) => (
-                  <button key={opt.value} type="button" onClick={() => setGoalLevel(opt.value)} className={`px-4 py-2.5 rounded-xl text-sm font-medium transition-all ${goalLevel === opt.value ? 'bg-violet-500 text-white' : 'bg-slate-900 text-slate-400 border border-slate-800 hover:border-slate-600'}`}>{opt.emoji} {opt.label}</button>
-                ))}
-              </div>
-            </div>
+function SlotRow({
+  label,
+  time,
+  active,
+  onClick,
+}: {
+  label: string;
+  time: string;
+  active: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={`flex items-center gap-2.5 px-3 py-2 rounded-xl text-left transition-all ${
+        active
+          ? 'bg-violet-500/15 border border-violet-500/30 text-violet-300'
+          : 'text-slate-400 hover:bg-white/[0.03] border border-transparent'
+      }`}
+    >
+      <div
+        className={`w-3 h-3 rounded-full border flex-shrink-0 flex items-center justify-center ${
+          active ? 'bg-violet-500 border-violet-500' : 'border-slate-600'
+        }`}
+      >
+        {active && <div className="w-1.5 h-1.5 bg-white rounded-full" />}
+      </div>
+      <span className="text-sm flex-1 truncate">{label}</span>
+      {time && (
+        <span className={`${mono.className} text-[10px] text-slate-600 flex-shrink-0`}>{time}</span>
+      )}
+    </button>
+  );
+}
 
-            {/* Priority */}
-            <div>
-              <label className="block text-xs text-slate-500 uppercase tracking-wider mb-2">Priority</label>
-              <div className="grid grid-cols-3 gap-2">
-                {PRIORITY_OPTIONS.map((opt) => (
-                  <button key={opt.value} type="button" onClick={() => setGoalPriority(opt.value)} className={`py-3 rounded-xl text-sm font-medium transition-all ${goalPriority === opt.value ? `${opt.color} text-white` : 'bg-slate-900 text-slate-400 border border-slate-800 hover:border-slate-600'}`}>{opt.label}</button>
-                ))}
-              </div>
-            </div>
+// ─── Page ────────────────────────────────────────────────────────────────────
 
-            {/* Deadline */}
-            <div>
-              <label className="block text-xs text-slate-500 uppercase tracking-wider mb-2">Target Deadline <span className="text-slate-700">(optional)</span></label>
-              <input type="date" value={goalDeadline} onChange={(e) => setGoalDeadline(e.target.value)} className="w-full px-4 py-3 bg-slate-900 border border-slate-800 rounded-xl text-white focus:outline-none focus:border-violet-500 [color-scheme:dark]" />
-            </div>
+export default function CreatePage() {
+  const router = useRouter();
+  const { data: goals } = useGoals();
+  const { data: timeSlots } = useTimeSlots();
+  const addGoalMutation = useAddGoal();
+  const addTaskMutation = useAddTask();
+  const focusGoalIds = useAppStore((state) => state.focusGoalIds) ?? [];
+  const [tab, setTab] = useState<'task' | 'goal'>('task');
 
-            {/* Depends On */}
-            {activeGoals.length > 0 && (
-              <div>
-                <label className="block text-xs text-slate-500 uppercase tracking-wider mb-2">Depends On <span className="text-slate-700">(optional)</span></label>
-                <div className="bg-slate-900 border border-slate-800 rounded-xl max-h-36 overflow-y-auto p-2 space-y-1">
-                  {activeGoals.map((goal) => {
-                    const isSelected = dependsOn.includes(goal.id);
-                    return (
-                      <button key={goal.id} type="button" onClick={() => toggleDependency(goal.id)} className={`w-full flex items-center gap-3 p-2 rounded-lg text-left transition-colors ${isSelected ? 'bg-amber-500/20 border border-amber-500/50' : 'hover:bg-slate-800 border border-transparent'}`}>
-                        <div className={`w-4 h-4 rounded border flex items-center justify-center text-xs ${isSelected ? 'bg-amber-500 border-amber-500 text-white' : 'border-slate-600'}`}>{isSelected && '✓'}</div>
-                        <span className={`text-sm truncate ${isSelected ? 'text-amber-200' : 'text-slate-400'}`}>{goal.title}</span>
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-            )}
+  const handleCreateTask = (input: CreateTaskInput) => {
+    addTaskMutation.mutate(input, { onSuccess: () => router.push('/dashboard') });
+  };
 
-            {/* Assign to Time Slot */}
-            <div>
-              <label className="block text-xs text-slate-500 uppercase tracking-wider mb-2">Assign to Time Slot</label>
-              <div className="bg-slate-900 border border-slate-800 rounded-xl p-2 space-y-1">
-                <button type="button" onClick={() => setSelectedTimeSlotId(null)} className={`w-full flex items-center gap-3 p-2 rounded-lg text-left transition-colors ${selectedTimeSlotId === null ? 'bg-slate-700/50 border border-slate-600' : 'hover:bg-slate-800 border border-transparent'}`}>
-                  <div className={`w-4 h-4 rounded-full border flex items-center justify-center ${selectedTimeSlotId === null ? 'bg-slate-500 border-slate-500' : 'border-slate-600'}`}>{selectedTimeSlotId === null && <span className="w-2 h-2 bg-white rounded-full"></span>}</div>
-                  <span className="text-sm text-slate-400">No time slot (unscheduled)</span>
-                </button>
-                {activeSlots.map((slot) => (
-                  <button key={slot.id} type="button" onClick={() => setSelectedTimeSlotId(slot.id)} className={`w-full flex items-center gap-3 p-2 rounded-lg text-left transition-colors ${selectedTimeSlotId === slot.id ? 'bg-violet-500/20 border border-violet-500/50' : 'hover:bg-slate-800 border border-transparent'}`}>
-                    <div className={`w-4 h-4 rounded-full border flex items-center justify-center ${selectedTimeSlotId === slot.id ? 'bg-violet-500 border-violet-500' : 'border-slate-600'}`}>{selectedTimeSlotId === slot.id && <span className="w-2 h-2 bg-white rounded-full"></span>}</div>
-                    <span className="text-lg">{TIME_SLOT_LABELS[slot.type].split(' ')[0]}</span>
-                    <div className="flex-1">
-                      <div className="text-sm font-medium text-slate-300">{slot.name}</div>
-                      <div className="text-[10px] text-slate-500">{slot.startTime} - {slot.endTime}</div>
-                    </div>
-                  </button>
-                ))}
-              </div>
-            </div>
+  const handleCreateGoal = (input: CreateGoalInput) => {
+    addGoalMutation.mutate(input, { onSuccess: () => router.push('/goals') });
+  };
 
-            <button type="submit" disabled={!goalTitle.trim()} className="w-full py-4 bg-gradient-to-r from-violet-500 to-cyan-500 text-white font-bold rounded-xl disabled:opacity-40">🎯 Create Goal</button>
-          </form>
-        )}
+  return (
+    <div className="pb-28">
+      <h1 className="text-xl font-bold text-white mb-5">Create</h1>
+
+      {/* Tabs */}
+      <div className="flex gap-2 mb-6 p-1 bg-white/[0.03] border border-white/[0.06] rounded-2xl">
+        <button
+          onClick={() => setTab('task')}
+          className={`flex-1 py-2.5 rounded-xl text-sm font-medium transition-all ${
+            tab === 'task' ? 'bg-violet-500/30 text-violet-200 border border-violet-500/30' : 'text-slate-500 hover:text-slate-300'
+          }`}
+        >
+          Task
+        </button>
+        <button
+          onClick={() => setTab('goal')}
+          className={`flex-1 py-2.5 rounded-xl text-sm font-medium transition-all ${
+            tab === 'goal' ? 'bg-violet-500/30 text-violet-200 border border-violet-500/30' : 'text-slate-500 hover:text-slate-300'
+          }`}
+        >
+          Goal
+        </button>
+      </div>
+
+      {tab === 'task' && (
+        <TaskForm
+          goals={goals}
+          focusGoalIds={focusGoalIds}
+          onSubmit={handleCreateTask}
+        />
+      )}
+
+      {tab === 'goal' && (
+        <GoalForm
+          timeSlots={timeSlots}
+          goals={goals}
+          onSubmit={handleCreateGoal}
+        />
+      )}
+
+      {/* Obsidian — moved to footer, unobtrusive */}
+      <div className="mt-8 pt-6 border-t border-white/[0.04] flex justify-center">
+        <button
+          onClick={() => {
+            const vault = process.env.NEXT_PUBLIC_OBSIDIAN_VAULT || 'Goal App';
+            window.location.href = `obsidian://new?vault=${encodeURIComponent(vault)}&name=Untitled`;
+          }}
+          className="text-xs text-slate-700 hover:text-slate-500 transition-colors flex items-center gap-1.5"
+        >
+          <span>📝</span>
+          <span>Open Obsidian instead</span>
+        </button>
       </div>
     </div>
   );

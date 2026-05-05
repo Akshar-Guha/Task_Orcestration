@@ -1,0 +1,133 @@
+name: OCI Instance Retry
+
+on:
+  schedule:
+    # Run every 15 minutes (4x per hour = 96 per day)
+    - cron: '*/15 * * * *'
+  workflow_dispatch: # Allow manual trigger
+
+jobs:
+  try-create-instance:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: Install OCI SDK
+        run: pip install oci
+
+      - name: Create OCI Config
+        run: |
+          mkdir -p ~/.oci
+          echo "[DEFAULT]" > ~/.oci/config
+          echo "user=${{ secrets.OCI_USER_OCID }}" >> ~/.oci/config
+          echo "fingerprint=${{ secrets.OCI_FINGERPRINT }}" >> ~/.oci/config
+          echo "tenancy=${{ secrets.OCI_TENANCY_OCID }}" >> ~/.oci/config
+          echo "region=${{ secrets.OCI_REGION }}" >> ~/.oci/config
+          echo "key_file=~/.oci/oci_api_key.pem" >> ~/.oci/config
+          echo "${{ secrets.OCI_PRIVATE_KEY }}" > ~/.oci/oci_api_key.pem
+          chmod 600 ~/.oci/oci_api_key.pem
+
+      - name: Try to Create Instance
+        env:
+          OCI_COMPARTMENT_ID: ${{ secrets.OCI_TENANCY_OCID }}
+          SSH_PUBLIC_KEY: ${{ secrets.SSH_PUBLIC_KEY }}
+        run: |
+          python << 'EOF'
+          import oci
+          import os
+          import sys
+
+          # Load config
+          config = oci.config.from_file("~/.oci/config", "DEFAULT")
+          
+          # Initialize clients
+          compute_client = oci.core.ComputeClient(config)
+          network_client = oci.core.VirtualNetworkClient(config)
+          identity_client = oci.identity.IdentityClient(config)
+
+          compartment_id = os.environ.get('OCI_COMPARTMENT_ID')
+          ssh_key = os.environ.get('SSH_PUBLIC_KEY')
+
+          print(f"Authenticated. Attempting to create instance...")
+
+          # Get Ubuntu image
+          images = compute_client.list_images(
+              compartment_id,
+              operating_system="Canonical Ubuntu",
+              operating_system_version="22.04",
+              shape="VM.Standard.A1.Flex",
+              sort_by="TIMECREATED",
+              sort_order="DESC"
+          ).data
+
+          if not images:
+              print("ERROR: No Ubuntu 22.04 image found")
+              sys.exit(1)
+
+          image_id = images[0].id
+          print(f"Using image: {images[0].display_name}")
+
+          # Get subnet
+          vcns = network_client.list_vcns(compartment_id).data
+          if not vcns:
+              print("ERROR: No VCN found")
+              sys.exit(1)
+
+          subnets = network_client.list_subnets(compartment_id, vcn_id=vcns[0].id).data
+          if not subnets:
+              print("ERROR: No subnet found")
+              sys.exit(1)
+
+          subnet_id = subnets[0].id
+          print(f"Using subnet: {subnets[0].display_name}")
+
+          # Get AD
+          ads = identity_client.list_availability_domains(compartment_id).data
+          ad_name = ads[0].name
+          print(f"Using AD: {ad_name}")
+
+          # Try to launch
+          try:
+              launch_details = oci.core.models.LaunchInstanceDetails(
+                  display_name="goal-tracker-backend",
+                  compartment_id=compartment_id,
+                  availability_domain=ad_name,
+                  shape="VM.Standard.A1.Flex",
+                  shape_config=oci.core.models.LaunchInstanceShapeConfigDetails(
+                      ocpus=4,
+                      memory_in_gbs=24
+                  ),
+                  source_details=oci.core.models.InstanceSourceViaImageDetails(
+                      source_type="image",
+                      image_id=image_id
+                  ),
+                  create_vnic_details=oci.core.models.CreateVnicDetails(
+                      subnet_id=subnet_id,
+                      assign_public_ip=True
+                  ),
+                  metadata={
+                      "ssh_authorized_keys": ssh_key
+                  }
+              )
+
+              resp = compute_client.launch_instance(launch_details)
+              print(f"SUCCESS!!! Instance Created: {resp.data.id}")
+              print("Check your Oracle Console immediately!")
+
+          except oci.exceptions.ServiceError as e:
+              if "Out of capacity" in str(e) or "Out of host capacity" in str(e):
+                  print(f"EXPECTED: Out of capacity. Will retry next run.")
+                  sys.exit(0)  # Exit 0 so workflow shows green
+              else:
+                  print(f"ERROR: {e.message}")
+                  sys.exit(1)
+          EOF

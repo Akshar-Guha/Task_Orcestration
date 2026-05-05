@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { getCurrentUserId } from '@/lib/user';
+import { getDateInTimeZone, resolveUserTimeZone } from '@/lib/server-user-context';
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -24,7 +25,8 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: 'Invalid mood value (1-5 required)' }, { status: 400 });
   }
 
-  const today = new Date().toISOString().split('T')[0];
+  const timezone = await resolveUserTimeZone(supabase, userId, request);
+  const today = getDateInTimeZone(timezone);
 
   // Check if entry exists for today
   const { data: existing } = await supabase
@@ -50,6 +52,7 @@ export async function GET(request: NextRequest) {
         date: today,
         mood,
         productivity_data: {},
+        user_timezone: timezone,
       });
   }
 
@@ -74,7 +77,8 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Invalid mood value (1-5 required)' }, { status: 400 });
   }
 
-  const today = new Date().toISOString().split('T')[0];
+  const timezone = await resolveUserTimeZone(supabase, userId, request);
+  const today = getDateInTimeZone(timezone);
 
   const wins = win?.trim() ? [win.trim()] : [];
   const challenges = challenge?.trim() ? [challenge.trim()] : [];
@@ -116,6 +120,7 @@ export async function POST(request: NextRequest) {
         wins,
         challenges,
         productivity_data: {},
+        user_timezone: timezone,
       });
 
     if (error) {

@@ -8,6 +8,7 @@
 
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
 const SUPABASE_ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
+export const SUPABASE_EMBEDDING_MODEL = process.env.SUPABASE_EMBEDDING_MODEL || 'Supabase/gte-small';
 
 interface EmbeddingResult {
   success: boolean;
@@ -15,11 +16,16 @@ interface EmbeddingResult {
   error?: string;
 }
 
+export interface GeneratedEmbedding {
+  embedding: number[] | null;
+  modelName: string | null;
+}
+
 /**
  * Generate embedding for text using the mto-router Edge Function
  * Falls back to null if embedding generation fails (non-blocking)
  */
-export async function generateEmbedding(text: string): Promise<number[] | null> {
+export async function generateEmbedding(text: string): Promise<GeneratedEmbedding> {
   try {
     // Use the Supabase Edge Function that has access to the embedding model
     const response = await fetch(`${SUPABASE_URL}/functions/v1/mto-router`, {
@@ -36,20 +42,20 @@ export async function generateEmbedding(text: string): Promise<number[] | null> 
 
     if (!response.ok) {
       console.warn('[Embedding] Edge function returned error:', response.status);
-      return null;
+      return { embedding: null, modelName: null };
     }
 
     const result: EmbeddingResult = await response.json();
     
     if (result.success && result.embedding) {
-      return result.embedding;
+      return { embedding: result.embedding, modelName: SUPABASE_EMBEDDING_MODEL };
     }
     
     console.warn('[Embedding] Failed to generate:', result.error);
-    return null;
+    return { embedding: null, modelName: null };
   } catch (error) {
     console.warn('[Embedding] Error generating embedding:', error);
-    return null;
+    return { embedding: null, modelName: null };
   }
 }
 

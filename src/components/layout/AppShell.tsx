@@ -24,9 +24,9 @@ export function AppShell({ children }: AppShellProps) {
   }
 
   return (
-    <div className="min-h-screen min-h-[100dvh] bg-slate-950 text-slate-100">
+    <div className="min-h-screen min-h-[100dvh]" style={{ background: 'var(--bg)', color: 'var(--text)' }}>
       <Header />
-      <main className="pt-16 pb-28 px-4 max-w-lg mx-auto scroll-container">
+      <main className="pt-16 px-4 max-w-lg mx-auto scroll-container page-content">
         {children}
       </main>
       <MobileNav />

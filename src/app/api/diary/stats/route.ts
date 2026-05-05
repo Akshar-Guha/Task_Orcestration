@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { getCurrentUserId } from '@/lib/user';
 import { cache, cacheKeys, cacheTTL, getWithCache } from '@/lib/diary-cache';
+import { getDateInTimeZone, resolveUserTimeZone } from '@/lib/server-user-context';
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -48,14 +49,10 @@ export async function GET(request: NextRequest) {
 
     const { searchParams } = new URL(request.url);
     const type = searchParams.get('type') || 'overview';
-    const refresh = searchParams.get('refresh') === 'true';
-
-    // Refresh materialized views if requested
-    if (refresh) {
-      await supabase.rpc('refresh_diary_stats');
-      cache.deletePattern(`stats:*:${userId}`);
-      cache.delete(cacheKeys.streak(userId));
-    }
+    await supabase.rpc('refresh_diary_stats');
+    cache.deletePattern(`stats:*:${userId}`);
+    cache.delete(cacheKeys.streak(userId));
+    const timezone = await resolveUserTimeZone(supabase, userId, request);
 
     if (type === 'streak') {
       const streak = await getWithCache<StreakResult>(
@@ -63,7 +60,7 @@ export async function GET(request: NextRequest) {
         cacheTTL.streak,
         async () => {
           // Pass local date to ensure timezone consistency
-          const today = new Date().toISOString().split('T')[0];
+          const today = searchParams.get('referenceDate') || getDateInTimeZone(timezone);
           const { data } = await supabase.rpc('calculate_diary_streak', { 
             p_user_id: userId,
             p_reference_date: today 
@@ -120,7 +117,7 @@ export async function GET(request: NextRequest) {
         cacheKeys.streak(userId),
         cacheTTL.streak,
         async () => {
-          const today = new Date().toISOString().split('T')[0];
+          const today = searchParams.get('referenceDate') || getDateInTimeZone(timezone);
           const { data } = await supabase.rpc('calculate_diary_streak', { 
             p_user_id: userId,
             p_reference_date: today

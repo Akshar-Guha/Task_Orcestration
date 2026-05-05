@@ -85,11 +85,20 @@ export function DeviceAuthProvider({ children }: DeviceAuthProviderProps) {
   // Show loading spinner while checking auth
   if (isLoading) {
     return (
-      <div className="fixed inset-0 bg-black flex items-center justify-center">
-        <div className="animate-pulse text-zinc-500">
-          <div className="text-4xl mb-4">🔄</div>
-          <div>Verifying device...</div>
-        </div>
+      <div
+        className="fixed inset-0 flex flex-col items-center justify-center gap-4"
+        style={{ background: 'var(--bg)' }}
+      >
+        <div
+          className="w-8 h-8 rounded-full border-2 animate-spin"
+          style={{ borderColor: 'var(--border)', borderTopColor: 'var(--gold)' }}
+        />
+        <p
+          className="text-[11px] tracking-[0.25em] uppercase"
+          style={{ color: 'var(--text-3)', fontFamily: 'var(--font-family-body)' }}
+        >
+          Verifying
+        </p>
       </div>
     );
   }

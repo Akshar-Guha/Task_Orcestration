@@ -1,8 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { createClient } from '@supabase/supabase-js';
+import { getCurrentUserId } from '@/lib/user';
 
 // Ollama API endpoint (configurable via env)
 const OLLAMA_BASE_URL = process.env.OLLAMA_BASE_URL || 'http://localhost:11434';
 const OLLAMA_MODEL = process.env.OLLAMA_MODEL || 'qwen2.5:7b';
+const supabase = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+);
 
 interface ExtractionResult {
   mood?: number;
@@ -19,7 +25,7 @@ interface ExtractionResult {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { text } = body;
+    const { text, date } = body;
 
     if (!text || typeof text !== 'string') {
       return NextResponse.json({ error: 'Text is required' }, { status: 400 });
@@ -139,6 +145,7 @@ If information is not provided, omit that field from the response.`;
         },
         fallback: true,
         message: 'LLM not available, used pattern-based extraction. Review and edit details.',
+        model: 'pattern-fallback',
       });
     }
 
@@ -157,6 +164,7 @@ If information is not provided, omit that field from the response.`;
         },
         fallback: true,
         message: 'LLM returned error, using basic extraction.',
+        model: 'basic-fallback',
       });
     }
 
@@ -224,11 +232,39 @@ If information is not provided, omit that field from the response.`;
       validated.suggestedTasks = extraction.suggestedTasks.filter(t => typeof t === 'string').slice(0, 10);
     }
 
+    const userId = getCurrentUserId();
+    let persistedGoals = 0;
+    if (userId && Array.isArray(validated.suggestedGoals) && validated.suggestedGoals.length > 0) {
+      const goalRows = validated.suggestedGoals.map((title) => ({
+        user_id: userId,
+        title,
+        description: `Extracted from diary${date ? ` for ${date}` : ''}`,
+        level: 'ad_hoc',
+        status: 'not_started',
+        priority: 2,
+        metadata: {
+          source: 'diary_extract',
+          extraction_model: OLLAMA_MODEL,
+          extracted_at: new Date().toISOString(),
+          date: date || null,
+        },
+        is_archived: false,
+      }));
+
+      const { data: insertedGoals } = await supabase
+        .from('goals')
+        .insert(goalRows)
+        .select('id');
+
+      persistedGoals = insertedGoals?.length || 0;
+    }
+
     return NextResponse.json({
       success: true,
       extraction: validated,
       raw: rawOutput,
       model: OLLAMA_MODEL,
+      persistedGoals,
     });
   } catch (error) {
     console.error('[Extract API] Unexpected error:', error);
