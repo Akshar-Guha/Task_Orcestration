@@ -48,3 +48,9 @@ next-env.d.ts
 vapid-keys.*
 lint.txt
 build_log*.txt
+
+nul
+oci_config
+oci_keys/
+pin_test.json
+debug_data.ts
