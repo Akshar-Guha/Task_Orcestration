@@ -1,3 +1,4 @@
+import Link from 'next/link';
 import { SyncIndicator } from '@/components/SyncStatus';
 
 export function Header() {
@@ -41,7 +42,8 @@ export function Header() {
           <SyncIndicator />
         </div>
 
-        <button
+        <Link
+          href="/settings"
           className="flex items-center justify-center rounded-full transition-all"
           style={{
             minWidth: '44px',
@@ -52,21 +54,21 @@ export function Header() {
             border: '1px solid var(--border)',
             color: 'var(--text-2)',
           }}
-          aria-label="User menu"
+          aria-label="Settings"
           onMouseEnter={e => {
-            (e.currentTarget as HTMLButtonElement).style.borderColor = 'var(--border-hi)';
-            (e.currentTarget as HTMLButtonElement).style.color = 'var(--gold)';
+            (e.currentTarget as HTMLAnchorElement).style.borderColor = 'var(--border-hi)';
+            (e.currentTarget as HTMLAnchorElement).style.color = 'var(--gold)';
           }}
           onMouseLeave={e => {
-            (e.currentTarget as HTMLButtonElement).style.borderColor = 'var(--border)';
-            (e.currentTarget as HTMLButtonElement).style.color = 'var(--text-2)';
+            (e.currentTarget as HTMLAnchorElement).style.borderColor = 'var(--border)';
+            (e.currentTarget as HTMLAnchorElement).style.color = 'var(--text-2)';
           }}
         >
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75">
             <circle cx="12" cy="8" r="4" />
             <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
           </svg>
-        </button>
+        </Link>
       </div>
     </header>
   );

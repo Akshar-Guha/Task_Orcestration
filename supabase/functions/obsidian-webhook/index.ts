@@ -4,22 +4,40 @@ import { corsHeaders } from "../_shared/cors.ts"
 
 console.log("Obsidian Webhook Handler Started")
 
+const EMBEDDING_MODEL = Deno.env.get('SUPABASE_MEMORY_EMBEDDING_MODEL') || 'Supabase/gte-small'
+
+async function generateEmbedding(supabaseUrl: string, serviceKey: string, text: string) {
+  try {
+    const response = await fetch(`${supabaseUrl}/rest/v1/rpc/generate_embedding`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'apikey': serviceKey,
+        'Authorization': `Bearer ${serviceKey}`,
+      },
+      body: JSON.stringify({ input_text: text }),
+    })
+
+    if (!response.ok) return null
+    return await response.json()
+  } catch {
+    return null
+  }
+}
+
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders })
   }
 
   try {
-    const supabase = createClient(
-      Deno.env.get('SUPABASE_URL') ?? '',
-      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
-    )
+    const supabaseUrl = Deno.env.get('SUPABASE_URL') ?? ''
+    const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
+    const supabase = createClient(supabaseUrl, serviceRoleKey)
 
-    // Get GitHub webhook payload
     const payload = await req.json()
     console.log('Received webhook:', payload.repository?.full_name, 'ref:', payload.ref)
 
-    // Only process pushes to main/master branch
     if (!payload.ref?.endsWith('/main') && !payload.ref?.endsWith('/master')) {
       return new Response(JSON.stringify({ message: 'Ignored: not main branch' }), {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
@@ -29,60 +47,53 @@ serve(async (req) => {
 
     const commits = payload.commits || []
     const mdFiles = new Set<string>()
-
-    // Collect all .md files from commits
     for (const commit of commits) {
       const added = commit.added || []
       const modified = commit.modified || []
-      const allFiles = [...added, ...modified]
-      
-      for (const file of allFiles) {
-        if (file.endsWith('.md')) {
-          mdFiles.add(file)
-        }
+      for (const file of [...added, ...modified]) {
+        if (file.endsWith('.md')) mdFiles.add(file)
       }
     }
 
-    console.log(`Found ${mdFiles.size} markdown files to process`)
-
-    // Process each markdown file
     const results = []
     for (const filePath of mdFiles) {
       try {
-        // Fetch file content from GitHub
         const rawUrl = `https://raw.githubusercontent.com/${payload.repository.full_name}/${payload.after}/${filePath}`
         const response = await fetch(rawUrl)
-        
+
         if (!response.ok) {
           console.error(`Failed to fetch ${filePath}: ${response.status}`)
           continue
         }
 
         const content = await response.text()
-        
-        // Extract title from filename or first heading
         const fileName = filePath.split('/').pop()?.replace('.md', '') || 'Untitled'
         const firstHeading = content.match(/^#\s+(.+)$/m)
         const title = firstHeading ? firstHeading[1] : fileName
+        const noteContent = `Note: ${title}\n\n${content}`
+        const embedding = await generateEmbedding(supabaseUrl, serviceRoleKey, noteContent)
 
-        // Store in memories table (without embedding - will be processed client-side)
         const { data: memory, error } = await supabase
           .from('memories')
           .upsert({
-            content: `Note: ${title}\n\n${content}`,
+            content: noteContent,
             metadata: {
               type: 'note',
               source: 'obsidian',
               file_path: filePath,
               repository: payload.repository.full_name,
               commit_sha: payload.after,
-              synced_at: new Date().toISOString()
+              synced_at: new Date().toISOString(),
             },
-            embedding: null, // Will be processed later by frontend
-            user_id: Deno.env.get('DEFAULT_USER_ID') // Use configured default user
+            file_path: filePath,
+            file_name: `${fileName}.md`,
+            modified_at: new Date().toISOString(),
+            embedding,
+            embedding_model: embedding ? EMBEDDING_MODEL : null,
+            user_id: Deno.env.get('DEFAULT_USER_ID'),
           }, {
-            onConflict: 'content',
-            ignoreDuplicates: false
+            onConflict: 'user_id,file_path',
+            ignoreDuplicates: false,
           })
           .select()
           .single()
@@ -91,8 +102,7 @@ serve(async (req) => {
           console.error(`Error storing ${filePath}:`, error)
           results.push({ file: filePath, status: 'error', error: error.message })
         } else {
-          console.log(`Stored memory for ${filePath}`)
-          results.push({ file: filePath, status: 'success', id: memory.id })
+          results.push({ file: filePath, status: 'success', id: memory.id, embedded: embedding != null })
         }
       } catch (err) {
         console.error(`Exception processing ${filePath}:`, err)
@@ -103,7 +113,7 @@ serve(async (req) => {
     return new Response(JSON.stringify({
       success: true,
       processed: mdFiles.size,
-      results
+      results,
     }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       status: 200,
@@ -111,9 +121,9 @@ serve(async (req) => {
 
   } catch (error) {
     console.error('Webhook error:', error)
-    return new Response(JSON.stringify({ 
-      success: false, 
-      error: error.message 
+    return new Response(JSON.stringify({
+      success: false,
+      error: error.message,
     }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       status: 500,
