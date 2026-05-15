@@ -2,12 +2,16 @@ import { Check, X } from 'lucide-react';
 
 export function FeaturesComparison() {
   const comparisonData = [
-    { feature: "Goal Hierarchy with Linkage", us: true, notion: false, trad: false },
-    { feature: "Sleep + Productivity Correlation", us: true, notion: false, trad: false },
-    { feature: "AI 'Second Brain' Search + RAG", us: true, notion: false, trad: false },
-    { feature: "Self-Hosted AI (Private)", us: true, notion: false, trad: false },
-    { feature: "Obsidian Forever Sync", us: true, notion: false, trad: false },
-    { feature: "One-Time Purchase", us: true, notion: false, trad: false },
+    { feature: "Goal Dependency Graph (DAG)", us: true, notion: false, trad: false },
+    { feature: "Sleep + Productivity Behavioral Correlation", us: true, notion: false, trad: false },
+    { feature: "Vector Embedding Search (pgvector, 384-dim)", us: true, notion: false, trad: false },
+    { feature: "Client-Side ML Inference (Privacy-First)", us: true, notion: false, trad: false },
+    { feature: "ML Dataset Export Pipeline", us: true, notion: false, trad: false },
+    { feature: "Adaptive Intelligence Engine", us: true, notion: false, trad: false },
+    { feature: "Obsidian Bidirectional Sync", us: true, notion: false, trad: false },
+    { feature: "Push Notifications + Email Digests", us: true, notion: false, trad: false },
+    { feature: "PIN Security + Multi-Device Kill Switch", us: true, notion: false, trad: false },
+    { feature: "Native Android App + NudgeEngine (6 Behavioral Triggers)", us: true, notion: false, trad: false },
   ];
 
   return (

@@ -97,10 +97,10 @@ export function ProblemSolution() {
           <div className="max-w-2xl mx-auto p-8 rounded-3xl bg-slate-900/80 border border-slate-700 backdrop-blur-xl mb-8 relative z-10 text-center shadow-2xl">
             <h3 className="text-2xl font-bold text-white mb-4">Unified Dashboard</h3>
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
-              <div className="p-2 bg-slate-950 rounded-lg text-slate-400">Sleep Insights</div>
-              <div className="p-2 bg-slate-950 rounded-lg text-slate-400">Prod. Stats</div>
-              <div className="p-2 bg-slate-950 rounded-lg text-slate-400">Goal Progress</div>
-              <div className="p-2 bg-slate-950 rounded-lg text-slate-400">Streak Tracking</div>
+              <div className="p-2 bg-slate-950 rounded-lg text-slate-400">Semantic Search</div>
+              <div className="p-2 bg-slate-950 rounded-lg text-slate-400">Behavioral Graph</div>
+              <div className="p-2 bg-slate-950 rounded-lg text-slate-400">Goal DAG</div>
+              <div className="p-2 bg-slate-950 rounded-lg text-slate-400">ML Export</div>
             </div>
           </div>
 

@@ -14,7 +14,7 @@ export function Hero() {
         {/* Badge */}
         <div className="inline-flex items-center gap-2 px-4 py-2 mb-8 rounded-full bg-slate-900/50 border border-slate-700/50 backdrop-blur-md animate-fade-in shadow-lg shadow-violet-500/10">
           <Brain className="w-4 h-4 text-violet-400" />
-          <span className="text-sm font-medium text-slate-300">The &quot;Second Brain&quot; Concept</span>
+          <span className="text-sm font-medium text-slate-300">Behavioral Intelligence Platform</span>
         </div>
 
         {/* Headline */}
@@ -25,8 +25,8 @@ export function Hero() {
 
         {/* Subheadline */}
         <p className="text-xl md:text-2xl text-slate-400 max-w-3xl mx-auto mb-12 leading-relaxed animate-slide-up delay-100">
-          A complete personal productivity system with AI-powered insights, semantic search across your entire life, and forever storage. 
-          <span className="block mt-4 text-slate-300 font-medium">100% private. Self-hosted. Built for self-quantifiers.</span>
+          A behavioral intelligence system spanning web + native Android — goal dependency DAG, sleep-productivity event log, pgvector semantic search (384-dim), and a contextual NudgeEngine with 6 behavioral triggers driven by device sensors.
+          <span className="block mt-4 text-slate-300 font-medium">Designed as a production ML data pipeline: behavioral dataset export, semantic memory, and adaptive diary built for future model fine-tuning — by a data scientist, for a data scientist.</span>
         </p>
 
         {/* CTA Buttons */}

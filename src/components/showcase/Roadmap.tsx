@@ -1,11 +1,11 @@
 
 export function Roadmap() {
   const roadmap = [
-    { phase: "Now", cap: "Core Features", detail: "Goal hierarchy, AI journaling, sleep tracking, semantic search" },
-    { phase: "Live", cap: "Predictive Analytics", detail: "AI predicts: \"You're likely to miss this deadline\"" },
-    { phase: "Live", cap: "Smart Recs", detail: "\"Based on your patterns, try this goal structure\"" },
-    { phase: "Live", cap: "Voice Interface", detail: "Talk to your second brain hands-free" },
-    { phase: "Live", cap: "Multi-device Sync", detail: "Seamless experience across phone/desktop" }
+    { phase: "Live", cap: "Behavioral Data System", detail: "Goal dependency DAG, time-slot scheduling, sleep-productivity correlation, adaptive diary engine, behavioral event log" },
+    { phase: "Live", cap: "Android + NudgeEngine", detail: "Kotlin/Compose native app, WorkManager NudgeEngine with 6 contextual triggers, step sensor, Supabase realtime sync" },
+    { phase: "Live", cap: "Semantic Memory", detail: "384-dim embeddings, pgvector semantic search, in-context retrieval across all behavioral data" },
+    { phase: "Live", cap: "ML Dataset Export", detail: "Structured behavioral data export endpoint — personal training corpus designed for productivity model fine-tuning" },
+    { phase: "Next", cap: "Production RAG Eval", detail: "RAGAS-based retrieval quality, hybrid BM25 + semantic search, cross-encoder reranking, embedding version management" },
   ];
 
   return (
