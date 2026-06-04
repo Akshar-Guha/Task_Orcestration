@@ -452,7 +452,7 @@ export default function NotificationsPage() {
               </div>
 
               {/* Save button — always visible at bottom */}
-              <div className="px-6 pt-4 pb-8 flex-shrink-0" style={{ borderTop: '1px solid var(--border)' }}>
+              <div className="px-6 pt-4 flex-shrink-0" style={{ borderTop: '1px solid var(--border)', paddingBottom: 'max(2rem, env(safe-area-inset-bottom, 2rem))' }}>
                 {formError && (
                   <p className="text-xs mb-3" style={{ color: '#ef4444' }}>{formError}</p>
                 )}
