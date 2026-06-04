@@ -38,6 +38,9 @@
   --nav-h:       4rem;
   --safe-b:      env(safe-area-inset-bottom, 0px);
   --safe-t:      env(safe-area-inset-top, 0px);
+  --safe-l:      env(safe-area-inset-left, 0px);
+  --safe-r:      env(safe-area-inset-right, 0px);
+  --header-h:    calc(4rem + env(safe-area-inset-top, 0px));
 }
 
 /* ─── Base reset ─────────────────────────────────────────────────────── */

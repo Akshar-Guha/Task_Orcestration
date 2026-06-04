@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import { ReactNode } from 'react';
 import { Header } from './Header';
@@ -26,10 +26,11 @@ export function AppShell({ children }: AppShellProps) {
   return (
     <div className="min-h-screen min-h-[100dvh]" style={{ background: 'var(--bg)', color: 'var(--text)' }}>
       <Header />
-      <main className="pt-16 px-4 max-w-lg mx-auto scroll-container page-content">
+      <main className="max-w-lg mx-auto scroll-container page-content" style={{ paddingTop: "var(--header-h)", paddingLeft: "calc(1rem + env(safe-area-inset-left, 0px))", paddingRight: "calc(1rem + env(safe-area-inset-right, 0px))" }}>
         {children}
       </main>
       <MobileNav />
     </div>
   );
 }
+
