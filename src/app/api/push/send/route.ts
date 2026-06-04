@@ -16,7 +16,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Title and body required' }, { status: 400 });
     }
 
-    const result = await sendPushNotification(userId, { title, body, icon, url });
+    const result = await sendPushNotification(userId, { title, body, icon });
 
     if (!result.success && result.error) {
        // Return 200 even if failed, but with success: false, unless it's a configuration error

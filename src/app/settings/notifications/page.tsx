@@ -1,20 +1,78 @@
-'use client';
+﻿'use client';
 
 import { useState, useEffect } from 'react';
 import { setupPushNotifications } from '@/lib/push';
-import { useUserSettings, useUpdateUserSettings } from '@/lib/hooks/useSupabase';
 
-// iOS detection
 function isIOS() {
   if (typeof window === 'undefined') return false;
   return /iPad|iPhone|iPod/.test(navigator.userAgent) && !(window as Window & { MSStream?: unknown }).MSStream;
 }
-
-// PWA detection
 function isStandalone() {
   if (typeof window === 'undefined') return false;
-  return (window.navigator as Navigator & { standalone?: boolean }).standalone || window.matchMedia('(display-mode: standalone)').matches;
+  return (window.navigator as Navigator & { standalone?: boolean }).standalone ||
+    window.matchMedia('(display-mode: standalone)').matches;
 }
+
+type NotificationType = 'task' | 'habit' | 'goal' | 'sleep_wake' | 'custom';
+
+interface NotificationRule {
+  id: string;
+  title: string;
+  body: string;
+  notification_type: NotificationType;
+  linked_entity_id?: string;
+  linked_entity_name?: string;
+  schedule_time?: string;
+  repeat_days?: number[];
+  is_enabled: boolean;
+  snooze_interval_minutes?: number;
+  created_at: string;
+}
+
+interface Entity { id: string; name: string; }
+
+const DAY_LABELS = ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'];
+
+const SNOOZE_OPTIONS = [
+  { value: 5, label: '5 min' },
+  { value: 10, label: '10 min' },
+  { value: 15, label: '15 min' },
+  { value: 30, label: '30 min' },
+  { value: 60, label: '1 hr' },
+];
+
+const TYPE_LABELS: Record<NotificationType, string> = {
+  task: 'Task',
+  habit: 'Habit',
+  goal: 'Goal',
+  sleep_wake: 'Sleep / Wake',
+  custom: 'Custom',
+};
+
+function typePreview(type: NotificationType, entityName?: string): { title: string; body: string } {
+  switch (type) {
+    case 'task':
+      return { title: 'Task Check', body: `Did you complete: ${entityName || '…'}?` };
+    case 'habit':
+      return { title: 'Habit Check', body: `Did you complete: ${entityName || '…'}?` };
+    case 'goal':
+      return { title: 'Goal Review', body: `Take a moment to review: ${entityName || '…'}` };
+    case 'sleep_wake':
+      return { title: 'Sleep Tracker', body: 'Time to log your sleep / wake time!' };
+    default:
+      return { title: '', body: '' };
+  }
+}
+
+const EMPTY_FORM = {
+  notification_type: 'habit' as NotificationType,
+  linked_entity_id: '',
+  schedule_time: '08:00',
+  repeat_days: [1, 2, 3, 4, 5] as number[],
+  snooze_interval_minutes: 15,
+  custom_title: '',
+  custom_body: '',
+};
 
 export default function NotificationsPage() {
   const [permission, setPermission] = useState<NotificationPermission>(
@@ -23,319 +81,458 @@ export default function NotificationsPage() {
   const [isSubscribed, setIsSubscribed] = useState(false);
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState('');
+
+  const [rules, setRules] = useState<NotificationRule[]>([]);
+  const [rulesLoading, setRulesLoading] = useState(true);
+  const [showForm, setShowForm] = useState(false);
+  const [form, setForm] = useState({ ...EMPTY_FORM });
+  const [formError, setFormError] = useState('');
+  const [savingRule, setSavingRule] = useState(false);
+  const [sendingId, setSendingId] = useState<string | null>(null);
+
+  const [tasks, setTasks] = useState<Entity[]>([]);
+  const [habits, setHabits] = useState<Entity[]>([]);
+  const [goals, setGoals] = useState<Entity[]>([]);
+
   const iosDevice = isIOS();
   const standaloneMode = isStandalone();
 
   useEffect(() => {
-    let cancelled = false;
-    async function checkSubscriptionStatus() {
-      if ('serviceWorker' in navigator) {
-        const registration = await navigator.serviceWorker.getRegistration();
-        if (registration) {
-          const subscription = await registration.pushManager.getSubscription();
-          if (!cancelled) setIsSubscribed(!!subscription);
-        }
-      }
-    }
-    checkSubscriptionStatus();
-    return () => { cancelled = true; };
+    navigator.serviceWorker?.getRegistration().then(reg => {
+      if (reg) setIsSubscribed(true);
+    });
   }, []);
 
-  const handleEnableNotifications = async () => {
-    setLoading(true);
-    setMessage('');
+  useEffect(() => {
+    loadRules();
+    loadEntities();
+  }, []);
 
-    const result = await setupPushNotifications();
-
-    if (result.success) {
-      setPermission('granted');
-      setIsSubscribed(true);
-      setMessage('✅ Push notifications enabled successfully!');
-    } else {
-      setMessage(`❌ Failed: ${result.error}`);
+  async function loadRules() {
+    setRulesLoading(true);
+    const res = await fetch('/api/notifications/rules');
+    if (res.ok) {
+      const data = await res.json();
+      setRules(data.rules || []);
     }
+    setRulesLoading(false);
+  }
 
-    setLoading(false);
-  };
+  async function loadEntities() {
+    const [tasksRes, habitsRes, goalsRes] = await Promise.all([
+      fetch('/api/tasks').catch(() => null),
+      fetch('/api/habits').catch(() => null),
+      fetch('/api/goals').catch(() => null),
+    ]);
+    if (tasksRes?.ok) {
+      const d = await tasksRes.json();
+      setTasks((d.tasks || []).filter((t: any) => !t.is_archived && !t.is_completed).map((t: any) => ({ id: t.id, name: t.title })));
+    }
+    if (habitsRes?.ok) {
+      const d = await habitsRes.json();
+      setHabits((d.habits || []).map((h: any) => ({ id: h.id, name: h.title || h.name })));
+    }
+    if (goalsRes?.ok) {
+      const d = await goalsRes.json();
+      setGoals((d.goals || []).map((g: any) => ({ id: g.id, name: g.title || g.name })));
+    }
+  }
 
-  const handleTestNotification = async () => {
+  async function handleSubscribe() {
     setLoading(true);
     setMessage('');
-
     try {
-      const response = await fetch('/api/push/test', {
-        method: 'POST',
-      });
-
-      const data = await response.json();
-
-      if (response.ok) {
-        setMessage('✅ Test notification sent! Check your notifications.');
+      const result = await setupPushNotifications();
+      if (result.success) {
+        setIsSubscribed(true);
+        setPermission('granted');
+        setMessage('Notifications enabled on this iPhone.');
       } else {
-        setMessage(`❌ Failed: ${data.error || 'Unknown error'}`);
+        setMessage(result.error || 'Failed to enable notifications.');
       }
-    } catch (err) {
-      setMessage(`❌ Error: ${err instanceof Error ? err.message : String(err)}`);
+    } catch (e: any) {
+      setMessage(e.message || 'Error enabling notifications.');
+    }
+    setLoading(false);
+  }
+
+  function entityListForType(type: NotificationType): Entity[] {
+    if (type === 'task') return tasks;
+    if (type === 'habit') return habits;
+    if (type === 'goal') return goals;
+    return [];
+  }
+
+  function selectedEntityName(): string {
+    if (!form.linked_entity_id) return '';
+    return entityListForType(form.notification_type).find(e => e.id === form.linked_entity_id)?.name || '';
+  }
+
+  async function handleSaveRule() {
+    setFormError('');
+    const needsEntity = ['task', 'habit', 'goal'].includes(form.notification_type);
+    if (needsEntity && !form.linked_entity_id) {
+      setFormError(`Pick a ${TYPE_LABELS[form.notification_type]}.`);
+      return;
+    }
+    if (form.notification_type === 'custom' && (!form.custom_title.trim() || !form.custom_body.trim())) {
+      setFormError('Title and message are required for custom notifications.');
+      return;
+    }
+    if (!form.schedule_time) {
+      setFormError('Schedule time is required.');
+      return;
     }
 
-    setLoading(false);
-  };
+    const entityName = form.notification_type === 'custom' ? '' : selectedEntityName();
+    const { title, body } = form.notification_type === 'custom'
+      ? { title: form.custom_title.trim(), body: form.custom_body.trim() }
+      : typePreview(form.notification_type, entityName);
+
+    setSavingRule(true);
+    const res = await fetch('/api/notifications/rules', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        title,
+        body,
+        notification_type: form.notification_type,
+        linked_entity_id: form.linked_entity_id || null,
+        linked_entity_name: entityName || null,
+        schedule_time: form.schedule_time,
+        repeat_days: form.repeat_days.length ? form.repeat_days : null,
+        snooze_interval_minutes: form.snooze_interval_minutes,
+        requires_acknowledgment: true,
+        is_manual: false,
+      }),
+    });
+
+    if (res.ok) {
+      setShowForm(false);
+      setForm({ ...EMPTY_FORM });
+      loadRules();
+    } else {
+      const d = await res.json();
+      setFormError(d.error || 'Failed to save.');
+    }
+    setSavingRule(false);
+  }
+
+  async function handleToggle(id: string, enabled: boolean) {
+    await fetch(`/api/notifications/rules/${id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ is_enabled: enabled }),
+    });
+    setRules(prev => prev.map(r => r.id === id ? { ...r, is_enabled: enabled } : r));
+  }
+
+  async function handleDelete(id: string) {
+    await fetch(`/api/notifications/rules/${id}`, { method: 'DELETE' });
+    setRules(prev => prev.filter(r => r.id !== id));
+  }
+
+  async function handleSendNow(id: string) {
+    setSendingId(id);
+    const res = await fetch(`/api/notifications/rules/${id}`, { method: 'POST' });
+    const d = await res.json();
+    setMessage(res.ok ? 'Notification sent!' : (d.error || 'Send failed.'));
+    setSendingId(null);
+    setTimeout(() => setMessage(''), 3000);
+  }
+
+  const needsEntityPicker = ['task', 'habit', 'goal'].includes(form.notification_type);
+  const entityList = entityListForType(form.notification_type);
+  const previewEntityName = selectedEntityName();
+  const preview = form.notification_type !== 'custom'
+    ? typePreview(form.notification_type, previewEntityName || '[entity]')
+    : null;
 
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div>
-        <h2 className="text-2xl font-bold text-white mb-2">Push Notifications</h2>
-        <p className="text-slate-400">
-          Enable notifications to receive reminders for your tasks and goals.
+    <div className="min-h-screen pb-24" style={{ background: 'var(--bg)', fontFamily: 'var(--font-family-body)' }}>
+      <div className="max-w-xl mx-auto px-4 py-8">
+        <h1 className="text-2xl font-semibold mb-1" style={{ color: 'var(--text)' }}>Notifications</h1>
+        <p className="text-sm mb-8" style={{ color: 'var(--text-secondary)' }}>
+          Alarm-style reminders tied to your habits, tasks, and goals. Re-fires every N minutes until you tap Done.
         </p>
-      </div>
 
-      {/* iOS-specific warning */}
-      {iosDevice && !standaloneMode && (
-        <div className="bg-orange-500/10 border border-orange-500/20 rounded-xl p-4">
-          <h4 className="text-sm font-semibold text-orange-400 mb-2">⚠️ iOS Setup Required</h4>
-          <div className="text-xs text-orange-300/80 space-y-2">
-            <p><strong>Push notifications on iPhone require the app to be installed as a PWA.</strong></p>
-            <ol className="list-decimal list-inside space-y-1 ml-2">
-              <li>Tap the <strong>Share</strong> button in Safari (at bottom of screen)</li>
-              <li>Scroll down and tap <strong>&quot;Add to Home Screen&quot;</strong></li>
-              <li>Tap <strong>&quot;Add&quot;</strong> to confirm</li>
-              <li>Open the app from your Home Screen</li>
-              <li>Return here and enable notifications</li>
-            </ol>
+        {iosDevice && !standaloneMode && (
+          <div className="rounded-xl p-4 mb-6" style={{ background: 'var(--card)', border: '1px solid var(--border)' }}>
+            <p className="text-sm font-medium mb-1" style={{ color: 'var(--text)' }}>Add to Home Screen first</p>
+            <p className="text-xs" style={{ color: 'var(--text-secondary)' }}>
+              iOS push requires the app installed as PWA. Share → "Add to Home Screen".
+            </p>
           </div>
-        </div>
-      )}
+        )}
 
-      {/* Permission Status */}
-      <div className="bg-slate-900/50 border border-slate-800 rounded-xl p-6">
-        <h3 className="text-lg font-semibold text-white mb-4">Status</h3>
-        
-        <div className="space-y-4">
-          <div className="flex items-center justify-between">
-            <div>
-              <div className="text-sm font-medium text-slate-300">Browser Permission</div>
-              <div className="text-xs text-slate-500 mt-1">
-                {permission === 'granted' && '✅ Granted'}
-                {permission === 'denied' && '❌ Denied'}
-                {permission === 'default' && '⚠️ Not requested yet'}
-              </div>
-            </div>
-            <div className={`px-3 py-1 rounded-full text-xs font-medium ${
-              permission === 'granted' 
-                ? 'bg-green-500/20 text-green-400'
-                : permission === 'denied'
-                ? 'bg-red-500/20 text-red-400'
-                : 'bg-yellow-500/20 text-yellow-400'
-            }`}>
-              {permission}
-            </div>
-          </div>
-
-          <div className="flex items-center justify-between">
-            <div>
-              <div className="text-sm font-medium text-slate-300">Subscription Status</div>
-              <div className="text-xs text-slate-500 mt-1">
-                {isSubscribed ? '✅ Subscribed to push' : '❌ Not subscribed'}
-              </div>
-            </div>
-            <div className={`px-3 py-1 rounded-full text-xs font-medium ${
-              isSubscribed
-                ? 'bg-green-500/20 text-green-400'
-                : 'bg-slate-500/20 text-slate-400'
-            }`}>
-              {isSubscribed ? 'Active' : 'Inactive'}
-            </div>
-          </div>
-
-          {/* iOS Diagnostic Info */}
-          {iosDevice && (
-            <>
-              <div className="flex items-center justify-between">
-                <div>
-                  <div className="text-sm font-medium text-slate-300">Running as PWA</div>
-                  <div className="text-xs text-slate-500 mt-1">
-                    {standaloneMode ? '✅ Installed PWA' : '❌ Safari browser mode'}
-                  </div>
-                </div>
-                <div className={`px-3 py-1 rounded-full text-xs font-medium ${
-                  standaloneMode
-                    ? 'bg-green-500/20 text-green-400'
-                    : 'bg-orange-500/20 text-orange-400'
-                }`}>
-                  {standaloneMode ? 'Yes' : 'No'}
-                </div>
-              </div>
-
-              <div className="flex items-center justify-between">
-                <div>
-                  <div className="text-sm font-medium text-slate-300">Platform</div>
-                  <div className="text-xs text-slate-500 mt-1">iOS Device Detected</div>
-                </div>
-                <div className="px-3 py-1 rounded-full text-xs font-medium bg-blue-500/20 text-blue-400">
-                  iPhone/iPad
-                </div>
-              </div>
-            </>
-          )}
-        </div>
-      </div>
-      
-      {/* Schedule & Preferences */}
-      <NotificationPreferences />
-
-      {/* Actions */}
-      <div className="bg-slate-900/50 border border-slate-800 rounded-xl p-6">
-        <h3 className="text-lg font-semibold text-white mb-4">Actions</h3>
-        
-        <div className="space-y-3">
-          {!isSubscribed && (
+        {iosDevice && standaloneMode && permission !== 'granted' && (
+          <div className="rounded-xl p-4 mb-6" style={{ background: 'var(--card)', border: '1px solid var(--border)' }}>
             <button
-              onClick={handleEnableNotifications}
-              disabled={loading || (iosDevice && !standaloneMode)}
-              className="w-full py-3 bg-gradient-to-r from-violet-500 to-cyan-500 text-white font-medium rounded-xl disabled:opacity-50 hover:opacity-90 transition-opacity"
-              title={iosDevice && !standaloneMode ? 'Install PWA first (see instructions above)' : ''}
+              onClick={handleSubscribe}
+              disabled={loading}
+              className="w-full py-2 rounded-lg text-sm font-medium"
+              style={{ background: 'var(--accent)', color: '#fff' }}
             >
-              {loading ? 'Setting up...' : '🔔 Enable Notifications'}
+              {loading ? 'Enabling…' : 'Enable on this iPhone'}
             </button>
-          )}
-
-          {isSubscribed && (
-            <div className="space-y-3">
-              <button
-                onClick={handleTestNotification}
-                disabled={loading}
-                className="w-full py-3 bg-slate-700 hover:bg-slate-600 text-white font-medium rounded-xl disabled:opacity-50 transition-colors flex items-center justify-center gap-2"
-              >
-                <span>🧪</span>
-                {loading ? 'Sending...' : 'Send Test Notification'}
-              </button>
-              
-              <button
-                onClick={async () => {
-                  setLoading(true);
-                  try {
-                    if ('serviceWorker' in navigator) {
-                      const reg = await navigator.serviceWorker.getRegistration();
-                      const sub = await reg?.pushManager.getSubscription();
-                      await sub?.unsubscribe();
-                      setIsSubscribed(false);
-                      setMessage('✅ Notifications disabled. Click Enable to re-subscribe with new keys.');
-                    }
-                  } catch (e) {
-                    setMessage('❌ Failed to unsubscribe');
-                  }
-                  setLoading(false);
-                }}
-                disabled={loading}
-                className="w-full py-3 bg-red-500/10 hover:bg-red-500/20 text-red-500 border border-red-500/20 font-medium rounded-xl disabled:opacity-50 transition-colors"
-              >
-                Reset / Disable Notifications
-              </button>
-            </div>
-          )}
-        </div>
+          </div>
+        )}
 
         {message && (
-          <div className={`mt-4 p-3 rounded-lg text-sm ${
-            message.startsWith('✅')
-              ? 'bg-green-500/10 text-green-400 border border-green-500/20'
-              : 'bg-red-500/10 text-red-400 border border-red-500/20'
-          }`}>
+          <div className="rounded-lg px-4 py-2 mb-4 text-sm" style={{ background: 'var(--card)', color: 'var(--text)' }}>
             {message}
           </div>
         )}
-      </div>
 
-      {/* Info */}
-      <div className="bg-blue-500/10 border border-blue-500/20 rounded-xl p-4">
-        <h4 className="text-sm font-semibold text-blue-400 mb-2">ℹ️ About Push Notifications</h4>
-        <ul className="text-xs text-blue-300/80 space-y-1">
-          <li>• Receive reminders for scheduled tasks</li>
-          <li>• Get notifications for goal milestones</li>
-          <li>• Morning briefing summaries</li>
-          <li>• Works even when the app is closed</li>
-          {iosDevice && (
-            <li className="font-semibold text-blue-300">• iOS 16.4+ required for Web Push</li>
-          )}
-        </ul>
+        <div className="mb-4 flex items-center justify-between">
+          <span className="text-sm font-medium" style={{ color: 'var(--text)' }}>Reminders</span>
+          <button
+            onClick={() => { setShowForm(true); setFormError(''); }}
+            className="text-sm px-3 py-1 rounded-lg font-medium"
+            style={{ background: 'var(--accent)', color: '#fff' }}
+          >
+            + Add
+          </button>
+        </div>
+
+        {rulesLoading ? (
+          <p className="text-sm" style={{ color: 'var(--text-secondary)' }}>Loading…</p>
+        ) : rules.length === 0 ? (
+          <p className="text-sm" style={{ color: 'var(--text-secondary)' }}>No reminders yet.</p>
+        ) : (
+          <div className="space-y-3">
+            {rules.map(rule => (
+              <RuleCard
+                key={rule.id}
+                rule={rule}
+                onToggle={handleToggle}
+                onDelete={handleDelete}
+                onSendNow={handleSendNow}
+                sendingId={sendingId}
+              />
+            ))}
+          </div>
+        )}
+
+        {showForm && (
+          <div className="fixed inset-0 z-50 flex items-end justify-center" style={{ background: 'rgba(0,0,0,0.5)' }}>
+            <div className="w-full max-w-xl rounded-t-2xl p-6 pb-8" style={{ background: 'var(--bg)', maxHeight: '90vh', overflowY: 'auto' }}>
+              <div className="flex items-center justify-between mb-5">
+                <h2 className="text-lg font-semibold" style={{ color: 'var(--text)' }}>New Reminder</h2>
+                <button onClick={() => setShowForm(false)} style={{ color: 'var(--text-secondary)', fontSize: '1.2rem' }}>✕</button>
+              </div>
+
+              <label className="block text-xs font-medium mb-2" style={{ color: 'var(--text-secondary)' }}>Type</label>
+              <div className="flex flex-wrap gap-2 mb-4">
+                {(Object.keys(TYPE_LABELS) as NotificationType[]).map(t => (
+                  <button
+                    key={t}
+                    onClick={() => setForm(f => ({ ...f, notification_type: t, linked_entity_id: '' }))}
+                    className="px-3 py-1 rounded-full text-xs font-medium border"
+                    style={{
+                      background: form.notification_type === t ? 'var(--accent)' : 'transparent',
+                      color: form.notification_type === t ? '#fff' : 'var(--text)',
+                      borderColor: form.notification_type === t ? 'var(--accent)' : 'var(--border)',
+                    }}
+                  >
+                    {TYPE_LABELS[t]}
+                  </button>
+                ))}
+              </div>
+
+              {needsEntityPicker && (
+                <>
+                  <label className="block text-xs font-medium mb-1" style={{ color: 'var(--text-secondary)' }}>
+                    Which {TYPE_LABELS[form.notification_type].toLowerCase()}?
+                  </label>
+                  {entityList.length === 0 ? (
+                    <p className="text-xs mb-4" style={{ color: 'var(--text-secondary)' }}>
+                      No active {TYPE_LABELS[form.notification_type].toLowerCase()}s found.
+                    </p>
+                  ) : (
+                    <select
+                      value={form.linked_entity_id}
+                      onChange={e => setForm(f => ({ ...f, linked_entity_id: e.target.value }))}
+                      className="w-full rounded-lg px-3 py-2 text-sm mb-4"
+                      style={{ background: 'var(--card)', color: 'var(--text)', border: '1px solid var(--border)' }}
+                    >
+                      <option value="">Select…</option>
+                      {entityList.map(e => (
+                        <option key={e.id} value={e.id}>{e.name}</option>
+                      ))}
+                    </select>
+                  )}
+                </>
+              )}
+
+              {form.notification_type === 'custom' && (
+                <>
+                  <label className="block text-xs font-medium mb-1" style={{ color: 'var(--text-secondary)' }}>Title</label>
+                  <input
+                    value={form.custom_title}
+                    onChange={e => setForm(f => ({ ...f, custom_title: e.target.value }))}
+                    placeholder="e.g. Drink water"
+                    className="w-full rounded-lg px-3 py-2 text-sm mb-3"
+                    style={{ background: 'var(--card)', color: 'var(--text)', border: '1px solid var(--border)' }}
+                  />
+                  <label className="block text-xs font-medium mb-1" style={{ color: 'var(--text-secondary)' }}>Message</label>
+                  <input
+                    value={form.custom_body}
+                    onChange={e => setForm(f => ({ ...f, custom_body: e.target.value }))}
+                    placeholder="e.g. Have you drunk 2L today?"
+                    className="w-full rounded-lg px-3 py-2 text-sm mb-4"
+                    style={{ background: 'var(--card)', color: 'var(--text)', border: '1px solid var(--border)' }}
+                  />
+                </>
+              )}
+
+              {preview && (form.linked_entity_id || form.notification_type === 'sleep_wake') && (
+                <div className="rounded-lg px-4 py-3 mb-4" style={{ background: 'var(--card)', border: '1px solid var(--border)' }}>
+                  <p className="text-xs font-medium mb-0.5" style={{ color: 'var(--text-secondary)' }}>Preview</p>
+                  <p className="text-sm font-semibold" style={{ color: 'var(--text)' }}>{preview.title}</p>
+                  <p className="text-xs" style={{ color: 'var(--text-secondary)' }}>{preview.body}</p>
+                  <p className="text-xs mt-1.5" style={{ color: 'var(--text-secondary)' }}>
+                    Buttons: {['task','habit','custom'].includes(form.notification_type) ? '[✅ Done]  [⏰ Later]' : '[📱 Open App]  [⏰ Later]'}
+                  </p>
+                </div>
+              )}
+
+              <label className="block text-xs font-medium mb-1" style={{ color: 'var(--text-secondary)' }}>Fire at</label>
+              <input
+                type="time"
+                value={form.schedule_time}
+                onChange={e => setForm(f => ({ ...f, schedule_time: e.target.value }))}
+                className="w-full rounded-lg px-3 py-2 text-sm mb-4"
+                style={{ background: 'var(--card)', color: 'var(--text)', border: '1px solid var(--border)' }}
+              />
+
+              <label className="block text-xs font-medium mb-2" style={{ color: 'var(--text-secondary)' }}>Repeat on</label>
+              <div className="flex gap-1 mb-4">
+                {DAY_LABELS.map((d, i) => (
+                  <button
+                    key={i}
+                    onClick={() => setForm(f => ({
+                      ...f,
+                      repeat_days: f.repeat_days.includes(i)
+                        ? f.repeat_days.filter(x => x !== i)
+                        : [...f.repeat_days, i].sort(),
+                    }))}
+                    className="flex-1 py-1.5 rounded-lg text-xs font-medium"
+                    style={{
+                      background: form.repeat_days.includes(i) ? 'var(--accent)' : 'var(--card)',
+                      color: form.repeat_days.includes(i) ? '#fff' : 'var(--text-secondary)',
+                      border: '1px solid var(--border)',
+                    }}
+                  >
+                    {d}
+                  </button>
+                ))}
+              </div>
+
+              <label className="block text-xs font-medium mb-2" style={{ color: 'var(--text-secondary)' }}>Re-fire every (if not tapped Done)</label>
+              <div className="flex gap-2 mb-6 flex-wrap">
+                {SNOOZE_OPTIONS.map(o => (
+                  <button
+                    key={o.value}
+                    onClick={() => setForm(f => ({ ...f, snooze_interval_minutes: o.value }))}
+                    className="px-3 py-1 rounded-full text-xs font-medium border"
+                    style={{
+                      background: form.snooze_interval_minutes === o.value ? 'var(--accent)' : 'transparent',
+                      color: form.snooze_interval_minutes === o.value ? '#fff' : 'var(--text)',
+                      borderColor: form.snooze_interval_minutes === o.value ? 'var(--accent)' : 'var(--border)',
+                    }}
+                  >
+                    {o.value} min
+                  </button>
+                ))}
+              </div>
+
+              {formError && (
+                <p className="text-xs mb-3" style={{ color: '#ef4444' }}>{formError}</p>
+              )}
+
+              <button
+                onClick={handleSaveRule}
+                disabled={savingRule}
+                className="w-full py-2.5 rounded-xl text-sm font-semibold"
+                style={{ background: 'var(--accent)', color: '#fff' }}
+              >
+                {savingRule ? 'Saving…' : 'Save Reminder'}
+              </button>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
 }
 
-function NotificationPreferences() {
-  const { data: settings } = useUserSettings();
-  const { mutate: updateSettings } = useUpdateUserSettings();
-
-  if (!settings) return null;
+function RuleCard({
+  rule, onToggle, onDelete, onSendNow, sendingId,
+}: {
+  rule: NotificationRule;
+  onToggle: (id: string, enabled: boolean) => void;
+  onDelete: (id: string) => void;
+  onSendNow: (id: string) => void;
+  sendingId: string | null;
+}) {
+  const typeLabel = TYPE_LABELS[rule.notification_type] || rule.notification_type;
+  const snooze = rule.snooze_interval_minutes;
 
   return (
-    <div className="bg-slate-900/50 border border-slate-800 rounded-xl p-6">
-      <h3 className="text-lg font-semibold text-white mb-4">Schedule & Preferences</h3>
-      
-      <div className="space-y-6">
-        
-        {/* Routine Reminders (Dynamic Slots) */}
-        <div className="flex items-center justify-between">
-          <div className="space-y-1">
-            <div className="text-sm font-medium text-slate-200">Routine Reminders</div>
-            <div className="text-xs text-slate-500">Alerts when your scheduled time slots begin</div>
+    <div
+      className="rounded-xl p-4"
+      style={{ background: 'var(--card)', border: '1px solid var(--border)', opacity: rule.is_enabled ? 1 : 0.5 }}
+    >
+      <div className="flex items-start justify-between gap-3">
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2 mb-0.5 flex-wrap">
+            <span className="text-xs px-2 py-0.5 rounded-full font-medium" style={{ background: '#eff6ff', color: 'var(--accent)' }}>
+              {typeLabel}
+            </span>
+            {rule.linked_entity_name && (
+              <span className="text-xs" style={{ color: 'var(--text-secondary)' }}>{rule.linked_entity_name}</span>
+            )}
           </div>
-          <button
-            onClick={() => updateSettings({ enableTaskNotifications: !settings.enableTaskNotifications })}
-            className={`w-11 h-6 rounded-full transition-colors relative ${
-              settings.enableTaskNotifications !== false ? 'bg-violet-500' : 'bg-slate-700'
-            }`}
-          >
-            <div className={`absolute top-1 left-1 w-4 h-4 rounded-full bg-white transition-transform ${
-              settings.enableTaskNotifications !== false ? 'translate-x-5' : 'translate-x-0'
-            }`} />
-          </button>
-        </div>
-
-        {/* Pre-notification Offset */}
-        <div className="flex items-center justify-between">
-          <div className="space-y-1">
-            <div className="text-sm font-medium text-slate-200">Pre-start Alert</div>
-            <div className="text-xs text-slate-500">Notify me X minutes before slot starts</div>
-          </div>
-          <div className="flex items-center gap-2">
-             <select
-                value={settings.notificationOffsetMinutes ?? 5}
-                onChange={(e) => updateSettings({ notificationOffsetMinutes: Number(e.target.value) })}
-                className="bg-slate-800 border border-slate-700 rounded-lg px-2 py-1 text-sm text-white focus:outline-none focus:border-violet-500"
-                disabled={settings.enableTaskNotifications === false}
-             >
-                <option value={0}>At start time</option>
-                <option value={5}>5 mins before</option>
-                <option value={10}>10 mins before</option>
-                <option value={15}>15 mins before</option>
-                <option value={30}>30 mins before</option>
-             </select>
+          <p className="text-sm font-medium truncate mt-0.5" style={{ color: 'var(--text)' }}>{rule.title}</p>
+          <p className="text-xs truncate" style={{ color: 'var(--text-secondary)' }}>{rule.body}</p>
+          <div className="flex items-center gap-3 mt-1 text-xs" style={{ color: 'var(--text-secondary)' }}>
+            {rule.schedule_time && <span>⏰ {rule.schedule_time}</span>}
+            {snooze && <span>↺ {snooze}m</span>}
+            <span>
+              {rule.repeat_days?.length
+                ? rule.repeat_days.map(d => ['Su','Mo','Tu','We','Th','Fr','Sa'][d]).join(' ')
+                : 'Every day'}
+            </span>
           </div>
         </div>
-
-        <div className="h-px bg-slate-800 my-4" />
-
-        {/* Goal Deadlines */}
-        <div className="flex items-center justify-between">
-          <div className="space-y-1">
-            <div className="text-sm font-medium text-slate-200">Goal Deadlines</div>
-            <div className="text-xs text-slate-500">Alerts 1 day before due date</div>
-          </div>
-          <button
-            onClick={() => updateSettings({ enableGoalNotifications: !settings.enableGoalNotifications })}
-            className={`w-11 h-6 rounded-full transition-colors relative ${
-              settings.enableGoalNotifications !== false ? 'bg-violet-500' : 'bg-slate-700'
-            }`}
-          >
-            <div className={`absolute top-1 left-1 w-4 h-4 rounded-full bg-white transition-transform ${
-              settings.enableGoalNotifications !== false ? 'translate-x-5' : 'translate-x-0'
-            }`} />
-          </button>
-        </div>
+        <button
+          onClick={() => onToggle(rule.id, !rule.is_enabled)}
+          className="w-10 h-6 rounded-full flex-shrink-0 relative mt-0.5"
+          style={{ background: rule.is_enabled ? 'var(--accent)' : 'var(--border)' }}
+        >
+          <span
+            className="absolute top-0.5 w-5 h-5 rounded-full bg-white transition-transform"
+            style={{ transform: rule.is_enabled ? 'translateX(18px)' : 'translateX(2px)' }}
+          />
+        </button>
+      </div>
+      <div className="flex gap-2 mt-3">
+        <button
+          onClick={() => onSendNow(rule.id)}
+          disabled={sendingId === rule.id}
+          className="text-xs px-3 py-1 rounded-lg"
+          style={{ background: 'var(--bg)', border: '1px solid var(--border)', color: 'var(--text)' }}
+        >
+          {sendingId === rule.id ? 'Sending…' : 'Test now'}
+        </button>
+        <button
+          onClick={() => onDelete(rule.id)}
+          className="text-xs px-3 py-1 rounded-lg"
+          style={{ background: 'var(--bg)', border: '1px solid #ef4444', color: '#ef4444' }}
+        >
+          Delete
+        </button>
       </div>
     </div>
   );

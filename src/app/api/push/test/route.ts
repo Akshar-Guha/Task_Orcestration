@@ -16,7 +16,6 @@ export async function POST() {
     const result = await sendPushNotification(userId, {
       title: '🧪 Test Notification',
       body: 'If you see this, push notifications are working!',
-      url: '/settings/notifications'
     });
     
     if (result.success) {

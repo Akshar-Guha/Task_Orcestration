@@ -1,4 +1,4 @@
-import { createClient } from '@supabase/supabase-js';
+﻿import { createClient } from '@supabase/supabase-js';
 import webpush from 'web-push';
 
 // Initialize Supabase with Service Role for admin access (fetching any user's subs)
@@ -46,7 +46,16 @@ export interface SendPushResult {
 
 export async function sendPushNotification(
   userId: string,
-  payload: { title: string; body: string; icon?: string; url?: string; tag?: string }
+  payload: {
+    title: string;
+    body: string;
+    icon?: string;
+    tag?: string;
+    ruleId?: string;
+    actionType?: 'yes_no' | 'open_app';
+    actionUrl?: string;
+    appUrl?: string;
+  }
 ): Promise<SendPushResult> {
   if (!ensureVapidConfigured()) {
     return { success: false, sent: 0, failed: 0, total: 0, error: 'VAPID keys not configured' };
@@ -67,12 +76,17 @@ export async function sendPushNotification(
     return { success: false, sent: 0, failed: 0, total: 0, error: 'No push subscriptions found' };
   }
 
-  // Prepare full payload
+  // All rules are alarm-style: requireInteraction always true
   const notificationPayload = {
-    ...payload,
+    title: payload.title,
+    body: payload.body,
     icon: payload.icon || '/icons/icon-192.png',
-    url: payload.url || '/dashboard',
-    tag: payload.tag || `goal-tracker-${Date.now()}`
+    tag: payload.tag || `goal-tracker-${Date.now()}`,
+    ruleId: payload.ruleId,
+    actionType: payload.actionType || 'yes_no',
+    actionUrl: payload.actionUrl,
+    appUrl: payload.appUrl || '/dashboard',
+    requireInteraction: true,
   };
 
   // Send to all subscriptions
