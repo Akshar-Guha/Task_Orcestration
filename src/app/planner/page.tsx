@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import { useState, useMemo } from 'react';
 import { formatDuration, TIME_SLOT_LABELS } from '@/lib/types';
@@ -119,13 +119,13 @@ export default function PlannerPage() {
   const completedTasks = tasks.filter(t => !t.isArchived && t.isCompleted).length;
 
   return (
-    <div className="min-h-screen bg-slate-950 pb-24">
+    <div className="min-h-screen bg-slate-950" style={{ paddingBottom: 'calc(var(--nav-h) + var(--safe-b) + 1rem)' }}>
       <div className="max-w-7xl mx-auto px-4 py-6">
         
         {/* Header */}
         <div className="flex items-center justify-between mb-6">
           <div>
-            <h1 className="text-2xl font-bold text-white">📅 Daily Planner</h1>
+            <h1 className="text-2xl font-bold text-white">ðŸ“… Daily Planner</h1>
             <p className="text-sm text-slate-500">Plan your day with time blocks</p>
           </div>
           
@@ -135,7 +135,7 @@ export default function PlannerPage() {
               onClick={() => navigateDate(-1)}
               className="p-2 bg-slate-800 hover:bg-slate-700 rounded-lg text-white transition-all"
             >
-              ←
+              â†
             </button>
             <button
               onClick={() => setSelectedDate(new Date().toISOString().split('T')[0])}
@@ -149,7 +149,7 @@ export default function PlannerPage() {
               onClick={() => navigateDate(1)}
               className="p-2 bg-slate-800 hover:bg-slate-700 rounded-lg text-white transition-all"
             >
-              →
+              â†’
             </button>
           </div>
         </div>
@@ -183,13 +183,13 @@ export default function PlannerPage() {
             >
               {showUnscheduled ? (
                 <>
-                  <span>📋 Unscheduled</span>
+                  <span>ðŸ“‹ Unscheduled</span>
                   <span className="text-xs bg-amber-500/20 text-amber-400 px-2 py-0.5 rounded">
                     {unscheduledGoals.length + standaloneTasks.length}
                   </span>
                 </>
               ) : (
-                <span className="rotate-90">📋</span>
+                <span className="rotate-90">ðŸ“‹</span>
               )}
             </button>
             
@@ -206,11 +206,11 @@ export default function PlannerPage() {
                         return (
                           <div key={goal.id} className="p-3 bg-amber-500/10 border border-amber-500/30 rounded-lg">
                             <div className="flex items-center gap-2 mb-2">
-                              <span>🎯</span>
+                              <span>ðŸŽ¯</span>
                               <span className="text-sm font-medium text-white">{goal.title}</span>
                             </div>
                             <div className="text-xs text-slate-500 mb-2">
-                              {goalTasks.length} tasks • {formatDuration(goalTasks.reduce((s, t) => s + t.estimatedMinutes, 0))}
+                              {goalTasks.length} tasks â€¢ {formatDuration(goalTasks.reduce((s, t) => s + t.estimatedMinutes, 0))}
                             </div>
                             {/* Assign to slot dropdown */}
                             <select
@@ -253,7 +253,7 @@ export default function PlannerPage() {
                           <span className={`w-4 h-4 rounded border flex items-center justify-center text-xs ${
                             task.isCompleted ? 'bg-emerald-500 border-emerald-500 text-white' : 'border-slate-600'
                           }`}>
-                            {task.isCompleted && '✓'}
+                            {task.isCompleted && 'âœ“'}
                           </span>
                           <span className={`flex-1 text-left text-sm ${
                             task.isCompleted ? 'text-slate-500 line-through' : 'text-white'
@@ -269,7 +269,7 @@ export default function PlannerPage() {
 
                 {unscheduledGoals.length === 0 && standaloneTasks.length === 0 && (
                   <div className="text-center py-6">
-                    <div className="text-3xl mb-2">✨</div>
+                    <div className="text-3xl mb-2">âœ¨</div>
                     <p className="text-sm text-slate-500">All organized!</p>
                   </div>
                 )}
@@ -289,9 +289,9 @@ export default function PlannerPage() {
             <div className="bg-slate-900/50 border border-slate-800 rounded-xl overflow-hidden">
               {/* Timeline Header */}
               <div className="p-4 border-b border-slate-800 flex items-center justify-between">
-                <h2 className="font-semibold text-white">⏰ Daily Timeline</h2>
+                <h2 className="font-semibold text-white">â° Daily Timeline</h2>
                 <Link href="/edit" className="text-xs text-violet-400 hover:text-violet-300">
-                  Edit Time Slots →
+                  Edit Time Slots â†’
                 </Link>
               </div>
 
@@ -299,7 +299,7 @@ export default function PlannerPage() {
               <div className="divide-y divide-slate-800/50">
                 {activeSlots.length === 0 ? (
                   <div className="p-12 text-center">
-                    <div className="text-5xl mb-4">🕐</div>
+                    <div className="text-5xl mb-4">ðŸ•</div>
                     <p className="text-slate-400 mb-4">No time slots configured</p>
                     <Link
                       href="/edit"
@@ -358,7 +358,7 @@ export default function PlannerPage() {
                             {/* Goals & Tasks */}
                             {slotGoals.length === 0 ? (
                               <div className="text-sm text-slate-600 italic">
-                                No goals assigned • <Link href="/edit" className="text-violet-400 hover:underline">Add goals</Link>
+                                No goals assigned â€¢ <Link href="/edit" className="text-violet-400 hover:underline">Add goals</Link>
                               </div>
                             ) : (
                               <div className="space-y-3">
@@ -369,7 +369,7 @@ export default function PlannerPage() {
                                   return (
                                     <div key={goal.id} className="pl-4 border-l-2 border-violet-500/30">
                                       <div className="flex items-center gap-2 mb-2">
-                                        <span>🎯</span>
+                                        <span>ðŸŽ¯</span>
                                         <span className="font-medium text-white">{goal.title}</span>
                                         <span className="text-xs text-slate-500">
                                           ({formatDuration(goalCompletedMinutes)} done)
@@ -379,7 +379,7 @@ export default function PlannerPage() {
                                           goal.status === 'in_progress' ? 'bg-blue-500/20 text-blue-400' :
                                           'bg-amber-500/20 text-amber-400'
                                         }`}>
-                                          {goal.status === 'completed' ? '✓' : goal.status === 'in_progress' ? '◐' : '○'}
+                                          {goal.status === 'completed' ? 'âœ“' : goal.status === 'in_progress' ? 'â—' : 'â—‹'}
                                         </span>
                                       </div>
                                       
@@ -400,7 +400,7 @@ export default function PlannerPage() {
                                                   ? 'bg-emerald-500 border-emerald-500 text-white'
                                                   : 'border-slate-600'
                                               }`}>
-                                                {task.isCompleted && '✓'}
+                                                {task.isCompleted && 'âœ“'}
                                               </span>
                                               <span className={`flex-1 text-left text-sm ${
                                                 task.isCompleted ? 'text-slate-400 line-through' : 'text-white'
@@ -436,23 +436,23 @@ export default function PlannerPage() {
 
         {/* Data Relationships Info */}
         <div className="mt-6 p-4 bg-slate-900/50 border border-slate-800 rounded-xl">
-          <h3 className="text-sm font-semibold text-white mb-3">📊 Data Hierarchy</h3>
+          <h3 className="text-sm font-semibold text-white mb-3">ðŸ“Š Data Hierarchy</h3>
           <div className="flex items-center gap-4 text-xs text-slate-400">
             <div className="flex items-center gap-2">
               <div className="w-3 h-3 rounded bg-cyan-500" />
               <span>Time Slots ({totalSlots})</span>
             </div>
-            <span>→</span>
+            <span>â†’</span>
             <div className="flex items-center gap-2">
               <div className="w-3 h-3 rounded bg-emerald-500" />
               <span>Goals ({scheduledGoals} scheduled / {unscheduledGoals.length} unscheduled)</span>
             </div>
-            <span>→</span>
+            <span>â†’</span>
             <div className="flex items-center gap-2">
               <div className="w-3 h-3 rounded bg-violet-500" />
               <span>Tasks ({totalTasks} total)</span>
             </div>
-            <span>→</span>
+            <span>â†’</span>
             <div className="flex items-center gap-2">
               <div className="w-3 h-3 rounded bg-amber-500" />
               <span>Productivity ({formatDuration(productivity.todayMinutes)} today)</span>
@@ -463,7 +463,7 @@ export default function PlannerPage() {
         {/* Goal Dependency Map */}
         <div className="mt-8">
           <h3 className="text-xl font-bold text-white flex items-center gap-2 mb-2">
-            🔗 Dependency Map
+            ðŸ”— Dependency Map
           </h3>
           <p className="text-slate-400 text-sm mb-6">
              Visualizing how your goals connect.
@@ -476,14 +476,14 @@ export default function PlannerPage() {
             if (goalsWithDeps.length === 0) {
               return (
                 <div className="p-8 bg-slate-900/50 border border-slate-800 rounded-xl text-center">
-                  <div className="text-4xl mb-4">🔗</div>
+                  <div className="text-4xl mb-4">ðŸ”—</div>
                   <h4 className="text-slate-300 font-medium mb-2">No dependencies set</h4>
                   <Link 
                     href="/edit"
                     className="inline-flex items-center gap-2 px-4 py-2 bg-violet-600 hover:bg-violet-700 text-white rounded-lg text-sm transition-colors mt-2"
                   >
                     <span>Connect Goals</span>
-                    <span>→</span>
+                    <span>â†’</span>
                   </Link>
                 </div>
               );
@@ -512,9 +512,9 @@ export default function PlannerPage() {
                       {/* Status Badge */}
                       <div className="absolute top-4 right-4">
                         {goal.status === 'completed' ? (
-                           <span className="text-emerald-400 text-lg">✓</span>
+                           <span className="text-emerald-400 text-lg">âœ“</span>
                         ) : isBlocked ? (
-                           <span className="text-amber-500 text-lg" title="Blocked">🔒</span>
+                           <span className="text-amber-500 text-lg" title="Blocked">ðŸ”’</span>
                         ) : null}
                       </div>
 
@@ -570,7 +570,7 @@ export default function PlannerPage() {
                                   key={g.id}
                                   className="text-xs px-2 py-1 rounded-md bg-violet-500/10 text-violet-300 border border-violet-500/20 flex items-center gap-1.5"
                                 >
-                                  <span>🚀</span>
+                                  <span>ðŸš€</span>
                                   {g.title}
                                 </span>
                               ))}
@@ -593,3 +593,4 @@ export default function PlannerPage() {
     </div>
   );
 }
+

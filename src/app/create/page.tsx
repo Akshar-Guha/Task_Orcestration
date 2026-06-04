@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
@@ -11,11 +11,11 @@ import { DURATION_OPTIONS, formatDuration } from '@/lib/types';
 const mono = Space_Mono({ weight: ['400', '700'], subsets: ['latin'], display: 'swap' });
 
 const LEVEL_OPTIONS: { value: GoalLevel; label: string; emoji: string }[] = [
-  { value: 'weekly', label: 'Weekly', emoji: '📅' },
-  { value: 'monthly', label: 'Monthly', emoji: '📆' },
-  { value: 'quarterly', label: 'Quarterly', emoji: '📊' },
-  { value: 'yearly', label: 'Yearly', emoji: '🎯' },
-  { value: 'uncategorized', label: 'Other', emoji: '📌' },
+  { value: 'weekly', label: 'Weekly', emoji: 'ðŸ“…' },
+  { value: 'monthly', label: 'Monthly', emoji: 'ðŸ“†' },
+  { value: 'quarterly', label: 'Quarterly', emoji: 'ðŸ“Š' },
+  { value: 'yearly', label: 'Yearly', emoji: 'ðŸŽ¯' },
+  { value: 'uncategorized', label: 'Other', emoji: 'ðŸ“Œ' },
 ];
 
 const PRIORITY_OPTIONS: { value: 1 | 2 | 3; label: string; border: string; active: string }[] = [
@@ -47,14 +47,14 @@ function getGoalMetadata(level: GoalLevel): GoalMetadata {
   }
 }
 
-// ─── Shared field styles ─────────────────────────────────────────────────────
+// â”€â”€â”€ Shared field styles â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 const inputCls =
   'w-full px-4 py-3 bg-white/[0.04] border border-white/[0.08] rounded-2xl text-white placeholder:text-slate-600 focus:outline-none focus:border-violet-500/50 transition-all text-sm';
 
 const labelCls = 'block text-[10px] text-slate-600 uppercase tracking-[0.15em] mb-2';
 
-// ─── Task Form ───────────────────────────────────────────────────────────────
+// â”€â”€â”€ Task Form â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 function TaskForm({
   goals,
@@ -89,7 +89,7 @@ function TaskForm({
     if (!t) { setError('Title required'); return; }
     if (t.length > 200) { setError('Title max 200 chars'); return; }
     if (estimatedMinutes < 5 || estimatedMinutes > 480) {
-      setError('Duration: 5–480 min'); return;
+      setError('Duration: 5â€“480 min'); return;
     }
     onSubmit({ title: t, description: description.trim(), estimatedMinutes, goalId: selectedGoalId ?? undefined });
   };
@@ -102,7 +102,7 @@ function TaskForm({
         </div>
       )}
 
-      {/* Title — primary */}
+      {/* Title â€” primary */}
       <div>
         <label className={labelCls}>Task name</label>
         <input
@@ -117,7 +117,7 @@ function TaskForm({
         />
       </div>
 
-      {/* Duration — prominent */}
+      {/* Duration â€” prominent */}
       <div>
         <label className={labelCls}>How long?</label>
         <div className="flex flex-wrap gap-2">
@@ -178,7 +178,7 @@ function TaskForm({
         onClick={() => setShowDetails((d) => !d)}
         className="text-xs text-slate-600 hover:text-slate-400 transition-colors flex items-center gap-1"
       >
-        <span>{showDetails ? '−' : '+'}</span>
+        <span>{showDetails ? 'âˆ’' : '+'}</span>
         <span>{showDetails ? 'Hide details' : 'Add description'}</span>
       </button>
 
@@ -188,7 +188,7 @@ function TaskForm({
           <textarea
             value={description}
             onChange={(e) => setDescription(e.target.value)}
-            placeholder="Any extra context…"
+            placeholder="Any extra contextâ€¦"
             rows={2}
             className={`${inputCls} resize-none`}
           />
@@ -237,7 +237,7 @@ function GoalChipRow({
   );
 }
 
-// ─── Goal Form ───────────────────────────────────────────────────────────────
+// â”€â”€â”€ Goal Form â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 function GoalForm({
   timeSlots,
@@ -305,7 +305,7 @@ function GoalForm({
         />
       </div>
 
-      {/* Level — always visible, minimal */}
+      {/* Level â€” always visible, minimal */}
       <div>
         <label className={labelCls}>Timeframe</label>
         <div className="flex gap-2 flex-wrap">
@@ -326,7 +326,7 @@ function GoalForm({
         </div>
       </div>
 
-      {/* Priority — always visible */}
+      {/* Priority â€” always visible */}
       <div>
         <label className={labelCls}>Priority</label>
         <div className="grid grid-cols-3 gap-2">
@@ -353,7 +353,7 @@ function GoalForm({
         onClick={() => setShowAdvanced((d) => !d)}
         className="text-xs text-slate-600 hover:text-slate-400 transition-colors flex items-center gap-1"
       >
-        <span>{showAdvanced ? '−' : '+'}</span>
+        <span>{showAdvanced ? 'âˆ’' : '+'}</span>
         <span>{showAdvanced ? 'Hide options' : 'Deadline, time slot, dependencies'}</span>
       </button>
 
@@ -365,7 +365,7 @@ function GoalForm({
             <textarea
               value={description}
               onChange={(e) => setDescription(e.target.value)}
-              placeholder="More context…"
+              placeholder="More contextâ€¦"
               rows={2}
               className={`${inputCls} resize-none`}
             />
@@ -397,7 +397,7 @@ function GoalForm({
                   <SlotRow
                     key={s.id}
                     label={s.name}
-                    time={`${s.startTime}–${s.endTime}`}
+                    time={`${s.startTime}â€“${s.endTime}`}
                     active={timeSlotId === s.id}
                     onClick={() => setTimeSlotId(s.id)}
                   />
@@ -429,7 +429,7 @@ function GoalForm({
                           sel ? 'bg-amber-500 border-amber-500 text-white' : 'border-slate-600'
                         }`}
                       >
-                        {sel && '✓'}
+                        {sel && 'âœ“'}
                       </div>
                       <span className="truncate">{g.title}</span>
                     </button>
@@ -488,7 +488,7 @@ function SlotRow({
   );
 }
 
-// ─── Page ────────────────────────────────────────────────────────────────────
+// â”€â”€â”€ Page â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 export default function CreatePage() {
   const router = useRouter();
@@ -508,7 +508,7 @@ export default function CreatePage() {
   };
 
   return (
-    <div className="pb-28">
+    <div style={{ paddingBottom: 'calc(var(--nav-h) + var(--safe-b) + 1rem)' }}>
       <h1 className="text-xl font-bold text-white mb-5">Create</h1>
 
       {/* Tabs */}
@@ -547,7 +547,7 @@ export default function CreatePage() {
         />
       )}
 
-      {/* Obsidian — moved to footer, unobtrusive */}
+      {/* Obsidian â€” moved to footer, unobtrusive */}
       <div className="mt-8 pt-6 border-t border-white/[0.04] flex justify-center">
         <button
           onClick={() => {
@@ -556,10 +556,11 @@ export default function CreatePage() {
           }}
           className="text-xs text-slate-700 hover:text-slate-500 transition-colors flex items-center gap-1.5"
         >
-          <span>📝</span>
+          <span>ðŸ“</span>
           <span>Open Obsidian instead</span>
         </button>
       </div>
     </div>
   );
 }
+

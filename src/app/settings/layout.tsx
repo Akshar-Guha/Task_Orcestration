@@ -1,21 +1,21 @@
-'use client';
+﻿'use client';
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 
 const tabs = [
-  { id: 'database', label: 'Database', icon: '🗄️', href: '/settings/database' },
-  { id: 'agent', label: 'Agent Mode', icon: '🤖', href: '/settings/agent-mode' },
-  { id: 'notifications', label: 'Notifications', icon: '🔔', href: '/settings/notifications' },
-  { id: 'status', label: 'System Status', icon: '⚡', href: '/settings/system-status' },
-  { id: 'profile', label: 'Profile', icon: '👤', href: '/settings/profile' },
+  { id: 'database', label: 'Database', icon: 'ðŸ—„ï¸', href: '/settings/database' },
+  { id: 'agent', label: 'Agent Mode', icon: 'ðŸ¤–', href: '/settings/agent-mode' },
+  { id: 'notifications', label: 'Notifications', icon: 'ðŸ””', href: '/settings/notifications' },
+  { id: 'status', label: 'System Status', icon: 'âš¡', href: '/settings/system-status' },
+  { id: 'profile', label: 'Profile', icon: 'ðŸ‘¤', href: '/settings/profile' },
 ];
 
 export default function SettingsLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
 
   return (
-    <div className="min-h-screen bg-slate-950 pb-24">
+    <div className="min-h-screen bg-slate-950" style={{ paddingBottom: 'calc(var(--nav-h) + var(--safe-b) + 1rem)' }}>
       <div className="max-w-6xl mx-auto px-4 py-6">
         {/* Header */}
         <div className="mb-6">
@@ -50,3 +50,4 @@ export default function SettingsLayout({ children }: { children: React.ReactNode
     </div>
   );
 }
+

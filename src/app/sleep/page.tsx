@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import { useState } from 'react';
 import Link from 'next/link';
@@ -157,7 +157,7 @@ function getMoodLabel(level?: number): string {
     case 3: return 'Okay';
     case 2: return 'Tired';
     case 1: return 'Awful';
-    default: return '—';
+    default: return 'â€”';
   }
 }
 
@@ -204,7 +204,7 @@ export default function SleepPage() {
 
   return (
     <div
-      className="min-h-screen pb-24"
+      className="min-h-screen" style={{ paddingBottom: 'calc(var(--nav-h) + var(--safe-b) + 1rem)' }}
       style={{
         background: 'var(--bg)',
         fontFamily: 'var(--font-family-body)',
@@ -456,7 +456,7 @@ export default function SleepPage() {
                           }}
                         >
                           <span>bed {log.sleepTime || '--:--'}</span>
-                          <span style={{ color: 'var(--text-3)' }}>·</span>
+                          <span style={{ color: 'var(--text-3)' }}>Â·</span>
                           <span>up {log.wakeUpTime || '--:--'}</span>
                         </div>
                       </div>
@@ -504,3 +504,4 @@ export default function SleepPage() {
     </div>
   );
 }
+

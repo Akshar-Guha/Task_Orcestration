@@ -249,7 +249,7 @@ export default function NotificationsPage() {
     : null;
 
   return (
-    <div className="min-h-screen pb-24" style={{ background: 'var(--bg)', fontFamily: 'var(--font-family-body)' }}>
+    <div className="min-h-screen" style={{ background: 'var(--bg)', fontFamily: 'var(--font-family-body)', paddingBottom: 'calc(var(--nav-h) + var(--safe-b) + 1rem)' }}>
       <div className="max-w-xl mx-auto px-4 py-8">
         <h1 className="text-2xl font-semibold mb-1" style={{ color: 'var(--text)' }}>Notifications</h1>
         <p className="text-sm mb-8" style={{ color: 'var(--text-secondary)' }}>
@@ -315,7 +315,7 @@ export default function NotificationsPage() {
         )}
 
         {showForm && (
-          <div className="fixed inset-0 z-50 flex items-end justify-center" style={{ background: 'rgba(0,0,0,0.5)' }}>
+          <div className="fixed inset-0 z-50 flex items-end justify-center" style={{ background: 'rgba(0,0,0,0.5)', paddingBottom: 'calc(var(--nav-h) + var(--safe-b))' }}>
             <div className="w-full max-w-xl rounded-t-2xl flex flex-col" style={{ background: 'var(--bg)', maxHeight: '90dvh' }}>
               {/* Header — never scrolls away */}
               <div className="flex items-center justify-between px-6 pt-6 pb-4 flex-shrink-0" style={{ borderBottom: '1px solid var(--border)' }}>
@@ -543,3 +543,5 @@ function RuleCard({
     </div>
   );
 }
+
+
