@@ -1,4 +1,4 @@
-﻿'use client';
+'use client';
 
 import { useState, useRef } from 'react';
 import { Space_Mono } from 'next/font/google';
@@ -21,17 +21,17 @@ const mono = Space_Mono({ weight: ['400', '700'], subsets: ['latin'], display: '
 
 const LEVELS: GoalLevel[] = ['yearly', 'quarterly', 'monthly', 'weekly'];
 const LEVEL_ICONS: Record<GoalLevel, string> = {
-  yearly: 'ðŸŽ¯',
-  quarterly: 'ðŸ“Š',
-  monthly: 'ðŸ“…',
-  weekly: 'ðŸ“†',
-  uncategorized: 'â“',
+  yearly: '🎯',
+  quarterly: '📊',
+  monthly: '📅',
+  weekly: '📆',
+  uncategorized: '❓',
 };
 
-// â”€â”€â”€ Routine toggle badge â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── Routine toggle badge ─────────────────────────────────────────────────────
 
 function RoutineToggle({ task, onToggle }: { task: Task; onToggle: (id: string, val: boolean) => void }) {
-  // Don't show on completed tasks â€” no point adding a done task to routine
+  // Don't show on completed tasks — no point adding a done task to routine
   if (task.isCompleted) return null;
 
   return (
@@ -47,13 +47,13 @@ function RoutineToggle({ task, onToggle }: { task: Task; onToggle: (id: string, 
           : 'opacity-0 group-hover:opacity-100 bg-white/[0.03] border-white/[0.08] text-slate-600 hover:bg-cyan-500/10 hover:border-cyan-500/25 hover:text-cyan-400'
       }`}
     >
-      <span>{task.isDaily ? 'â°' : '+'}</span>
+      <span>{task.isDaily ? '⏰' : '+'}</span>
       <span>{task.isDaily ? 'Routine' : 'Routine'}</span>
     </button>
   );
 }
 
-// â”€â”€â”€ Task row (shared between GoalCard and panels) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── Task row (shared between GoalCard and panels) ────────────────────────────
 
 function TaskRow({
   task,
@@ -124,7 +124,7 @@ function TaskRow({
   );
 }
 
-// â”€â”€â”€ Inline task add per goal â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── Inline task add per goal ─────────────────────────────────────────────────
 
 function InlineTaskAdd({ goalId }: { goalId?: string }) {
   const [open, setOpen] = useState(false);
@@ -177,7 +177,7 @@ function InlineTaskAdd({ goalId }: { goalId?: string }) {
         value={title}
         onChange={(e) => setTitle(e.target.value)}
         onKeyDown={(e) => { if (e.key === 'Escape') { setOpen(false); setTitle(''); } }}
-        placeholder="Task nameâ€¦"
+        placeholder="Task name…"
         className="flex-1 bg-white/[0.04] border border-white/[0.08] rounded-xl px-3 py-2 text-sm text-white placeholder:text-slate-600 focus:outline-none focus:border-violet-500/40 transition-all"
       />
       <button
@@ -185,20 +185,20 @@ function InlineTaskAdd({ goalId }: { goalId?: string }) {
         disabled={!title.trim() || busy}
         className={`${mono.className} px-3 py-2 text-xs font-bold rounded-xl transition-all disabled:opacity-30 bg-violet-500/15 border border-violet-500/30 text-violet-400 hover:bg-violet-500/25`}
       >
-        {busy ? 'â€¦' : 'ADD'}
+        {busy ? '…' : 'ADD'}
       </button>
       <button
         type="button"
         onClick={() => { setOpen(false); setTitle(''); }}
         className="text-slate-600 hover:text-slate-400 px-1 text-lg leading-none"
       >
-        Ã—
+        ×
       </button>
     </form>
   );
 }
 
-// â”€â”€â”€ Goal card â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── Goal card ────────────────────────────────────────────────────────────────
 
 function GoalCard({
   goal,
@@ -260,7 +260,7 @@ function GoalCard({
             <span className={`${mono.className} text-[10px] text-slate-600`}>{completed}/{total} tasks</span>
             {goal.deadline && (
               <span className={`${mono.className} text-[10px] ${isOverdue ? 'text-red-400' : 'text-slate-600'}`}>
-                Â· {new Date(goal.deadline).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
+                · {new Date(goal.deadline).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
                 {isOverdue && ' overdue'}
               </span>
             )}
@@ -276,7 +276,7 @@ function GoalCard({
               <path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
             </svg>
           </button>
-          <span className={`text-slate-600 text-xs transition-transform duration-200 ${open ? 'rotate-180' : ''}`}>â–¾</span>
+          <span className={`text-slate-600 text-xs transition-transform duration-200 ${open ? 'rotate-180' : ''}`}>▾</span>
         </div>
       </button>
 
@@ -306,7 +306,7 @@ function GoalCard({
   );
 }
 
-// â”€â”€â”€ All Goals panel â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── All Goals panel ──────────────────────────────────────────────────────────
 
 function AllGoalsPanel({ goals, tasks, onClose }: { goals: Goal[]; tasks: Task[]; onClose: () => void }) {
   const activeGoals = goals.filter((g) => !g.isArchived);
@@ -319,7 +319,7 @@ function AllGoalsPanel({ goals, tasks, onClose }: { goals: Goal[]; tasks: Task[]
             <h2 className="text-sm font-bold text-white">All Goals</h2>
             <p className={`${mono.className} text-[10px] text-slate-600 mt-0.5`}>{activeGoals.length} active</p>
           </div>
-          <button onClick={onClose} className="text-slate-600 hover:text-white transition-colors text-xl leading-none px-1">Ã—</button>
+          <button onClick={onClose} className="text-slate-600 hover:text-white transition-colors text-xl leading-none px-1">×</button>
         </div>
 
         <div className="flex-1 overflow-y-auto px-4 py-4 space-y-5">
@@ -374,7 +374,7 @@ function AllGoalsPanel({ goals, tasks, onClose }: { goals: Goal[]; tasks: Task[]
   );
 }
 
-// â”€â”€â”€ All Tasks panel â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── All Tasks panel ──────────────────────────────────────────────────────────
 
 function AllTasksPanel({
   tasks,
@@ -411,7 +411,7 @@ function AllTasksPanel({
             <h2 className="text-sm font-bold text-white">All Tasks</h2>
             <p className={`${mono.className} text-[10px] text-slate-600 mt-0.5`}>{displayed.length} shown</p>
           </div>
-          <button onClick={onClose} className="text-slate-600 hover:text-white transition-colors text-xl leading-none px-1">Ã—</button>
+          <button onClick={onClose} className="text-slate-600 hover:text-white transition-colors text-xl leading-none px-1">×</button>
         </div>
 
         {/* Filter tabs */}
@@ -465,7 +465,7 @@ function AllTasksPanel({
   );
 }
 
-// â”€â”€â”€ Page â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default function GoalsPage() {
   const { data: goals = [] } = useGoals();
@@ -496,7 +496,7 @@ export default function GoalsPage() {
         <div>
           <h1 className="text-xl font-bold text-white">Goals</h1>
           <p className={`${mono.className} text-xs text-slate-600 mt-0.5`}>
-            {activeGoals.length} active Â· {routineCount} routines
+            {activeGoals.length} active · {routineCount} routines
           </p>
         </div>
         <div className="flex gap-2">
@@ -505,13 +505,13 @@ export default function GoalsPage() {
             onClick={() => setShowAllGoals(true)}
             className={`${mono.className} px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider bg-white/[0.03] border border-white/[0.08] text-slate-500 rounded-xl hover:border-white/[0.15] hover:text-slate-300 transition-all`}
           >
-            â–¦ Goals
+            ▦ Goals
           </button>
           <button
             onClick={() => setShowAllTasks(true)}
             className={`${mono.className} px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider bg-white/[0.03] border border-white/[0.08] text-slate-500 rounded-xl hover:border-white/[0.15] hover:text-slate-300 transition-all`}
           >
-            â˜° Tasks
+            ☰ Tasks
           </button>
           <Link
             href="/create"
@@ -533,7 +533,7 @@ export default function GoalsPage() {
       {/* Empty state */}
       {activeGoals.length === 0 && quickTasks.length === 0 && (
         <div className="text-center py-20">
-          <div className="text-5xl mb-4">ðŸŽ¯</div>
+          <div className="text-5xl mb-4">🎯</div>
           <h2 className="text-lg font-bold text-white mb-2">No goals yet</h2>
           <p className="text-sm text-slate-500 mb-6">Goals give your tasks meaning.</p>
           <Link
@@ -581,7 +581,7 @@ export default function GoalsPage() {
         {quickTasks.length > 0 && (
           <div>
             <div className="flex items-center gap-2 mb-3">
-              <span className="text-base">âš¡</span>
+              <span className="text-base">⚡</span>
               <span className={`${mono.className} text-[10px] font-bold uppercase tracking-[0.2em] text-amber-500`}>
                 Quick Tasks
               </span>
@@ -624,4 +624,3 @@ export default function GoalsPage() {
     </div>
   );
 }
-

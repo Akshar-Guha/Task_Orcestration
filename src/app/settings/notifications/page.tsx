@@ -1,4 +1,4 @@
-﻿'use client';
+'use client';
 
 import { useState, useEffect } from 'react';
 import { setupPushNotifications } from '@/lib/push';
@@ -543,5 +543,3 @@ function RuleCard({
     </div>
   );
 }
-
-

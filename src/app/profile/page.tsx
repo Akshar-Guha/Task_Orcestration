@@ -1,4 +1,4 @@
-﻿'use client';
+'use client';
 
 import Link from 'next/link';
 import { useMemo } from 'react';
@@ -131,7 +131,7 @@ export default function ProfilePage() {
   });
   
   return (
-    <div className="min-h-screen bg-slate-950" style={{ paddingBottom: 'calc(var(--nav-h) + var(--safe-b) + 1rem)' }}>
+    <div className="min-h-screen bg-slate-950" 
       <div className="max-w-7xl mx-auto px-4 py-6">
         <div className="space-y-6">
           <div className="flex items-center justify-between">
@@ -140,7 +140,7 @@ export default function ProfilePage() {
               href="/edit"
               className="flex items-center gap-2 px-4 py-2 bg-slate-800 hover:bg-slate-700 rounded-lg transition-colors border border-slate-700"
             >
-              <span>âš™ï¸</span>
+              <span>⚙️</span>
               <span>Edit System</span>
             </Link>
           </div>
@@ -175,7 +175,7 @@ export default function ProfilePage() {
               <div className="p-4 bg-slate-900/50 border border-slate-800 rounded-xl group-hover:border-indigo-500/50 group-hover:bg-slate-900/80 transition-all cursor-pointer h-full">
                 <div className="flex items-center justify-between mb-1">
                   <span className="text-slate-400 text-sm">Sleep Score</span>
-                  <span className="text-xs text-indigo-400 group-hover:translate-x-1 transition-transform">â†’</span>
+                  <span className="text-xs text-indigo-400 group-hover:translate-x-1 transition-transform">→</span>
                 </div>
                 <div className="text-2xl font-bold text-indigo-400">{Math.round(sleepStats.averageMood * 20)}%</div>
                 <div className="text-xs text-slate-500 mt-1">View Logs</div>
@@ -287,11 +287,10 @@ export default function ProfilePage() {
         {/* Quick Tip */}
         <div className="mt-6 p-4 bg-violet-500/10 border border-violet-500/30 rounded-xl">
           <p className="text-sm text-violet-400">
-            ðŸ’¡ <b>Tip:</b> Go to <a href="/logs" className="underline">Logs</a> to see detailed activity timeline with categories
+            💡 <b>Tip:</b> Go to <a href="/logs" className="underline">Logs</a> to see detailed activity timeline with categories
           </p>
         </div>
       </div>
     </div>
   );
 }
-

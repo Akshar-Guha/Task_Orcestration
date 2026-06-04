@@ -1,4 +1,4 @@
-﻿'use client';
+'use client';
 
 import { ReactNode } from 'react';
 import { Header } from './Header';
@@ -33,4 +33,3 @@ export function AppShell({ children }: AppShellProps) {
     </div>
   );
 }
-

@@ -1,4 +1,4 @@
-﻿'use client';
+'use client';
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
@@ -128,9 +128,9 @@ export default function EditPage() {
         {/* Tabs - Mobile Optimized */}
         <div className="flex gap-2 mb-6 overflow-x-auto pb-2 -mx-4 px-4">
           {[
-            { id: 'timeslots' as EditTab, label: 'Time Slots', icon: 'ðŸ•' },
-            { id: 'goals' as EditTab, label: 'Goals', icon: 'ðŸŽ¯' },
-            { id: 'tasks' as EditTab, label: 'Tasks', icon: 'âœ…' },
+            { id: 'timeslots' as EditTab, label: 'Time Slots', icon: '🕐' },
+            { id: 'goals' as EditTab, label: 'Goals', icon: '🎯' },
+            { id: 'tasks' as EditTab, label: 'Tasks', icon: '✅' },
           ].map((tab) => (
             <button
               key={tab.id}
@@ -166,7 +166,7 @@ export default function EditPage() {
 
               {editingSlots.length === 0 ? (
                 <div className="text-center py-12 bg-slate-900/50 border border-slate-800 rounded-xl">
-                  <div className="text-5xl mb-4">ðŸ•</div>
+                  <div className="text-5xl mb-4">🕐</div>
                   <p className="text-slate-400 mb-4">No time slots yet. Add your first one!</p>
                 </div>
               ) : (
@@ -264,7 +264,7 @@ export default function EditPage() {
                               : 'bg-slate-700 text-slate-400'
                           }`}
                         >
-                          {slot.isActive ? 'âœ“ Active' : 'â—‹ Inactive'}
+                          {slot.isActive ? '✓ Active' : '○ Inactive'}
                         </button>
 
                         <button
@@ -280,7 +280,7 @@ export default function EditPage() {
                                  : 'bg-slate-700 text-slate-400'
                           }`}
                         >
-                          {slot.isNotificationEnabled !== false ? 'ðŸ”” Notify' : 'ðŸ”• Muted'}
+                          {slot.isNotificationEnabled !== false ? '🔔 Notify' : '🔕 Muted'}
                         </button>
 
                         <button
@@ -293,7 +293,7 @@ export default function EditPage() {
                         }}
                         className="min-h-[44px] px-2 py-3 bg-red-600 hover:bg-red-700 text-white rounded-lg font-medium transition-all text-sm flex items-center justify-center"
                       >
-                        ðŸ—‘ï¸ Delete
+                        🗑️ Delete
                       </button>
                     </div>
                   </div>
@@ -316,7 +316,7 @@ export default function EditPage() {
                             return (
                               <div key={goal.id} className="flex items-center justify-between p-3 bg-slate-800/50 rounded-lg">
                                 <div className="flex items-center gap-3">
-                                  <span>ðŸŽ¯</span>
+                                  <span>🎯</span>
                                   <div>
                                     <span className="text-white font-medium">{goal.title}</span>
                                     <span className="text-sm text-slate-500 ml-2">
@@ -374,7 +374,7 @@ export default function EditPage() {
                               <option value="">+ Add a goal to this slot...</option>
                               {unlinkedGoals.map((goal) => (
                                 <option key={goal.id} value={goal.id}>
-                                  ðŸŽ¯ {goal.title}
+                                  🎯 {goal.title}
                                 </option>
                               ))}
                             </select>
@@ -470,9 +470,9 @@ export default function EditPage() {
                         {(['not_started', 'in_progress', 'completed'] as const).map((status) => {
                           const isActive = goal.status === status;
                           const config = {
-                            not_started: { icon: 'ðŸŸ¡', label: 'Not Started', bg: 'bg-amber-500/20', border: 'border-amber-500' },
-                            in_progress: { icon: 'ðŸ”µ', label: 'In Progress', bg: 'bg-blue-500/20', border: 'border-blue-500' },
-                            completed: { icon: 'ðŸŸ¢', label: 'Completed', bg: 'bg-emerald-500/20', border: 'border-emerald-500' },
+                            not_started: { icon: '🟡', label: 'Not Started', bg: 'bg-amber-500/20', border: 'border-amber-500' },
+                            in_progress: { icon: '🔵', label: 'In Progress', bg: 'bg-blue-500/20', border: 'border-blue-500' },
+                            completed: { icon: '🟢', label: 'Completed', bg: 'bg-emerald-500/20', border: 'border-emerald-500' },
                           }[status];
 
                           return (
@@ -548,7 +548,7 @@ export default function EditPage() {
                             : 'bg-slate-800 text-slate-400 hover:bg-amber-500/10 hover:text-amber-400'
                         }`}
                       >
-                        <span>â­</span>
+                        <span>⭐</span>
                         <span>{(focusGoalIds || []).includes(goal.id) ? 'Priority Focused' : 'Set as Priority'}</span>
                       </button>
                     </div>
@@ -599,7 +599,7 @@ export default function EditPage() {
                                       setHasChanges(true);
                                     }}
                                     className="hover:text-white"
-                                  >Ã—</button>
+                                  >×</button>
                                 </span>
                               );
                             })}
@@ -637,7 +637,7 @@ export default function EditPage() {
                               const unlockGoal = editingGoals.find(g => g.id === unlockId);
                               return unlockGoal && (
                                 <span key={unlockId} className="inline-flex items-center gap-1 px-2 py-0.5 bg-violet-500/20 text-violet-400 text-xs rounded">
-                                  â†’ {unlockGoal.title}
+                                  → {unlockGoal.title}
                                   <button
                                     onClick={() => {
                                       setEditingGoals(
@@ -649,7 +649,7 @@ export default function EditPage() {
                                       setHasChanges(true);
                                     }}
                                     className="hover:text-white"
-                                  >Ã—</button>
+                                  >×</button>
                                 </span>
                               );
                             })}
@@ -814,4 +814,3 @@ export default function EditPage() {
     </div>
   );
 }
-

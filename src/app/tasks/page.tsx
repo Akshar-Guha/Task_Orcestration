@@ -1,4 +1,4 @@
-﻿'use client';
+'use client';
 
 import { useState } from 'react';
 import { useGoals, useTasks, useCompleteTask, useDeleteTask, useUncompleteTask, useTaskGoalLinks } from '@/lib/hooks/useSupabase';
@@ -23,8 +23,8 @@ export default function TasksPage() {
 
   return (
     <div
-      className="min-h-screen"
-      style={{ paddingBottom: 'calc(var(--nav-h) + var(--safe-b) + 1rem)', background: 'var(--bg)', fontFamily: 'var(--font-family-body)' }}
+      className="min-h-screen" style={{ paddingBottom: 'calc(var(--nav-h) + var(--safe-b) + 1rem)', background: 'var(--bg)', fontFamily: 'var(--font-family-body)' }}
+      style={{ background: 'var(--bg)', fontFamily: 'var(--font-family-body)' }}
     >
       <div className="max-w-2xl mx-auto px-4 py-8">
 
@@ -308,4 +308,3 @@ export default function TasksPage() {
     </div>
   );
 }
-
