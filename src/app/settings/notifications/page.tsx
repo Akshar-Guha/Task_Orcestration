@@ -316,149 +316,155 @@ export default function NotificationsPage() {
 
         {showForm && (
           <div className="fixed inset-0 z-50 flex items-end justify-center" style={{ background: 'rgba(0,0,0,0.5)' }}>
-            <div className="w-full max-w-xl rounded-t-2xl p-6 pb-8" style={{ background: 'var(--bg)', maxHeight: '90vh', overflowY: 'auto' }}>
-              <div className="flex items-center justify-between mb-5">
+            <div className="w-full max-w-xl rounded-t-2xl flex flex-col" style={{ background: 'var(--bg)', maxHeight: '90dvh' }}>
+              {/* Header — never scrolls away */}
+              <div className="flex items-center justify-between px-6 pt-6 pb-4 flex-shrink-0" style={{ borderBottom: '1px solid var(--border)' }}>
                 <h2 className="text-lg font-semibold" style={{ color: 'var(--text)' }}>New Reminder</h2>
                 <button onClick={() => setShowForm(false)} style={{ color: 'var(--text-secondary)', fontSize: '1.2rem' }}>✕</button>
               </div>
 
-              <label className="block text-xs font-medium mb-2" style={{ color: 'var(--text-secondary)' }}>Type</label>
-              <div className="flex flex-wrap gap-2 mb-4">
-                {(Object.keys(TYPE_LABELS) as NotificationType[]).map(t => (
-                  <button
-                    key={t}
-                    onClick={() => setForm(f => ({ ...f, notification_type: t, linked_entity_id: '' }))}
-                    className="px-3 py-1 rounded-full text-xs font-medium border"
-                    style={{
-                      background: form.notification_type === t ? 'var(--accent)' : 'transparent',
-                      color: form.notification_type === t ? '#fff' : 'var(--text)',
-                      borderColor: form.notification_type === t ? 'var(--accent)' : 'var(--border)',
-                    }}
-                  >
-                    {TYPE_LABELS[t]}
-                  </button>
-                ))}
-              </div>
+              {/* Scrollable form body */}
+              <div className="flex-1 overflow-y-auto px-6 py-4">
+                <label className="block text-xs font-medium mb-2" style={{ color: 'var(--text-secondary)' }}>Type</label>
+                <div className="flex flex-wrap gap-2 mb-4">
+                  {(Object.keys(TYPE_LABELS) as NotificationType[]).map(t => (
+                    <button
+                      key={t}
+                      onClick={() => setForm(f => ({ ...f, notification_type: t, linked_entity_id: '' }))}
+                      className="px-3 py-1 rounded-full text-xs font-medium border"
+                      style={{
+                        background: form.notification_type === t ? 'var(--accent)' : 'transparent',
+                        color: form.notification_type === t ? '#fff' : 'var(--text)',
+                        borderColor: form.notification_type === t ? 'var(--accent)' : 'var(--border)',
+                      }}
+                    >
+                      {TYPE_LABELS[t]}
+                    </button>
+                  ))}
+                </div>
 
-              {needsEntityPicker && (
-                <>
-                  <label className="block text-xs font-medium mb-1" style={{ color: 'var(--text-secondary)' }}>
-                    Which {TYPE_LABELS[form.notification_type].toLowerCase()}?
-                  </label>
-                  {entityList.length === 0 ? (
-                    <p className="text-xs mb-4" style={{ color: 'var(--text-secondary)' }}>
-                      No active {TYPE_LABELS[form.notification_type].toLowerCase()}s found.
-                    </p>
-                  ) : (
-                    <select
-                      value={form.linked_entity_id}
-                      onChange={e => setForm(f => ({ ...f, linked_entity_id: e.target.value }))}
+                {needsEntityPicker && (
+                  <>
+                    <label className="block text-xs font-medium mb-1" style={{ color: 'var(--text-secondary)' }}>
+                      Which {TYPE_LABELS[form.notification_type].toLowerCase()}?
+                    </label>
+                    {entityList.length === 0 ? (
+                      <p className="text-xs mb-4" style={{ color: 'var(--text-secondary)' }}>
+                        No active {TYPE_LABELS[form.notification_type].toLowerCase()}s found.
+                      </p>
+                    ) : (
+                      <select
+                        value={form.linked_entity_id}
+                        onChange={e => setForm(f => ({ ...f, linked_entity_id: e.target.value }))}
+                        className="w-full rounded-lg px-3 py-2 text-sm mb-4"
+                        style={{ background: 'var(--card)', color: 'var(--text)', border: '1px solid var(--border)' }}
+                      >
+                        <option value="">Select…</option>
+                        {entityList.map(e => (
+                          <option key={e.id} value={e.id}>{e.name}</option>
+                        ))}
+                      </select>
+                    )}
+                  </>
+                )}
+
+                {form.notification_type === 'custom' && (
+                  <>
+                    <label className="block text-xs font-medium mb-1" style={{ color: 'var(--text-secondary)' }}>Title</label>
+                    <input
+                      value={form.custom_title}
+                      onChange={e => setForm(f => ({ ...f, custom_title: e.target.value }))}
+                      placeholder="e.g. Drink water"
+                      className="w-full rounded-lg px-3 py-2 text-sm mb-3"
+                      style={{ background: 'var(--card)', color: 'var(--text)', border: '1px solid var(--border)' }}
+                    />
+                    <label className="block text-xs font-medium mb-1" style={{ color: 'var(--text-secondary)' }}>Message</label>
+                    <input
+                      value={form.custom_body}
+                      onChange={e => setForm(f => ({ ...f, custom_body: e.target.value }))}
+                      placeholder="e.g. Have you drunk 2L today?"
                       className="w-full rounded-lg px-3 py-2 text-sm mb-4"
                       style={{ background: 'var(--card)', color: 'var(--text)', border: '1px solid var(--border)' }}
+                    />
+                  </>
+                )}
+
+                {preview && (form.linked_entity_id || form.notification_type === 'sleep_wake') && (
+                  <div className="rounded-lg px-4 py-3 mb-4" style={{ background: 'var(--card)', border: '1px solid var(--border)' }}>
+                    <p className="text-xs font-medium mb-0.5" style={{ color: 'var(--text-secondary)' }}>Preview</p>
+                    <p className="text-sm font-semibold" style={{ color: 'var(--text)' }}>{preview.title}</p>
+                    <p className="text-xs" style={{ color: 'var(--text-secondary)' }}>{preview.body}</p>
+                    <p className="text-xs mt-1.5" style={{ color: 'var(--text-secondary)' }}>
+                      Buttons: {['task','habit','custom'].includes(form.notification_type) ? '[✅ Done]  [⏰ Later]' : '[📱 Open App]  [⏰ Later]'}
+                    </p>
+                  </div>
+                )}
+
+                <label className="block text-xs font-medium mb-1" style={{ color: 'var(--text-secondary)' }}>Fire at</label>
+                <input
+                  type="time"
+                  value={form.schedule_time}
+                  onChange={e => setForm(f => ({ ...f, schedule_time: e.target.value }))}
+                  className="w-full rounded-lg px-3 py-2 text-sm mb-4"
+                  style={{ background: 'var(--card)', color: 'var(--text)', border: '1px solid var(--border)' }}
+                />
+
+                <label className="block text-xs font-medium mb-2" style={{ color: 'var(--text-secondary)' }}>Repeat on</label>
+                <div className="flex gap-1 mb-4">
+                  {DAY_LABELS.map((d, i) => (
+                    <button
+                      key={i}
+                      onClick={() => setForm(f => ({
+                        ...f,
+                        repeat_days: f.repeat_days.includes(i)
+                          ? f.repeat_days.filter(x => x !== i)
+                          : [...f.repeat_days, i].sort(),
+                      }))}
+                      className="flex-1 py-1.5 rounded-lg text-xs font-medium"
+                      style={{
+                        background: form.repeat_days.includes(i) ? 'var(--accent)' : 'var(--card)',
+                        color: form.repeat_days.includes(i) ? '#fff' : 'var(--text-secondary)',
+                        border: '1px solid var(--border)',
+                      }}
                     >
-                      <option value="">Select…</option>
-                      {entityList.map(e => (
-                        <option key={e.id} value={e.id}>{e.name}</option>
-                      ))}
-                    </select>
-                  )}
-                </>
-              )}
-
-              {form.notification_type === 'custom' && (
-                <>
-                  <label className="block text-xs font-medium mb-1" style={{ color: 'var(--text-secondary)' }}>Title</label>
-                  <input
-                    value={form.custom_title}
-                    onChange={e => setForm(f => ({ ...f, custom_title: e.target.value }))}
-                    placeholder="e.g. Drink water"
-                    className="w-full rounded-lg px-3 py-2 text-sm mb-3"
-                    style={{ background: 'var(--card)', color: 'var(--text)', border: '1px solid var(--border)' }}
-                  />
-                  <label className="block text-xs font-medium mb-1" style={{ color: 'var(--text-secondary)' }}>Message</label>
-                  <input
-                    value={form.custom_body}
-                    onChange={e => setForm(f => ({ ...f, custom_body: e.target.value }))}
-                    placeholder="e.g. Have you drunk 2L today?"
-                    className="w-full rounded-lg px-3 py-2 text-sm mb-4"
-                    style={{ background: 'var(--card)', color: 'var(--text)', border: '1px solid var(--border)' }}
-                  />
-                </>
-              )}
-
-              {preview && (form.linked_entity_id || form.notification_type === 'sleep_wake') && (
-                <div className="rounded-lg px-4 py-3 mb-4" style={{ background: 'var(--card)', border: '1px solid var(--border)' }}>
-                  <p className="text-xs font-medium mb-0.5" style={{ color: 'var(--text-secondary)' }}>Preview</p>
-                  <p className="text-sm font-semibold" style={{ color: 'var(--text)' }}>{preview.title}</p>
-                  <p className="text-xs" style={{ color: 'var(--text-secondary)' }}>{preview.body}</p>
-                  <p className="text-xs mt-1.5" style={{ color: 'var(--text-secondary)' }}>
-                    Buttons: {['task','habit','custom'].includes(form.notification_type) ? '[✅ Done]  [⏰ Later]' : '[📱 Open App]  [⏰ Later]'}
-                  </p>
+                      {d}
+                    </button>
+                  ))}
                 </div>
-              )}
 
-              <label className="block text-xs font-medium mb-1" style={{ color: 'var(--text-secondary)' }}>Fire at</label>
-              <input
-                type="time"
-                value={form.schedule_time}
-                onChange={e => setForm(f => ({ ...f, schedule_time: e.target.value }))}
-                className="w-full rounded-lg px-3 py-2 text-sm mb-4"
-                style={{ background: 'var(--card)', color: 'var(--text)', border: '1px solid var(--border)' }}
-              />
-
-              <label className="block text-xs font-medium mb-2" style={{ color: 'var(--text-secondary)' }}>Repeat on</label>
-              <div className="flex gap-1 mb-4">
-                {DAY_LABELS.map((d, i) => (
-                  <button
-                    key={i}
-                    onClick={() => setForm(f => ({
-                      ...f,
-                      repeat_days: f.repeat_days.includes(i)
-                        ? f.repeat_days.filter(x => x !== i)
-                        : [...f.repeat_days, i].sort(),
-                    }))}
-                    className="flex-1 py-1.5 rounded-lg text-xs font-medium"
-                    style={{
-                      background: form.repeat_days.includes(i) ? 'var(--accent)' : 'var(--card)',
-                      color: form.repeat_days.includes(i) ? '#fff' : 'var(--text-secondary)',
-                      border: '1px solid var(--border)',
-                    }}
-                  >
-                    {d}
-                  </button>
-                ))}
+                <label className="block text-xs font-medium mb-2" style={{ color: 'var(--text-secondary)' }}>Re-fire every (if not tapped Done)</label>
+                <div className="flex gap-2 flex-wrap">
+                  {SNOOZE_OPTIONS.map(o => (
+                    <button
+                      key={o.value}
+                      onClick={() => setForm(f => ({ ...f, snooze_interval_minutes: o.value }))}
+                      className="px-3 py-1 rounded-full text-xs font-medium border"
+                      style={{
+                        background: form.snooze_interval_minutes === o.value ? 'var(--accent)' : 'transparent',
+                        color: form.snooze_interval_minutes === o.value ? '#fff' : 'var(--text)',
+                        borderColor: form.snooze_interval_minutes === o.value ? 'var(--accent)' : 'var(--border)',
+                      }}
+                    >
+                      {o.value} min
+                    </button>
+                  ))}
+                </div>
               </div>
 
-              <label className="block text-xs font-medium mb-2" style={{ color: 'var(--text-secondary)' }}>Re-fire every (if not tapped Done)</label>
-              <div className="flex gap-2 mb-6 flex-wrap">
-                {SNOOZE_OPTIONS.map(o => (
-                  <button
-                    key={o.value}
-                    onClick={() => setForm(f => ({ ...f, snooze_interval_minutes: o.value }))}
-                    className="px-3 py-1 rounded-full text-xs font-medium border"
-                    style={{
-                      background: form.snooze_interval_minutes === o.value ? 'var(--accent)' : 'transparent',
-                      color: form.snooze_interval_minutes === o.value ? '#fff' : 'var(--text)',
-                      borderColor: form.snooze_interval_minutes === o.value ? 'var(--accent)' : 'var(--border)',
-                    }}
-                  >
-                    {o.value} min
-                  </button>
-                ))}
+              {/* Save button — always visible at bottom */}
+              <div className="px-6 pt-4 pb-8 flex-shrink-0" style={{ borderTop: '1px solid var(--border)' }}>
+                {formError && (
+                  <p className="text-xs mb-3" style={{ color: '#ef4444' }}>{formError}</p>
+                )}
+                <button
+                  onClick={handleSaveRule}
+                  disabled={savingRule}
+                  className="w-full py-2.5 rounded-xl text-sm font-semibold"
+                  style={{ background: 'var(--accent)', color: '#fff' }}
+                >
+                  {savingRule ? 'Saving…' : 'Save Reminder'}
+                </button>
               </div>
-
-              {formError && (
-                <p className="text-xs mb-3" style={{ color: '#ef4444' }}>{formError}</p>
-              )}
-
-              <button
-                onClick={handleSaveRule}
-                disabled={savingRule}
-                className="w-full py-2.5 rounded-xl text-sm font-semibold"
-                style={{ background: 'var(--accent)', color: '#fff' }}
-              >
-                {savingRule ? 'Saving…' : 'Save Reminder'}
-              </button>
             </div>
           </div>
         )}
