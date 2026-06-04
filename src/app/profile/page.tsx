@@ -131,7 +131,7 @@ export default function ProfilePage() {
   });
   
   return (
-    <div className="min-h-screen bg-slate-950" 
+    <div className="min-h-screen bg-slate-950" style={{ paddingBottom: 'calc(var(--nav-h) + var(--safe-b) + 1rem)' }}>
       <div className="max-w-7xl mx-auto px-4 py-6">
         <div className="space-y-6">
           <div className="flex items-center justify-between">
