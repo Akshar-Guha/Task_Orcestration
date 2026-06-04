@@ -11,8 +11,9 @@ const supabase = createClient(
 // PATCH /api/notifications/rules/[id] — update rule (toggle enabled, edit fields)
 export async function PATCH(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
+  const { id } = await params;
   const userId = getCurrentUserId();
   if (!userId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
@@ -21,7 +22,7 @@ export async function PATCH(
   const { data, error } = await supabase
     .from('notification_rules')
     .update({ ...updates, updated_at: new Date().toISOString() })
-    .eq('id', params.id)
+    .eq('id', id)
     .eq('user_id', userId)
     .select()
     .single();
@@ -33,15 +34,16 @@ export async function PATCH(
 // DELETE /api/notifications/rules/[id] — remove a rule
 export async function DELETE(
   _request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
+  const { id } = await params;
   const userId = getCurrentUserId();
   if (!userId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
   const { error } = await supabase
     .from('notification_rules')
     .delete()
-    .eq('id', params.id)
+    .eq('id', id)
     .eq('user_id', userId);
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
@@ -51,15 +53,16 @@ export async function DELETE(
 // POST /api/notifications/rules/[id] — send this rule's notification immediately
 export async function POST(
   _request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
+  const { id } = await params;
   const userId = getCurrentUserId();
   if (!userId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
   const { data: rule, error: fetchError } = await supabase
     .from('notification_rules')
     .select('*')
-    .eq('id', params.id)
+    .eq('id', id)
     .eq('user_id', userId)
     .single();
 
@@ -70,9 +73,8 @@ export async function POST(
   const result = await sendPushNotification(userId, {
     title: rule.title,
     body: rule.body,
-    icon: rule.icon || undefined,
-    appUrl: '/dashboard',
     tag: `rule-${rule.id}`,
+    appUrl: '/dashboard',
   });
 
   return NextResponse.json(result);
