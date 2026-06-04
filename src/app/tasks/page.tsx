@@ -23,8 +23,8 @@ export default function TasksPage() {
 
   return (
     <div
-      className="min-h-screen" style={{ paddingBottom: 'calc(var(--nav-h) + var(--safe-b) + 1rem)' }}
-      style={{ background: 'var(--bg)', fontFamily: 'var(--font-family-body)' }}
+      className="min-h-screen"
+      style={{ paddingBottom: 'calc(var(--nav-h) + var(--safe-b) + 1rem)', background: 'var(--bg)', fontFamily: 'var(--font-family-body)' }}
     >
       <div className="max-w-2xl mx-auto px-4 py-8">
 
