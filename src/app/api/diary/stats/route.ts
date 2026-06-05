@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from 'next/server';
+﻿import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { getCurrentUserId } from '@/lib/user';
 import { cache, cacheKeys, cacheTTL, getWithCache } from '@/lib/diary-cache';
@@ -6,7 +6,7 @@ import { getDateInTimeZone, resolveUserTimeZone } from '@/lib/server-user-contex
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+  process.env.SUPABASE_SERVICE_ROLE_KEY!
 );
 
 interface StreakResult {
@@ -49,9 +49,6 @@ export async function GET(request: NextRequest) {
 
     const { searchParams } = new URL(request.url);
     const type = searchParams.get('type') || 'overview';
-    await supabase.rpc('refresh_diary_stats');
-    cache.deletePattern(`stats:*:${userId}`);
-    cache.delete(cacheKeys.streak(userId));
     const timezone = await resolveUserTimeZone(supabase, userId, request);
 
     if (type === 'streak') {

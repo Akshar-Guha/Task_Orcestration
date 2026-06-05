@@ -104,6 +104,13 @@ class MemoryCache {
       size: this.cache.size,
       maxSize: this.maxSize,
     };
+    }
+  destroy(): void {
+    if (this.cleanupInterval !== null) {
+      clearInterval(this.cleanupInterval);
+      this.cleanupInterval = null;
+    }
+    this.cache.clear();
   }
 }
 
@@ -173,3 +180,4 @@ export function invalidateEntryCache(userId: string, entryId?: string): void {
   cache.delete(cacheKeys.weeklyStats(userId));
   cache.delete(cacheKeys.monthlyStats(userId));
 }
+

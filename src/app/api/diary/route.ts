@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from 'next/server';
+﻿import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { getCurrentUserId } from '@/lib/user';
 import { createDailyEntrySchema, updateDailyEntrySchema } from '@/lib/diary-schemas';
@@ -10,7 +10,7 @@ import { clampPageSize, resolveUserTimeZone } from '@/lib/server-user-context';
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+  process.env.SUPABASE_SERVICE_ROLE_KEY!
 );
 
 function rowToEntry(row: DailyEntryRow): DailyEntry {
@@ -256,7 +256,12 @@ export async function DELETE(request: NextRequest) {
       .from('daily_entries')
       .select('*')
       .eq('id', id)
+      .eq('user_id', userId)
       .single();
+
+    if (!entryData) {
+      return NextResponse.json({ error: 'Entry not found' }, { status: 404 });
+    }
 
     const { error } = await supabase
       .from('daily_entries')

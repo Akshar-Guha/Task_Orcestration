@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Debug API - Check Supabase Data
  * 
  * This endpoint checks what data exists in Supabase for the current user.
@@ -6,15 +6,23 @@
  */
 
 import { NextResponse } from 'next/server';
-import { supabase } from '@/lib/supabase';
+import { createClient } from '@supabase/supabase-js';
 
-const FALLBACK_USER_ID = '2c32a446-1bbc-4294-8a29-3e4fef5649e6';
+const supabase = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.SUPABASE_SERVICE_ROLE_KEY!
+);
+const FALLBACK_USER_ID = process.env.NEXT_PUBLIC_USER_ID ?? '';
 
-export async function GET() {
+export async function GET(request: Request) {
+  // Fix: require DEBUG_SECRET to protect sensitive diagnostic data
+  const secret = request.headers.get('x-debug-secret');
+  if (process.env.DEBUG_SECRET && secret !== process.env.DEBUG_SECRET) {
+    return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+  }
   try {
-    // Check Supabase connection
-    const { data: { user } } = await supabase.auth.getUser();
-    const userId = user?.id || FALLBACK_USER_ID;
+    // Fix: use env-configured user ID (service-role client has no session)
+    const userId = FALLBACK_USER_ID;
 
     // Query all tables
     const [goalsRes, tasksRes, slotsRes] = await Promise.all([

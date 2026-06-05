@@ -4,10 +4,10 @@ import { getCurrentUserId } from '@/lib/user';
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+  process.env.SUPABASE_SERVICE_ROLE_KEY!
 );
 
-// GET /api/notifications/rules â€” list all rules for current user
+// GET /api/notifications/rules — list all rules for current user
 export async function GET() {
   const userId = getCurrentUserId();
   if (!userId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
@@ -22,16 +22,34 @@ export async function GET() {
   return NextResponse.json({ rules: data });
 }
 
-// POST /api/notifications/rules â€” create a new rule
+// POST /api/notifications/rules — create a new rule
 export async function POST(request: NextRequest) {
   const userId = getCurrentUserId();
   if (!userId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
-  const body = await request.json();
+  let body: Record<string, unknown>;
+  try {
+    body = await request.json();
+  } catch {
+    return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 });
+  }
+
   const {
     title, body: msgBody, schedule_time, repeat_days, is_manual,
     snooze_interval_minutes, notification_type, linked_entity_id, linked_entity_name,
-  } = body;
+    requires_acknowledgment,
+  } = body as {
+    title?: string;
+    body?: string;
+    schedule_time?: string;
+    repeat_days?: number[];
+    is_manual?: boolean;
+    snooze_interval_minutes?: number;
+    notification_type?: string;
+    linked_entity_id?: string;
+    linked_entity_name?: string;
+    requires_acknowledgment?: boolean;
+  };
 
   if (!title?.trim() || !msgBody?.trim()) {
     return NextResponse.json({ error: 'title and body are required' }, { status: 400 });
@@ -51,7 +69,7 @@ export async function POST(request: NextRequest) {
       is_enabled: true,
       is_manual: !!is_manual,
       snooze_interval_minutes: snooze_interval_minutes || null,
-      requires_acknowledgment: true,
+      requires_acknowledgment: requires_acknowledgment ?? true,
     })
     .select()
     .single();
@@ -59,4 +77,3 @@ export async function POST(request: NextRequest) {
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   return NextResponse.json({ rule: data }, { status: 201 });
 }
-

@@ -1,4 +1,4 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
+﻿/* eslint-disable @typescript-eslint/no-explicit-any */
 /**
  * Full Obsidian Sync API — Time-Series Data Warehouse
  *
@@ -9,10 +9,15 @@
  */
 
 import { NextResponse } from 'next/server';
-import { supabase } from '@/lib/supabase';
+import { createClient } from '@supabase/supabase-js';
 import { github } from '@/lib/github';
 
-const FALLBACK_USER_ID = '2c32a446-1bbc-4294-8a29-3e4fef5649e6';
+// Fix: use service-role client for full data access in server-side sync
+const supabase = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.SUPABASE_SERVICE_ROLE_KEY!
+);
+const FALLBACK_USER_ID = process.env.NEXT_PUBLIC_USER_ID ?? '';
 
 function slugify(title: string): string {
   return (title || 'Untitled').replace(/[^a-z0-9\s-]/gi, '').trim().replace(/\s+/g, '-');

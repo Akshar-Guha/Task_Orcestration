@@ -1,6 +1,16 @@
+'use client';
+
 import { motion, AnimatePresence } from 'framer-motion';
 import { useState, useEffect } from 'react';
 import { useSleepLogs, useRecordSleep } from '@/lib/hooks/useSupabase';
+
+function formatSleepTime(isoString: string): string {
+  try {
+    return new Date(isoString).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  } catch {
+    return isoString;
+  }
+}
 
 export function SleepButton() {
   const { data: sleepWakeLogs = [] } = useSleepLogs();
@@ -92,7 +102,7 @@ export function SleepButton() {
                       fontFamily: 'var(--font-family-mono)',
                     }}
                   >
-                    Last attempt: {lastSleepTime}
+                    Last attempt: {formatSleepTime(lastSleepTime)}
                   </div>
                 )}
               </div>
@@ -104,12 +114,13 @@ export function SleepButton() {
             initial={{ opacity: 0, scale: 0.95 }}
             animate={{ opacity: 1, scale: 1 }}
             exit={{ opacity: 0, scale: 0.95 }}
-            onClick={handleSleep}
+            disabled
             style={{
               background: 'var(--gold-dim)',
               border: '1px solid var(--gold)',
               color: 'var(--gold)',
               fontFamily: 'var(--font-family-body)',
+              cursor: 'default',
             }}
             className="w-full flex items-center justify-center gap-4 rounded-2xl px-6 transition-all"
           >
@@ -146,7 +157,7 @@ export function SleepButton() {
                     fontFamily: 'var(--font-family-mono)',
                   }}
                 >
-                  Sleeping since {lastSleepTime}
+                  Sleeping since {lastSleepTime ? formatSleepTime(lastSleepTime) : ""}
                 </div>
               </div>
             </div>

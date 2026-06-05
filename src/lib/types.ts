@@ -1,4 +1,4 @@
-// Core types for Goal Tracker - Aligned with MTO Architecture
+﻿// Core types for Goal Tracker - Aligned with MTO Architecture
 // Uses graph model (nodes/edges) with type-specific properties
 
 // ========================================
@@ -283,50 +283,3 @@ export interface CreateTimeSlotInput {
   endTime: string;
   color?: string;
 }
-
-// ========================================
-// DISPLAY HELPERS
-// ========================================
-
-export const LEVEL_LABELS: Record<GoalLevel, string> = {
-  yearly: 'Yearly Goal',
-  quarterly: 'Quarterly Goal',
-  monthly: 'Monthly Goal',
-  weekly: 'Weekly Goal',
-  uncategorized: 'Uncategorized',
-};
-
-export const LEVEL_COLORS: Record<GoalLevel, { bg: string; border: string; text: string }> = {
-  yearly: { bg: 'bg-amber-500/10', border: 'border-amber-500', text: 'text-amber-400' },
-  quarterly: { bg: 'bg-violet-500/10', border: 'border-violet-500', text: 'text-violet-400' },
-  monthly: { bg: 'bg-blue-500/10', border: 'border-blue-500', text: 'text-blue-400' },
-  weekly: { bg: 'bg-emerald-500/10', border: 'border-emerald-500', text: 'text-emerald-400' },
-  uncategorized: { bg: 'bg-slate-500/10', border: 'border-slate-500', text: 'text-slate-400' },
-};
-
-export const TIME_SLOT_LABELS: Record<TimeSlotType, string> = {
-  morning: '🌅 Morning',
-  work: '💼 Work',
-  afternoon: '☀️ Afternoon',
-  evening: '🌙 Evening',
-  leisure: '🎮 Leisure',
-};
-
-export const TIME_SLOT_COLORS: Record<TimeSlotType, string> = {
-  morning: '#10b981',   // Emerald
-  work: '#3b82f6',      // Blue
-  afternoon: '#f59e0b', // Amber
-  evening: '#8b5cf6',   // Violet
-  leisure: '#ec4899',   // Pink
-};
-
-// Duration quick-select options (in minutes)
-export const DURATION_OPTIONS = [15, 30, 45, 60, 90, 120, 180];
-
-// Format duration for display
-export const formatDuration = (minutes: number): string => {
-  if (minutes < 60) return `${minutes}m`;
-  const hours = Math.floor(minutes / 60);
-  const mins = minutes % 60;
-  return mins > 0 ? `${hours}h ${mins}m` : `${hours}h`;
-};

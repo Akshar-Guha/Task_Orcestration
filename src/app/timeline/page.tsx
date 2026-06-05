@@ -1,7 +1,8 @@
-'use client';
+﻿'use client';
 
 import { useState } from 'react';
-import { formatDuration, LEVEL_LABELS } from '@/lib/types';
+import { LEVEL_LABELS } from '@/lib/constants';
+import { formatDuration } from '@/lib/date-utils';
 import { calculateSleepMinutesSoFar } from '@/lib/date-utils';
 import Link from 'next/link';
 import {
@@ -111,7 +112,7 @@ export default function TimelinePage() {
 
   const weeklyData = last7Days.map((date) => {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const log = productivityData?.logs.find((l: any) => l.date === date);
+    const log = (productivityData as any)?.logs?.find((l: any) => l.date === date);
     return {
       date,
       day: new Date(date).toLocaleDateString('en-US', { weekday: 'short' }),

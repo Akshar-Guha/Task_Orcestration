@@ -1,11 +1,11 @@
-import { NextRequest, NextResponse } from 'next/server';
+﻿import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { getCurrentUserId } from '@/lib/user';
 import { getDateInTimeZone, resolveUserTimeZone } from '@/lib/server-user-context';
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+  process.env.SUPABASE_SERVICE_ROLE_KEY!
 );
 
 // GET /api/diary/quick?mood=4
@@ -135,7 +135,7 @@ export async function POST(request: NextRequest) {
     .eq('user_id', userId)
     .eq('is_archived', false)
     .in('status', ['not_started', 'in_progress'])
-    .order('priority', { ascending: false })
+    .order('priority', { ascending: true })
     .limit(1)
     .single();
 
@@ -150,11 +150,12 @@ export async function POST(request: NextRequest) {
   let streak = 0;
   if (recentEntries?.length) {
     const dates = recentEntries.map(e => e.date);
-    const current = new Date();
+    // Use the timezone-aware 	oday (already computed above) as the streak anchor
+    // to avoid crossing midnight issues when the server is in a different timezone
     for (let i = 0; i < 30; i++) {
-      const check = new Date(current);
-      check.setDate(check.getDate() - i);
-      const dateStr = check.toISOString().split('T')[0];
+      const anchor = new Date(today + 'T12:00:00Z');
+      anchor.setUTCDate(anchor.getUTCDate() - i);
+      const dateStr = anchor.toISOString().split('T')[0];
       if (dates.includes(dateStr)) {
         streak++;
       } else {

@@ -1,13 +1,24 @@
-import { NextRequest, NextResponse } from 'next/server';
+﻿import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { getCurrentUserId } from '@/lib/user';
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+  process.env.SUPABASE_SERVICE_ROLE_KEY!
 );
 
-const USER_ID = process.env.NEXT_PUBLIC_USER_ID || '2c32a446-1bbc-4294-8a29-3e4fef5649e6';
+const USER_ID = process.env.NEXT_PUBLIC_USER_ID ?? '';
+
+/** Returns today's date in the user's configured timezone, falling back to UTC. */
+async function getUserToday(userId: string): Promise<string> {
+  const { data } = await supabase
+    .from('user_settings')
+    .select('timezone')
+    .eq('user_id', userId)
+    .single();
+  const tz = data?.timezone || process.env.USER_TIMEZONE || 'UTC';
+  return new Intl.DateTimeFormat('en-CA', { timeZone: tz }).format(new Date());
+}
 
 // POST /api/notifications/ack?ruleId=xxx
 // Called from the app OR from the service worker action button
@@ -29,8 +40,8 @@ export async function POST(request: NextRequest) {
   if (!id) return NextResponse.json({ error: 'ruleId required' }, { status: 400 });
 
   const userId = getCurrentUserId() || USER_ID;
-
-  const today = new Date().toISOString().split('T')[0];
+  if (!userId) return NextResponse.json({ error: 'User not configured' }, { status: 500 });
+  const today = await getUserToday(userId);
 
   const { error } = await supabase
     .from('notification_acks')
@@ -51,7 +62,8 @@ export async function GET(request: NextRequest) {
   if (!ruleId) return NextResponse.json({ error: 'ruleId required' }, { status: 400 });
 
   const userId = getCurrentUserId() || USER_ID;
-  const today = new Date().toISOString().split('T')[0];
+  if (!userId) return NextResponse.json({ error: 'User not configured' }, { status: 500 });
+  const today = await getUserToday(userId);
 
   const { data } = await supabase
     .from('notification_acks')

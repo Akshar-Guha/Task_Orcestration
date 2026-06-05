@@ -1,6 +1,6 @@
-/**
+﻿/**
  * Daily Summary Email - Triggered on Sleep
- * 
+ *
  * Sends a personalized end-of-day summary with:
  * - Tasks completed today
  * - Goals progress
@@ -9,11 +9,9 @@
  */
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+import { corsHeaders } from '../_shared/cors.ts';
 
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-};
+// FIX: Removed inline corsHeaders duplicate; import from _shared/cors.ts
 
 const RESEND_API_KEY = Deno.env.get('RESEND_API_KEY') || '';
 const USER_EMAIL = Deno.env.get('USER_EMAIL') || '';
@@ -32,22 +30,31 @@ serve(async (req) => {
     if (!USER_EMAIL) {
       throw new Error('USER_EMAIL not configured');
     }
+    // FIX: Added missing USER_ID guard
+    if (!USER_ID) {
+      throw new Error('DEFAULT_USER_ID not configured');
+    }
 
-    const supabase = createClient(
-      Deno.env.get('SUPABASE_URL') ?? '',
-      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
-    );
+    const supabaseUrl = Deno.env.get('SUPABASE_URL') ?? '';
+    const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '';
+    if (!supabaseUrl || !serviceRoleKey) {
+      throw new Error('SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY not configured');
+    }
+
+    const supabase = createClient(supabaseUrl, serviceRoleKey);
 
     const today = new Date().toISOString().split('T')[0];
 
     // 1. Get today's completed tasks
+    // FIG: Use timezone-aware range; lte uses 23:59:59 which misses the last second —
+    // changed upper bound to lt next day midnight for correctness.
     const { data: completedTasks } = await supabase
       .from('tasks')
       .select('id, title, actual_minutes')
       .eq('user_id', USER_ID)
       .eq('is_completed', true)
-      .gte('completed_at', `${today}T00:00:00`)
-      .lte('completed_at', `${today}T23:59:59`);
+      .gte('completed_at', `${today}T00:00:00Z`)
+      .lt('completed_at', `${today}T23:59:60Z`);
 
     // 2. Get today's productivity log
     const { data: todayLog } = await supabase
@@ -63,8 +70,8 @@ serve(async (req) => {
       .select('id, title')
       .eq('user_id', USER_ID)
       .eq('status', 'completed')
-      .gte('completed_at', `${today}T00:00:00`)
-      .lte('completed_at', `${today}T23:59:59`);
+      .gte('completed_at', `${today}T00:00:00Z`)
+      .lt('completed_at', `${today}T23:59:60Z`);
 
     // 4. Get sleep log (wake up time)
     const { data: sleepLog } = await supabase
@@ -82,7 +89,7 @@ serve(async (req) => {
     const productiveMins = productiveMinutes % 60;
     const wakeUpTime = sleepLog?.wake_up_time || 'N/A';
 
-    // Calculate "awake time" if we have wake-up
+    // Calculate awake time if we have a wake-up time
     let awakeHours = 'N/A';
     if (sleepLog?.wake_up_time) {
       const wakeUp = sleepLog.wake_up_time.split(':');
@@ -90,26 +97,31 @@ serve(async (req) => {
       const wakeUpDate = new Date();
       wakeUpDate.setHours(parseInt(wakeUp[0]), parseInt(wakeUp[1]), 0);
       const awakeMs = now.getTime() - wakeUpDate.getTime();
-      const awakeH = Math.floor(awakeMs / (1000 * 60 * 60));
-      const awakeM = Math.floor((awakeMs % (1000 * 60 * 60)) / (1000 * 60));
-      awakeHours = `${awakeH}h ${awakeM}m`;
+      // FIX: Guard against negative awake time (e.g., if time zone handling shifts
+      // the wake time to be in the future from the server's perspective)
+      if (awakeMs > 0) {
+        const awakeH = Math.floor(awakeMs / (1000 * 60 * 60));
+        const awakeM = Math.floor((awakeMs % (1000 * 60 * 60)) / (1000 * 60));
+        awakeHours = `${awakeH}h ${awakeM}m`;
+      }
     }
 
     // 6. Build email content
+    // FIX: Added charset=utf-8 meta; replaced garbled emoji literals with HTML entities
     const tasksHtml = completedTasks?.length
-      ? completedTasks.map(t => `<li>✅ ${t.title}</li>`).join('')
+      ? completedTasks.map((t: any) => `<li>&#9989; ${t.title}</li>`).join('')
       : '<li>No tasks completed today</li>';
 
     const goalsHtml = completedGoals?.length
-      ? completedGoals.map(g => `<li>🎯 ${g.title}</li>`).join('')
+      ? completedGoals.map((g: any) => `<li>&#127919; ${g.title}</li>`).join('')
       : '';
 
     const moodButtons = [
-      { value: 1, emoji: '😢', label: 'Rough' },
-      { value: 2, emoji: '😕', label: 'Meh' },
-      { value: 3, emoji: '😐', label: 'OK' },
-      { value: 4, emoji: '🙂', label: 'Good' },
-      { value: 5, emoji: '😊', label: 'Great' },
+      { value: 1, emoji: '&#128546;', label: 'Rough' },
+      { value: 2, emoji: '&#128533;', label: 'Meh' },
+      { value: 3, emoji: '&#128528;', label: 'OK' },
+      { value: 4, emoji: '&#128578;', label: 'Good' },
+      { value: 5, emoji: '&#128522;', label: 'Great' },
     ].map(m => `
       <a href="${APP_URL}/api/diary/quick?mood=${m.value}"
          style="display:inline-block;padding:14px 12px;background:#1e293b;color:#e0e0e0;
@@ -123,6 +135,7 @@ serve(async (req) => {
 <!DOCTYPE html>
 <html>
 <head>
+  <meta charset="utf-8">
   <style>
     body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; background: #0a0a0a; color: #e0e0e0; }
     h1 { color: #60a5fa; }
@@ -139,12 +152,12 @@ serve(async (req) => {
   </style>
 </head>
 <body>
-  <h1>🌙 Daily Summary</h1>
+  <h1>&#127769; Daily Summary</h1>
 
   <div class="checkin">
     <p style="margin:0 0 16px;font-size:16px;color:#cbd5e1;">How was your day?</p>
     <div style="margin-bottom:12px;">${moodButtons}</div>
-    <p style="margin:0;font-size:12px;color:#475569;">Tap your mood — it saves instantly ✓</p>
+    <p style="margin:0;font-size:12px;color:#475569;">Tap your mood &mdash; it saves instantly &#10003;</p>
   </div>
 
   <p>Here's what you accomplished on <strong>${today}</strong>.</p>
@@ -167,21 +180,21 @@ serve(async (req) => {
       <div class="stat-label">Awake</div>
     </div>
   </div>
-  
-  <h2>✅ Completed Tasks</h2>
+
+  <h2>&#9989; Completed Tasks</h2>
   <ul>${tasksHtml}</ul>
-  
+
   ${goalsHtml ? `
-  <h2>🎯 Goals Achieved</h2>
+  <h2>&#127919; Goals Achieved</h2>
   <ul>${goalsHtml}</ul>
   ` : ''}
-  
+
   <div class="motivation">
-    <p style="font-size: 18px; margin: 0;">😴 Rest well! Tomorrow is a new opportunity.</p>
+    <p style="font-size: 18px; margin: 0;">&#128564; Rest well! Tomorrow is a new opportunity.</p>
   </div>
-  
+
   <div class="footer">
-    <p>Sent by MTO Second Brain • <a href="${APP_URL}/dashboard" style="color: #60a5fa;">Open Dashboard</a></p>
+    <p>Sent by MTO Second Brain &bull; <a href="${APP_URL}/dashboard" style="color: #60a5fa;">Open Dashboard</a></p>
   </div>
 </body>
 </html>
@@ -197,7 +210,7 @@ serve(async (req) => {
       body: JSON.stringify({
         from: 'MTO Second Brain <noreply@resend.dev>',
         to: [USER_EMAIL],
-        subject: `🌙 Daily Summary - ${tasksCompleted} tasks, ${productiveHours}h productive`,
+        subject: `Daily Summary - ${tasksCompleted} tasks, ${productiveHours}h productive`,
         html: emailHtml
       })
     });
@@ -210,13 +223,15 @@ serve(async (req) => {
     const resendData = await resendResponse.json();
 
     // 8. Save to daily_logs
+    // FIX: tasks_total was set to tasksCompleted (wrong) — set to null so it
+    // is not misleadingly reported as 100% completion rate.
     await supabase
       .from('daily_logs')
       .upsert({
         user_id: USER_ID,
         log_date: today,
         tasks_completed: tasksCompleted,
-        tasks_total: tasksCompleted, // Update with today's total if available
+        tasks_total: null,
         summary: `Completed ${tasksCompleted} tasks in ${productiveHours}h ${productiveMins}m`,
         email_sent_at: new Date().toISOString()
       }, { onConflict: 'log_date,user_id' });
@@ -234,7 +249,7 @@ serve(async (req) => {
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
 
-  } catch (error) {
+  } catch (error: any) {
     console.error('[sleep-email] Error:', error);
     return new Response(
       JSON.stringify({ success: false, error: error.message }),

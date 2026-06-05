@@ -1,4 +1,4 @@
-import { NextResponse } from 'next/server';
+﻿import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { getCurrentUserId } from '@/lib/user';
 
@@ -8,6 +8,7 @@ const supabase = createClient(
 );
 
 export async function GET() {
+  try {
   const userId = getCurrentUserId();
   if (!userId) {
     return NextResponse.json({ error: 'User not configured' }, { status: 401 });
@@ -39,4 +40,8 @@ export async function GET() {
     habits: habitsResult.data || [],
     completions: completionsResult.data || [],
   });
+  } catch (error) {
+    console.error('[Habits API] Unexpected error:', error);
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+  }
 }

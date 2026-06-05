@@ -1,9 +1,9 @@
-'use client';
+﻿'use client';
 
 import { useState, useEffect, useRef } from 'react';
 import { useAppStore } from '@/lib/store';
 import { SleepButton } from '@/components/sleep/SleepButton';
-import { formatDuration } from '@/lib/types';
+import { formatDuration } from '@/lib/date-utils';
 import { calculateSleepMinutesSoFar } from '@/lib/date-utils';
 import Link from 'next/link';
 import {

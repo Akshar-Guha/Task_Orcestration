@@ -1,6 +1,7 @@
-'use client';
+﻿'use client';
 
 import { useState } from 'react';
+import Link from 'next/link';
 import type { Goal } from '@/lib/types';
 import { useUpdateGoal } from '@/lib/hooks/useSupabase';
 
@@ -16,19 +17,31 @@ export function QuickEditModal({ goal, onClose }: QuickEditModalProps) {
   const [status, setStatus] = useState(goal.status);
   const [deadline, setDeadline] = useState(goal.deadline ? goal.deadline.split('T')[0] : '');
   const [priority, setPriority] = useState<1 | 2 | 3>(goal.priority || 2);
+  const [saveError, setSaveError] = useState<string | null>(null);
 
-  const handleSave = async () => {
-    updateGoalMutation.mutate({
-      id: goal.id,
-      updates: {
-        title,
-        description,
-        status,
-        priority,
-        deadline: deadline ? new Date(deadline).toISOString() : undefined,
+  const handleSave = () => {
+    // Guard against double-submit while the previous request is in-flight
+    if (updateGoalMutation.isPending) return;
+    setSaveError(null);
+    updateGoalMutation.mutate(
+      {
+        id: goal.id,
+        updates: {
+          title,
+          description,
+          status,
+          priority,
+          deadline: deadline ? new Date(deadline).toISOString() : undefined,
+        },
+      },
+      {
+        onSuccess: () => onClose(),
+        onError: (err) => {
+          console.error('[QuickEditModal] Save failed:', err);
+          setSaveError('Failed to save. Please try again.');
+        },
       }
-    });
-    onClose();
+    );
   };
 
   return (
@@ -41,9 +54,15 @@ export function QuickEditModal({ goal, onClose }: QuickEditModalProps) {
               onClick={onClose}
               className="text-slate-400 hover:text-white text-2xl"
             >
-              ×
+              &times;
             </button>
           </div>
+
+          {saveError && (
+            <div className="px-4 py-2.5 bg-red-500/10 border border-red-500/30 rounded-xl text-red-400 text-sm">
+              {saveError}
+            </div>
+          )}
 
           {/* Title */}
           <div>
@@ -132,26 +151,28 @@ export function QuickEditModal({ goal, onClose }: QuickEditModalProps) {
           <div className="flex gap-3 pt-4">
             <button
               onClick={onClose}
-              className="flex-1 py-3 bg-slate-800 hover:bg-slate-700 text-white rounded-lg font-medium transition-all"
+              disabled={updateGoalMutation.isPending}
+              className="flex-1 py-3 bg-slate-800 hover:bg-slate-700 text-white rounded-lg font-medium transition-all disabled:opacity-40"
             >
               Cancel
             </button>
             <button
               onClick={handleSave}
-              className="flex-1 py-3 bg-violet-600 hover:bg-violet-700 text-white rounded-lg font-medium transition-all"
+              disabled={updateGoalMutation.isPending || !title.trim()}
+              className="flex-1 py-3 bg-violet-600 hover:bg-violet-700 text-white rounded-lg font-medium transition-all disabled:opacity-40"
             >
-              Save
+              {updateGoalMutation.isPending ? 'Saving...' : 'Save'}
             </button>
           </div>
 
           {/* Link to full edit page */}
           <div className="text-center pt-2">
-            <a
+            <Link
               href="/edit"
               className="text-sm text-violet-400 hover:text-violet-300 underline"
             >
-              Need more options? Go to full Edit page →
-            </a>
+              Need more options? Go to full Edit page
+            </Link>
           </div>
         </div>
       </div>

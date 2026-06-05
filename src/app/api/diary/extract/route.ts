@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from 'next/server';
+﻿import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { getCurrentUserId } from '@/lib/user';
 
@@ -7,7 +7,7 @@ const OLLAMA_BASE_URL = process.env.OLLAMA_BASE_URL || 'http://localhost:11434';
 const OLLAMA_MODEL = process.env.OLLAMA_MODEL || 'qwen2.5:7b';
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+  process.env.SUPABASE_SERVICE_ROLE_KEY!
 );
 
 interface ExtractionResult {
@@ -239,7 +239,7 @@ If information is not provided, omit that field from the response.`;
         user_id: userId,
         title,
         description: `Extracted from diary${date ? ` for ${date}` : ''}`,
-        level: 'ad_hoc',
+        level: 'uncategorized',
         status: 'not_started',
         priority: 2,
         metadata: {

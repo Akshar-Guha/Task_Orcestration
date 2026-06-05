@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from 'next/server';
+﻿import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 
 const supabase = createClient(
@@ -6,7 +6,18 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 );
 
-const USER_ID = process.env.NEXT_PUBLIC_USER_ID || '2c32a446-1bbc-4294-8a29-3e4fef5649e6';
+const USER_ID = process.env.NEXT_PUBLIC_USER_ID ?? '';
+
+/** Returns today's date in the user's configured timezone, falling back to UTC. */
+async function getUserToday(): Promise<string> {
+  const { data } = await supabase
+    .from('user_settings')
+    .select('timezone')
+    .eq('user_id', USER_ID)
+    .single();
+  const tz = data?.timezone || process.env.USER_TIMEZONE || 'UTC';
+  return new Intl.DateTimeFormat('en-CA', { timeZone: tz }).format(new Date());
+}
 
 /**
  * POST /api/notifications/action
@@ -30,6 +41,14 @@ export async function POST(request: NextRequest) {
 
   if (!ruleId) return NextResponse.json({ error: 'ruleId required' }, { status: 400 });
 
+  // Fix: validate action value explicitly
+  if (action !== 'yes' && action !== 'no') {
+    return NextResponse.json({ error: "action must be 'yes' or 'no'" }, { status: 400 });
+  }
+
+  // Fix: guard against missing USER_ID
+  if (!USER_ID) return NextResponse.json({ error: 'User not configured' }, { status: 500 });
+
   if (action === 'no') {
     return NextResponse.json({ ok: true, message: 'Snoozed — will re-fire' });
   }
@@ -46,7 +65,8 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Rule not found' }, { status: 404 });
   }
 
-  const today = new Date().toISOString().split('T')[0];
+  // Use timezone-aware date to match the date used by the cron + ack routes
+  const today = await getUserToday();
   const entityId = rule.linked_entity_id;
 
   // Perform in-app action based on type

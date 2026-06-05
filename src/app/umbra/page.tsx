@@ -1,6 +1,6 @@
-'use client';
+﻿'use client';
 
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { revokeAllSessions } from '@/lib/deviceAuth';
 import Link from 'next/link';
 
@@ -8,8 +8,15 @@ export default function UmbraPage() {
   const [revoking, setRevoking] = useState(false);
   const [revoked, setRevoked] = useState(false);
 
+  const reloadTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => {
+    return () => {
+      if (reloadTimerRef.current) clearTimeout(reloadTimerRef.current);
+    };
+  }, []);
+
   const handleKillSwitch = async () => {
-    if (!confirm('⚠️ This will log out ALL devices including this one. Are you sure?')) {
+    if (!confirm('âš ï¸ This will log out ALL devices including this one. Are you sure?')) {
       return;
     }
     
@@ -33,7 +40,7 @@ export default function UmbraPage() {
     return (
       <div className="min-h-screen bg-black flex items-center justify-center p-4">
         <div className="text-center">
-          <div className="text-6xl mb-4">🔒</div>
+          <div className="text-6xl mb-4">ðŸ”’</div>
           <h1 className="text-2xl font-bold text-white mb-2">All Sessions Revoked</h1>
           <p className="text-zinc-400">Reloading...</p>
         </div>
@@ -47,9 +54,9 @@ export default function UmbraPage() {
         {/* Header */}
         <div className="mb-8">
           <Link href="/dashboard" className="text-zinc-500 hover:text-white text-sm">
-            ← Back to Dashboard
+            â† Back to Dashboard
           </Link>
-          <h1 className="text-3xl font-bold mt-4 mb-2">🔐 Security Settings</h1>
+          <h1 className="text-3xl font-bold mt-4 mb-2">ðŸ” Security Settings</h1>
           <p className="text-zinc-400">
             Manage device authorization and security preferences
           </p>
@@ -62,7 +69,7 @@ export default function UmbraPage() {
             className="block p-4 bg-zinc-900 border border-zinc-800 rounded-xl hover:border-zinc-700 transition-colors"
           >
             <div className="flex items-center gap-3">
-              <span className="text-2xl">🗄️</span>
+              <span className="text-2xl">ðŸ—„ï¸</span>
               <div>
                 <div className="font-semibold">Database Settings</div>
                 <div className="text-sm text-zinc-500">Manage Supabase connection</div>
@@ -75,7 +82,7 @@ export default function UmbraPage() {
             className="block p-4 bg-zinc-900 border border-zinc-800 rounded-xl hover:border-zinc-700 transition-colors"
           >
             <div className="flex items-center gap-3">
-              <span className="text-2xl">🔔</span>
+              <span className="text-2xl">ðŸ””</span>
               <div>
                 <div className="font-semibold">Notifications</div>
                 <div className="text-sm text-zinc-500">Push notification preferences</div>
@@ -88,7 +95,7 @@ export default function UmbraPage() {
             className="block p-4 bg-zinc-900 border border-zinc-800 rounded-xl hover:border-zinc-700 transition-colors"
           >
             <div className="flex items-center gap-3">
-              <span className="text-2xl">👤</span>
+              <span className="text-2xl">ðŸ‘¤</span>
               <div>
                 <div className="font-semibold">Profile</div>
                 <div className="text-sm text-zinc-500">Your user profile settings</div>
@@ -101,7 +108,7 @@ export default function UmbraPage() {
             className="block p-4 bg-zinc-900 border border-zinc-800 rounded-xl hover:border-zinc-700 transition-colors"
           >
             <div className="flex items-center gap-3">
-              <span className="text-2xl">⚙️</span>
+              <span className="text-2xl">âš™ï¸</span>
               <div>
                 <div className="font-semibold">System Status</div>
                 <div className="text-sm text-zinc-500">Check system health</div>
@@ -114,7 +121,7 @@ export default function UmbraPage() {
         <div className="border-t border-zinc-800 pt-8">
           <div className="bg-red-500/10 border border-red-500/30 rounded-xl p-6">
             <div className="flex items-start gap-4">
-              <div className="text-4xl">☠️</div>
+              <div className="text-4xl">â˜ ï¸</div>
               <div className="flex-1">
                 <h2 className="text-xl font-bold text-red-400 mb-2">Kill Switch</h2>
                 <p className="text-zinc-400 text-sm mb-4">
@@ -126,7 +133,7 @@ export default function UmbraPage() {
                   disabled={revoking}
                   className="px-6 py-3 bg-red-600 hover:bg-red-700 disabled:bg-red-900 text-white font-bold rounded-lg transition-colors"
                 >
-                  {revoking ? '⏳ Revoking...' : '🔐 Revoke All Sessions'}
+                  {revoking ? 'â³ Revoking...' : 'ðŸ” Revoke All Sessions'}
                 </button>
               </div>
             </div>
@@ -136,7 +143,7 @@ export default function UmbraPage() {
         {/* Info */}
         <div className="mt-8 p-4 bg-zinc-900/50 border border-zinc-800 rounded-xl">
           <p className="text-xs text-zinc-500 text-center">
-            🔒 This page is only accessible at the secret URL <code className="text-zinc-400">/umbra</code>
+            ðŸ”’ This page is only accessible at the secret URL <code className="text-zinc-400">/umbra</code>
           </p>
         </div>
       </div>

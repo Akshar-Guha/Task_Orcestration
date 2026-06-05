@@ -1,4 +1,4 @@
-import { NextResponse } from 'next/server';
+﻿import { NextResponse } from 'next/server';
 import { getCurrentUserId } from '@/lib/user';
 import { sendPushNotification } from '@/lib/push/server';
 
@@ -9,7 +9,7 @@ export async function POST() {
     const userId = getCurrentUserId();
     
     if (!userId) {
-      return NextResponse.json({ error: 'User not found' }, { status: 400 });
+      return NextResponse.json({ error: 'User not configured' }, { status: 401 });
     }
 
     // Call logic directly, DO NOT use fetch() to avoid loopback issues in Vercel

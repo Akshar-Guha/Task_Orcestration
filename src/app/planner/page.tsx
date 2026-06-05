@@ -1,7 +1,8 @@
-'use client';
+﻿'use client';
 
 import { useState, useMemo } from 'react';
-import { formatDuration, TIME_SLOT_LABELS } from '@/lib/types';
+import { TIME_SLOT_LABELS } from '@/lib/constants';
+import { formatDuration } from '@/lib/date-utils';
 import Link from 'next/link';
 import { 
   useTimeSlots, 
@@ -9,6 +10,7 @@ import {
   useTasks, 
   useProductivity, 
   useCompleteTask,
+  useUncompleteTask,
   useUpdateTimeSlot
 } from '@/lib/hooks/useSupabase';
 
@@ -21,6 +23,7 @@ export default function PlannerPage() {
   
   // Mutations
   const completeTaskMutation = useCompleteTask();
+  const uncompleteTaskMutation = useUncompleteTask();
   const updateTimeSlotMutation = useUpdateTimeSlot();
 
   const handleAddGoalToTimeSlot = (timeSlotId: string, goalId: string) => {
@@ -64,7 +67,7 @@ export default function PlannerPage() {
     topGoals: [],
   } : {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    todayMinutes: productivityData?.logs.find((l: any) => l.date === selectedDate)?.productive_minutes || 0,
+    todayMinutes: (productivityData as any)?.logs?.find((l: any) => l.date === selectedDate)?.productive_minutes || 0,
     todayPercentage: 0,
     weekMinutes: 0,
     weeklyAverage: 0,
@@ -107,7 +110,11 @@ export default function PlannerPage() {
   const handleTaskClick = (taskId: string) => {
     const task = tasks.find(t => t.id === taskId);
     if (task) {
-      completeTaskMutation.mutate(task);
+      if (task.isCompleted) {
+        uncompleteTaskMutation.mutate(task);
+      } else {
+        completeTaskMutation.mutate(task);
+      }
     }
   };
 

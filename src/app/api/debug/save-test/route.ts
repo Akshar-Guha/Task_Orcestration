@@ -1,15 +1,27 @@
-/**
+﻿/**
  * Debug API - Test Supabase Save
  * 
  * This endpoint tests saving a goal directly to Supabase to verify writes work.
  */
 
 import { NextResponse } from 'next/server';
-import { supabase } from '@/lib/supabase';
+import { createClient } from '@supabase/supabase-js';
+const supabase = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.SUPABASE_SERVICE_ROLE_KEY!
+);
 
-const FALLBACK_USER_ID = '2c32a446-1bbc-4294-8a29-3e4fef5649e6';
+const FALLBACK_USER_ID = process.env.NEXT_PUBLIC_USER_ID ?? '';
 
-export async function POST() {
+export async function POST(request: Request) {
+  // Fix: require DEBUG_SECRET to prevent unauthorized test writes
+  const secret = request.headers.get('x-debug-secret');
+  if (process.env.DEBUG_SECRET && secret !== process.env.DEBUG_SECRET) {
+    return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+  }
+  if (!FALLBACK_USER_ID) {
+    return NextResponse.json({ error: 'User ID not configured' }, { status: 500 });
+  }
   const testId = crypto.randomUUID();
   
   try {
@@ -20,7 +32,7 @@ export async function POST() {
         id: testId,
         title: 'Test Goal ' + new Date().toISOString(),
         description: 'Testing Supabase write operation',
-        level: 'lifetime',
+        level: 'uncategorized',
         status: 'not_started',
         priority: 2,
         depends_on: [],

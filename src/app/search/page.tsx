@@ -1,6 +1,4 @@
-import { SemanticSearch } from '@/khoj';
-
-export const metadata = {
+﻿export const metadata = {
   title: 'Search - MTO Second Brain',
   description: 'Search across all your goals, tasks, and memories',
 };
@@ -18,10 +16,13 @@ export default function SearchPage() {
           </p>
         </header>
 
-        <SemanticSearch />
+        <div className="rounded-xl border border-slate-700 bg-slate-800/50 p-8 text-center">
+          <p className="text-slate-400 mb-2 text-lg">Khoj integration coming soon</p>
+          <p className="text-slate-600 text-sm">Connect Khoj to enable semantic search across all your data.</p>
+        </div>
 
         <footer className="mt-16 text-center text-sm text-gray-600">
-          <p>Powered by Khoj AI • Self-hosted on Oracle Cloud</p>
+          <p>Powered by Khoj AI • Self-hosted</p>
         </footer>
       </div>
     </div>

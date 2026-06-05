@@ -7,7 +7,8 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 );
 
-const USER_ID = process.env.NEXT_PUBLIC_USER_ID || '2c32a446-1bbc-4294-8a29-3e4fef5649e6';
+// Fix: remove hardcoded UUID — require env var; fail loudly if missing so cron errors are visible
+const USER_ID = process.env.NEXT_PUBLIC_USER_ID ?? '';
 
 /**
  * GET /api/cron/notifications â€” runs every minute via Vercel cron.
@@ -21,6 +22,11 @@ export async function GET(request: Request) {
   const auth = request.headers.get('authorization');
   if (process.env.CRON_SECRET && auth !== `Bearer ${process.env.CRON_SECRET}`) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+
+  // Fix: guard against missing USER_ID before hitting the DB
+  if (!USER_ID) {
+    return NextResponse.json({ error: 'User ID not configured' }, { status: 500 });
   }
 
   // Resolve user's local time
@@ -141,7 +147,7 @@ export async function GET(request: Request) {
       continue;
     }
 
-    const isAlarm = true; // all rules are alarm-style
+    const isAlarm = !!rule.requires_acknowledgment;
     const snoozeInterval: number = rule.snooze_interval_minutes || 0;
 
     if (isAlarm) {

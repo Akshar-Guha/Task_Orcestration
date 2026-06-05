@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import { useState } from 'react';
 import Link from 'next/link';
@@ -157,7 +157,7 @@ function getMoodLabel(level?: number): string {
     case 3: return 'Okay';
     case 2: return 'Tired';
     case 1: return 'Awful';
-    default: return '—';
+    default: return 'â€”';
   }
 }
 
@@ -442,7 +442,7 @@ export default function SleepPage() {
                           className="font-medium text-sm truncate"
                           style={{ color: 'var(--text)' }}
                         >
-                          {new Date(log.date).toLocaleDateString('en-US', {
+                          {new Date(log.date + 'T00:00:00').toLocaleDateString('en-US', {
                             weekday: 'long',
                             month: 'short',
                             day: 'numeric',
@@ -456,7 +456,7 @@ export default function SleepPage() {
                           }}
                         >
                           <span>bed {log.sleepTime || '--:--'}</span>
-                          <span style={{ color: 'var(--text-3)' }}>·</span>
+                          <span style={{ color: 'var(--text-3)' }}>Â·</span>
                           <span>up {log.wakeUpTime || '--:--'}</span>
                         </div>
                       </div>

@@ -9,11 +9,11 @@ import { getSupabaseAdmin } from '@/lib/supabase';
  */
 export async function POST(request: Request) {
   try {
-    // Verify authorization (simple check)
+    // Fix: enforce auth — return 401 on mismatch instead of logging and continuing
     const authHeader = request.headers.get('authorization');
-    if (authHeader !== `Bearer ${process.env.SUPABASE_SERVICE_ROLE_KEY?.slice(0, 20)}`) {
-      // Basic auth check - first 20 chars of service key
-      console.log('[Migration] Proceeding without auth check in dev');
+    const expectedToken = `Bearer ${process.env.SUPABASE_SERVICE_ROLE_KEY?.slice(0, 20)}`;
+    if (!authHeader || authHeader !== expectedToken) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
     const supabase = getSupabaseAdmin();
@@ -277,7 +277,6 @@ CREATE POLICY "Allow all for notif acks" ON notification_acks FOR ALL USING (tru
 
 export async function GET() {
   return NextResponse.json({
-    message: 'Use POST to run migration',
-    migrationSQL: getMigrationSQL()
+    message: 'Use POST with Authorization: Bearer <first 20 chars of SUPABASE_SERVICE_ROLE_KEY> to run migration',
   });
 }

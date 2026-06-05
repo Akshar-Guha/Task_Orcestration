@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 /**
  * Sync Status Component
@@ -185,6 +185,9 @@ export function SyncIndicator() {
   });
 
   useEffect(() => {
+    // Fetch immediately on mount so the indicator is not stale for the first 2 s
+    setStatus(getSyncStatus());
+
     const interval = setInterval(() => {
       const currentStatus = getSyncStatus();
       setStatus(currentStatus);

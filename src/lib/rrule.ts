@@ -1,4 +1,4 @@
-/**
+﻿/**
  * RRule utilities for recurring tasks
  * Based on RFC 5545 iCalendar format
  * 
@@ -133,13 +133,3 @@ export function generateOccurrences(
 
   return occurrences;
 }
-
-// Common presets
-export const RECURRENCE_PRESETS = {
-  DAILY: 'FREQ=DAILY',
-  WEEKDAYS: 'FREQ=WEEKLY;BYDAY=MO,TU,WE,TH,FR',
-  WEEKLY: 'FREQ=WEEKLY',
-  BIWEEKLY: 'FREQ=WEEKLY;INTERVAL=2',
-  MONTHLY: 'FREQ=MONTHLY',
-  YEARLY: 'FREQ=YEARLY',
-} as const;

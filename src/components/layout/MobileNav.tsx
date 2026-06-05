@@ -1,9 +1,9 @@
-'use client';
+﻿'use client';
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 
-/* ─── SVG icon set ───────────────────────────────────────────────────── */
+/* â”€â”€â”€ SVG icon set â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 function IconHome({ active }: { active: boolean }) {
   return (
     <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor"
@@ -54,7 +54,7 @@ function IconPlus() {
   );
 }
 
-/* ─── Nav config ─────────────────────────────────────────────────────── */
+/* â”€â”€â”€ Nav config â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 const NAV = [
   { href: '/dashboard', label: 'Home',   Icon: IconHome   },
   { href: '/goals',     label: 'Goals',  Icon: IconTarget },
@@ -102,7 +102,7 @@ export function MobileNav() {
             <Link
               key={href}
               href={href}
-              className="flex flex-col items-center justify-center gap-1
+              className="relative flex flex-col items-center justify-center gap-1
                          transition-all duration-150 active:scale-95 flex-1 py-2"
               style={{ color: active ? 'var(--gold)' : 'var(--text-3)' }}
             >

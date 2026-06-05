@@ -1,6 +1,6 @@
-/**
+﻿/**
  * Push Notification Scheduler
- * 
+ *
  * Handles scheduled push notifications for:
  * 1. Morning reminder (7 AM daily)
  * 2. Goal deadline approaching (1 day before)
@@ -24,12 +24,12 @@ async function sendPushNotification(title: string, body: string, url?: string) {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ title, body, url })
     });
-    
+
     if (!response.ok) {
       console.error('[PushScheduler] Failed to send notification:', await response.text());
       return false;
     }
-    
+
     const result = await response.json();
     console.log('[PushScheduler] Notification sent:', result);
     return result.success;
@@ -44,7 +44,7 @@ function msUntilTime(hours: number, minutes: number = 0): number {
   const now = new Date();
   const target = new Date();
   target.setHours(hours, minutes, 0, 0);
-  
+
   let diff = target.getTime() - now.getTime();
   if (diff <= 0) {
     // Time has passed today, schedule for tomorrow
@@ -77,37 +77,37 @@ function useTimeSlotScheduler() {
       const targetTime = new Date();
       targetTime.setHours(h, m, 0, 0);
       targetTime.setMinutes(targetTime.getMinutes() - offsetMinutes);
-      
+
       const targetH = targetTime.getHours();
       const targetM = targetTime.getMinutes();
 
       const msUntil = msUntilTime(targetH, targetM);
-      
+
       console.log(`[PushScheduler] Scheduling "${slot.name}" for ${targetH}:${targetM} (Offset: ${offsetMinutes}m) - in ${Math.round(msUntil / 60000)}m`);
-      
+
       const timeout = setTimeout(async () => {
-         // 3. Context-Aware Content
-         let body = `Routine starting: ${slot.name}. Check your goals!`;
-         let title = `👉 Time for ${slot.name}`;
+        // 3. Context-Aware Content
+        let body = `Routine starting: ${slot.name}. Check your goals!`;
+        let title = `Time for ${slot.name}`;
 
-         if (offsetMinutes > 0) {
-            title = `⏰ ${offsetMinutes}m until ${slot.name}`;
-            body = `Wrap up your current task! ${slot.name} starts soon.`;
-         }
+        if (offsetMinutes > 0) {
+          title = `${offsetMinutes}m until ${slot.name}`;
+          body = `Wrap up your current task! ${slot.name} starts soon.`;
+        }
 
-         // Check focus goal for this slot
-         // Filter goals that belong to this slot AND are in focus
-         const slotFocusGoals = goals.filter(g => 
-            (g.timeSlotId === slot.id || slot.goalIds.includes(g.id)) && 
-            focusGoalIds.includes(g.id) &&
-            !g.isArchived && g.status !== 'completed'
-         );
+        // Check focus goal for this slot
+        // Filter goals that belong to this slot AND are in focus
+        const slotFocusGoals = goals.filter(g =>
+          (g.timeSlotId === slot.id || slot.goalIds.includes(g.id)) &&
+          focusGoalIds.includes(g.id) &&
+          !g.isArchived && g.status !== 'completed'
+        );
 
-         if (slotFocusGoals.length > 0) {
-            body = `Focus Priority: ${slotFocusGoals[0].title}. Let's make progress!`;
-         }
-         
-         await sendPushNotification(title, body, '/dashboard');
+        if (slotFocusGoals.length > 0) {
+          body = `Focus Priority: ${slotFocusGoals[0].title}. Let's make progress!`;
+        }
+
+        await sendPushNotification(title, body, '/dashboard');
       }, msUntil);
 
       timeouts.push(timeout);
@@ -132,16 +132,19 @@ function useDeadlineScheduler() {
       goals
         .filter(g => !g.isArchived && g.status !== 'completed')
         .forEach(goal => {
-          const metadata = goal.metadata as Record<string, unknown> | undefined;
-          const deadline = metadata?.deadline as string | undefined;
-          
+          // BUG FIX: deadline is a top-level field on Goal, not nested inside metadata.
+          // Previously: const metadata = goal.metadata as Record<string, unknown> | undefined;
+          //             const deadline = metadata?.deadline as string | undefined;
+          // This was always undefined because GoalMetadata never includes a 'deadline' key.
+          const deadline = goal.deadline;
+
           if (deadline) {
             const deadlineDate = new Date(deadline);
             const timeUntil = deadlineDate.getTime() - now.getTime();
-            
+
             if (timeUntil > 0 && timeUntil <= oneDayMs) {
               sendPushNotification(
-                '⏰ Deadline Approaching!',
+                'Deadline Approaching!',
                 `"${goal.title}" is due tomorrow.`,
                 '/goals'
               );
@@ -160,7 +163,7 @@ function useDeadlineScheduler() {
 export function usePushNotificationScheduler() {
   // Use specialized hooks
   // Replaced static morning/diary with dynamic slots as requested
-  useTimeSlotScheduler(); 
+  useTimeSlotScheduler();
   useDeadlineScheduler();
 }
 

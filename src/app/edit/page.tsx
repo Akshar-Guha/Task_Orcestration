@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
@@ -10,7 +10,8 @@ import {
   useAddTimeSlot, useUpdateTimeSlot, useDeleteTimeSlot 
 } from '@/lib/hooks/useSupabase';
 import type { Goal, Task, TimeSlot, TimeSlotType } from '@/lib/types';
-import { TIME_SLOT_LABELS, TIME_SLOT_COLORS, formatDuration } from '@/lib/types';
+import { TIME_SLOT_LABELS, TIME_SLOT_COLORS } from '@/lib/constants';
+import { formatDuration } from '@/lib/date-utils';
 
 type EditTab = 'timeslots' | 'goals' | 'tasks';
 
@@ -35,18 +36,27 @@ export default function EditPage() {
 
   const [activeTab, setActiveTab] = useState<EditTab>('timeslots');
   const [hasChanges, setHasChanges] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
 
   // Local editing state
   const [editingSlots, setEditingSlots] = useState<TimeSlot[]>([]);
   const [editingGoals, setEditingGoals] = useState<Goal[]>([]);
   const [editingTasks, setEditingTasks] = useState<Task[]>([]);
 
-  // Initialize editing state
+  // Initialize editing state from server data — only on first load (when editing arrays are empty)
+  // to avoid overwriting in-progress user edits on background refetch.
   useEffect(() => {
-    setEditingSlots(JSON.parse(JSON.stringify(timeSlots)));
-    setEditingGoals(JSON.parse(JSON.stringify(goals)));
-    setEditingTasks(JSON.parse(JSON.stringify(tasks)));
-  }, [timeSlots, goals, tasks]);
+    if (editingSlots.length === 0 && timeSlots.length > 0) {
+      setEditingSlots(JSON.parse(JSON.stringify(timeSlots)));
+    }
+    if (editingGoals.length === 0 && goals.length > 0) {
+      setEditingGoals(JSON.parse(JSON.stringify(goals)));
+    }
+    if (editingTasks.length === 0 && tasks.length > 0) {
+      setEditingTasks(JSON.parse(JSON.stringify(tasks)));
+    }
+  }, [timeSlots, goals, tasks]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleSave = async () => {
     const promises = [];
@@ -85,9 +95,18 @@ export default function EditPage() {
       }
     }
 
-    await Promise.all(promises);
-    setHasChanges(false);
-    router.push('/dashboard');
+    setIsSaving(true);
+    setSaveError(null);
+    try {
+      await Promise.all(promises);
+      setHasChanges(false);
+      router.push('/dashboard');
+    } catch (err) {
+      console.error('[EditPage] Save failed:', err);
+      setSaveError('Failed to save changes. Please try again.');
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   const handleCancel = () => {
@@ -785,6 +804,12 @@ export default function EditPage() {
           )}
         </div>
 
+        {saveError && (
+          <div className="mb-4 px-4 py-2.5 bg-red-500/10 border border-red-500/30 rounded-xl text-red-400 text-sm text-center">
+            {saveError}
+          </div>
+        )}
+
         {/* Action Buttons - Mobile Optimized */}
         <div className="fixed bottom-0 left-0 right-0 bg-slate-900/95 backdrop-blur-xl border-t border-slate-800 p-4 z-50"
              style={{ paddingBottom: 'calc(1rem + env(safe-area-inset-bottom))' }}>
@@ -798,7 +823,7 @@ export default function EditPage() {
             </button>
             <button
               onClick={handleSave}
-              disabled={!hasChanges}
+              disabled={!hasChanges || isSaving}
               className={`w-full sm:w-auto min-h-[44px] px-6 py-3 rounded-xl font-medium transition-all order-1 sm:order-2 ${
                 hasChanges
                   ? 'bg-violet-600 hover:bg-violet-700 text-white'

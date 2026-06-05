@@ -1,14 +1,16 @@
-'use client';
+﻿'use client';
 
 import Link from 'next/link';
 import { useMemo } from 'react';
-import { TimelineEvent, formatDuration } from '@/lib/types';
+import type { TimelineEvent } from '@/lib/types';
+import { formatDuration } from '@/lib/date-utils';
 import { useTimelineEvents, useSleepLogs, useProductivity, useGoals, useTasks } from '@/lib/hooks/useSupabase';
 
 // Get all days from Jan 1, 2026 up to today (max 365 days)
 function getLast365Days() {
   const days = [];
-  const startDate = new Date('2026-01-01');
+  // Use local noon to avoid timezone-related date shifts
+  const startDate = new Date('2026-01-01T12:00:00');
   const today = new Date();
   
   // Start from Jan 1, 2026 and go up to today
@@ -74,7 +76,7 @@ export default function ProfilePage() {
   // Calculate completion percentage for a date using productivity logs
   const getCompletionPercentage = (date: string) => {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const dayLog = productivityData?.logs.find((l: any) => l.date === date);
+    const dayLog = (productivityData as any)?.logs?.find((l: any) => l.date === date);
     const dayEvents = eventsByDate[date] || [];
     
     if (dayLog && dayLog.productive_minutes > 0) {
@@ -229,7 +231,7 @@ export default function ProfilePage() {
                       }
                       
                       const percentage = getCompletionPercentage(day);
-                      const date = new Date(day);
+                      const date = new Date(day + 'T00:00:00');
                       const dayEvents = eventsByDate[day] || [];
                       
                       return (
@@ -250,7 +252,7 @@ export default function ProfilePage() {
               <div className="flex gap-[4px] mt-2">
                 {weeks.map((week, idx) => {
                   if (idx % 4 === 0 && week[0]) {
-                    const date = new Date(week[0]);
+                    const date = new Date(week[0] + 'T00:00:00');
                     return (
                       <div key={idx} className="text-xs text-slate-600" style={{ width: '16px' }}>
                         {date.toLocaleDateString('en-US', { month: 'short' })}

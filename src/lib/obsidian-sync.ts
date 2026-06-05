@@ -136,28 +136,28 @@ ${entries || '*No entries this month*'}
  * Convert DailyEntry to Obsidian markdown
  */
 function diaryEntryToMarkdown(entry: DailyEntry, answers?: QuestionAnswer[], questions?: Question[]): string {
-  const moodEmoji = entry.mood ? ['😢', '😕', '😐', '🙂', '😊'][entry.mood - 1] : '❓';
+  const moodEmoji = entry.mood ? ['ðŸ˜¢', 'ðŸ˜•', 'ðŸ˜', 'ðŸ™‚', 'ðŸ˜Š'][entry.mood - 1] : 'â“';
   const energyBar = entry.energyLevel 
-    ? '█'.repeat(entry.energyLevel) + '░'.repeat(10 - entry.energyLevel)
+    ? 'â–ˆ'.repeat(entry.energyLevel) + 'â–‘'.repeat(10 - entry.energyLevel)
     : 'N/A';
 
   const winsSection = entry.wins && entry.wins.length > 0
-    ? `## 🏆 Wins\n${entry.wins.map(w => `- ${w}`).join('\n')}\n`
+    ? `## ðŸ† Wins\n${entry.wins.map(w => `- ${w}`).join('\n')}\n`
     : '';
 
   const challengesSection = entry.challenges && entry.challenges.length > 0
-    ? `## ⚠️ Challenges\n${entry.challenges.map(c => `- ${c}`).join('\n')}\n`
+    ? `## âš ï¸ Challenges\n${entry.challenges.map(c => `- ${c}`).join('\n')}\n`
     : '';
 
   const productivitySection = entry.productivityData && Object.keys(entry.productivityData).length > 0
-    ? `## ⏱️ Productivity Time\n${Object.entries(entry.productivityData)
+    ? `## â±ï¸ Productivity Time\n${Object.entries(entry.productivityData)
         .filter(([, v]) => v && v > 0)
         .map(([k, v]) => `- **${k.replace('_', ' ')}:** ${v} min`)
         .join('\n')}\n`
     : '';
 
   const qaSection = answers && answers.length > 0 && questions
-    ? `## 💬 Reflections\n${answers.map(a => {
+    ? `## ðŸ’¬ Reflections\n${answers.map(a => {
         const q = questions.find(q => q.id === a.questionId);
         return `### ${q?.questionText || 'Question'}\n${a.answer}\n`;
       }).join('\n')}\n`
@@ -174,14 +174,14 @@ metadata:
   synced_at: "${new Date().toISOString()}"
 ---
 
-# 📔 ${new Date(entry.date + 'T00:00:00').toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })}
+# ðŸ“” ${new Date(entry.date + 'T00:00:00').toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })}
 
-## 📊 Daily Metrics
+## ðŸ“Š Daily Metrics
 | Mood | Energy |
 |------|--------|
 | ${moodEmoji} ${entry.mood || 'N/A'}/5 | ${energyBar} ${entry.energyLevel || 'N/A'}/10 |
 
-${entry.summary ? `## 📝 Summary\n${entry.summary}\n` : ''}
+${entry.summary ? `## ðŸ“ Summary\n${entry.summary}\n` : ''}
 ${winsSection}
 ${challengesSection}
 ${productivitySection}
@@ -359,18 +359,20 @@ export async function fullSync(
 // Helper functions
 function getStatusEmoji(status: string): string {
   switch (status) {
-    case 'completed': return '✅';
-    case 'in_progress': return '🔄';
-    case 'blocked': return '🚫';
-    default: return '⏳';
+    case 'completed': return 'âœ…';
+    case 'in_progress': return 'ðŸ”„';
+    case 'blocked': return 'ðŸš«';
+    default: return 'â³';
   }
 }
 
 function getPriorityLabel(priority: number): string {
+  // BUG FIX: labels were inverted. types.ts defines 1=Critical, 2=Important, 3=Nice-to-have.
   switch (priority) {
-    case 1: return '🟢 Low';
-    case 2: return '🟡 Normal';
-    case 3: return '🔴 Critical';
-    default: return '🟡 Normal';
+    case 1: return 'Critical';
+    case 2: return 'Important';
+    case 3: return 'Nice-to-have';
+    default: return 'Important';
   }
 }
+

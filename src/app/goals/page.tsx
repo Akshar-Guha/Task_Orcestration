@@ -1,8 +1,9 @@
-'use client';
+﻿'use client';
 
 import { useState, useRef } from 'react';
 import { Space_Mono } from 'next/font/google';
-import { LEVEL_LABELS, LEVEL_COLORS, type GoalLevel } from '@/lib/types';
+import { LEVEL_LABELS, LEVEL_COLORS } from '@/lib/constants';
+import type { GoalLevel } from '@/lib/types';
 import {
   useGoals,
   useTasks,

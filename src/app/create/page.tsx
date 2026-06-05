@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
@@ -6,7 +6,8 @@ import { Space_Mono } from 'next/font/google';
 import { useAppStore } from '@/lib/store';
 import { useGoals, useTimeSlots, useAddGoal, useAddTask } from '@/lib/hooks/useSupabase';
 import type { GoalLevel, CreateGoalInput, CreateTaskInput, GoalMetadata } from '@/lib/types';
-import { DURATION_OPTIONS, formatDuration } from '@/lib/types';
+import { DURATION_OPTIONS } from '@/lib/constants';
+import { formatDuration } from '@/lib/date-utils';
 
 const mono = Space_Mono({ weight: ['400', '700'], subsets: ['latin'], display: 'swap' });
 
@@ -498,18 +499,39 @@ export default function CreatePage() {
   const addTaskMutation = useAddTask();
   const focusGoalIds = useAppStore((state) => state.focusGoalIds) ?? [];
   const [tab, setTab] = useState<'task' | 'goal'>('task');
+  const [createError, setCreateError] = useState<string | null>(null);
 
   const handleCreateTask = (input: CreateTaskInput) => {
-    addTaskMutation.mutate(input, { onSuccess: () => router.push('/dashboard') });
+    setCreateError(null);
+    addTaskMutation.mutate(input, {
+      onSuccess: () => router.push('/dashboard'),
+      onError: (err) => {
+        console.error('[CreatePage] Task creation failed:', err);
+        setCreateError('Failed to create task. Please try again.');
+      },
+    });
   };
 
   const handleCreateGoal = (input: CreateGoalInput) => {
-    addGoalMutation.mutate(input, { onSuccess: () => router.push('/goals') });
+    setCreateError(null);
+    addGoalMutation.mutate(input, {
+      onSuccess: () => router.push('/goals'),
+      onError: (err) => {
+        console.error('[CreatePage] Goal creation failed:', err);
+        setCreateError('Failed to create goal. Please try again.');
+      },
+    });
   };
 
   return (
     <div style={{ paddingBottom: 'calc(var(--nav-h) + var(--safe-b) + 1rem)' }}>
       <h1 className="text-xl font-bold text-white mb-5">Create</h1>
+
+      {createError && (
+        <div className="mb-4 px-4 py-2.5 bg-red-500/10 border border-red-500/20 rounded-xl text-red-400 text-xs">
+          {createError}
+        </div>
+      )}
 
       {/* Tabs */}
       <div className="flex gap-2 mb-6 p-1 bg-white/[0.03] border border-white/[0.06] rounded-2xl">

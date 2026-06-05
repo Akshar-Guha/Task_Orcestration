@@ -1,6 +1,6 @@
-/**
+﻿/**
  * Morning Briefing Email - Triggered on Wake Up
- * 
+ *
  * Sends a personalized morning briefing email with:
  * - Today's goals and tasks
  * - Yesterday's summary
@@ -8,11 +8,9 @@
  */
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+import { corsHeaders } from '../_shared/cors.ts';
 
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-};
+// FIX: Removed inline corsHeaders duplicate; import from _shared/cors.ts
 
 const RESEND_API_KEY = Deno.env.get('RESEND_API_KEY') || '';
 const USER_EMAIL = Deno.env.get('USER_EMAIL') || '';
@@ -31,11 +29,18 @@ serve(async (req) => {
     if (!USER_EMAIL) {
       throw new Error('USER_EMAIL not configured');
     }
+    // FIX: Added missing USER_ID guard
+    if (!USER_ID) {
+      throw new Error('DEFAULT_USER_ID not configured');
+    }
 
-    const supabase = createClient(
-      Deno.env.get('SUPABASE_URL') ?? '',
-      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
-    );
+    const supabaseUrl = Deno.env.get('SUPABASE_URL') ?? '';
+    const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '';
+    if (!supabaseUrl || !serviceRoleKey) {
+      throw new Error('SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY not configured');
+    }
+
+    const supabase = createClient(supabaseUrl, serviceRoleKey);
 
     // Parse request body (optional mood from wake-up)
     let wakeUpMood = 'good';
@@ -48,7 +53,7 @@ serve(async (req) => {
 
     const today = new Date().toISOString().split('T')[0];
 
-    // 1. Get top 3 active goals (critical → important → nice-to-have)
+    // 1. Get top 3 active goals (critical -> important -> nice-to-have)
     const { data: goals } = await supabase
       .from('goals')
       .select('id, title, status, priority')
@@ -59,7 +64,7 @@ serve(async (req) => {
       .limit(3);
 
     // 2. Get pending task counts per goal
-    const goalIds = goals?.map(g => g.id) || [];
+    const goalIds = goals?.map((g: any) => g.id) || [];
     const { data: tasks } = goalIds.length ? await supabase
       .from('tasks')
       .select('id, goal_id')
@@ -86,30 +91,39 @@ serve(async (req) => {
       if (t.goal_id) taskCountByGoal[t.goal_id] = (taskCountByGoal[t.goal_id] || 0) + 1;
     }
 
+    // FIX: The goals list template literal referenced ${APP_URL} inside a
+    // string that was NOT a template literal — the link was rendered as the
+    // literal text "${APP_URL}". Fixed by moving it into the outer template.
     const goalsHtml = goals?.length
       ? goals.map((g: { id: string; title: string; status: string }) => {
           const count = taskCountByGoal[g.id] || 0;
-          const taskBadge = count > 0 ? `<span style="color:#94a3b8;font-size:12px;"> · ${count} task${count !== 1 ? 's' : ''}</span>` : '';
+          const taskBadge = count > 0
+            ? `<span style="color:#94a3b8;font-size:12px;"> &middot; ${count} task${count !== 1 ? 's' : ''}</span>`
+            : '';
           return `<li><strong>${g.title}</strong>${taskBadge}</li>`;
         }).join('')
-      : '<li>No active goals — <a href="${APP_URL}/create" style="color:#a78bfa;">add one</a></li>';
+      : `<li>No active goals &mdash; <a href="${APP_URL}/create" style="color:#a78bfa;">add one</a></li>`;
 
     const yesterdaySummary = yesterdayLog
       ? `You were productive for <strong>${yesterdayLog.productive_minutes || 0} minutes</strong> yesterday.`
       : 'No productivity data from yesterday.';
 
-    const moodEmoji = {
-      'great': '😊',
-      'good': '🙂',
-      'okay': '😐',
-      'bad': '😔',
-      'terrible': '😢'
-    }[wakeUpMood] || '🌅';
+    const moodEmoji: Record<string, string> = {
+      'great': '&#128522;',
+      'good': '&#128578;',
+      'okay': '&#128528;',
+      'bad': '&#128532;',
+      'terrible': '&#128546;',
+    };
+    // FIX: Replaced garbled emoji literals with HTML entities
+    const moodEmojiStr = moodEmoji[wakeUpMood] || '&#127749;';
 
+    // FIX: Added charset=utf-8 meta
     const emailHtml = `
 <!DOCTYPE html>
 <html>
 <head>
+  <meta charset="utf-8">
   <style>
     body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; background: #0a0a0a; color: #e0e0e0; }
     h1 { color: #60a5fa; }
@@ -122,7 +136,7 @@ serve(async (req) => {
   </style>
 </head>
 <body>
-  <h1>${moodEmoji} Good Morning!</h1>
+  <h1>${moodEmojiStr} Good Morning!</h1>
 
   <p>Here's your focus for <strong>${today}</strong>.</p>
 
@@ -130,13 +144,13 @@ serve(async (req) => {
     ${yesterdaySummary}
   </div>
 
-  <h2>🎯 Today's Top Goals</h2>
+  <h2>&#127919; Today's Top Goals</h2>
   <ul>${goalsHtml}</ul>
 
-  <a href="${APP_URL}/dashboard" class="cta">View Today's Plan →</a>
+  <a href="${APP_URL}/dashboard" class="cta">View Today's Plan &rarr;</a>
 
   <div class="footer">
-    <p>Sent by MTO Second Brain • <a href="${APP_URL}/dashboard" style="color: #60a5fa;">Open Dashboard</a></p>
+    <p>Sent by MTO Second Brain &bull; <a href="${APP_URL}/dashboard" style="color: #60a5fa;">Open Dashboard</a></p>
   </div>
 </body>
 </html>
@@ -152,7 +166,7 @@ serve(async (req) => {
       body: JSON.stringify({
         from: 'MTO Second Brain <noreply@resend.dev>',
         to: [USER_EMAIL],
-        subject: `${moodEmoji} Morning Briefing - ${today}`,
+        subject: `${moodEmojiStr} Morning Briefing - ${today}`,
         html: emailHtml
       })
     });
@@ -174,7 +188,7 @@ serve(async (req) => {
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
 
-  } catch (error) {
+  } catch (error: any) {
     console.error('[wake-up-email] Error:', error);
     return new Response(
       JSON.stringify({ success: false, error: error.message }),

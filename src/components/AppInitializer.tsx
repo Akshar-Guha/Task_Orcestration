@@ -29,39 +29,45 @@ export function AppInitializer() {
     initRef.current = true;
 
     const init = async () => {
-      // 1. Check for Daily Reset
-      const now = new Date();
-      const today = now.toISOString().split('T')[0];
+      try {
+        // 1. Check for Daily Reset
+        const now = new Date();
+        const today = now.toISOString().split('T')[0];
 
-      const tasksNeedingReset = tasks.filter(t => {
-        if (!t.isDaily || !t.isCompleted || !t.completedAt) return false;
-        const completedDate = t.completedAt.split('T')[0];
-        return completedDate !== today;
-      });
+        const tasksNeedingReset = tasks.filter(t => {
+          if (!t.isDaily || !t.isCompleted || !t.completedAt) return false;
+          const completedDate = t.completedAt.split('T')[0];
+          return completedDate !== today;
+        });
 
-      if (tasksNeedingReset.length > 0) {
-        console.log(`[AppInit] Found ${tasksNeedingReset.length} daily tasks from previous days - resetting...`);
-        resetDailyTasksMutation.mutate();
-      }
-
-      // 2. Wake Up Modal Check
-      const isLandingPage = window.location.pathname === '/';
-      const isDiaryRoute = window.location.pathname.startsWith('/diary');
-
-      // Check if user already dismissed it today
-      const dismissedKey = `mto_wake_dismissed_${today}`;
-      const isDismissed = localStorage.getItem(dismissedKey) === 'true';
-
-      if (!isLandingPage && !isDiaryRoute && !isDismissed) {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const todayLog = sleepLogs.find((log: any) => log.date === today);
-        if (!todayLog?.wakeUpTime) {
-          setShowWakeUpModal(true);
+        if (tasksNeedingReset.length > 0) {
+          console.log(`[AppInit] Found ${tasksNeedingReset.length} daily tasks from previous days - resetting...`);
+          resetDailyTasksMutation.mutate();
         }
-      }
 
-      // Mark as initialized so we don't re-run this logic even if data refreshes
-      setHasInitialized(true);
+        // 2. Wake Up Modal Check
+        const isLandingPage = window.location.pathname === '/';
+        const isDiaryRoute = window.location.pathname.startsWith('/diary');
+
+        // Check if user already dismissed it today
+        const dismissedKey = `mto_wake_dismissed_${today}`;
+        const isDismissed = localStorage.getItem(dismissedKey) === 'true';
+
+        if (!isLandingPage && !isDiaryRoute && !isDismissed) {
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const todayLog = sleepLogs.find((log: any) => log.date === today);
+          if (!todayLog?.wakeUpTime) {
+            setShowWakeUpModal(true);
+          }
+        }
+
+        // Mark as initialized so we don't re-run this logic even if data refreshes
+        setHasInitialized(true);
+      } catch (err) {
+        console.error('[AppInit] Initialization error:', err);
+        // Reset the ref so a future render can retry
+        initRef.current = false;
+      }
     };
 
     init();

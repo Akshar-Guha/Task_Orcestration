@@ -8,16 +8,21 @@ const supabase = createClient(
 );
 
 export async function GET() {
-  const userId = getCurrentUserId();
-  if (!userId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  try {
+    const userId = getCurrentUserId();
+    if (!userId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
-  const { data, error } = await supabase
-    .from('tasks')
-    .select('id, title, is_completed, is_archived')
-    .eq('user_id', userId)
-    .eq('is_archived', false)
-    .order('created_at', { ascending: false });
+    const { data, error } = await supabase
+      .from('tasks')
+      .select('id, title, is_completed, is_archived')
+      .eq('user_id', userId)
+      .eq('is_archived', false)
+      .order('created_at', { ascending: false });
 
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-  return NextResponse.json({ tasks: data || [] });
+    if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+    return NextResponse.json({ tasks: data || [] });
+  } catch (error) {
+    console.error('[Tasks API] Unexpected error:', error);
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+  }
 }

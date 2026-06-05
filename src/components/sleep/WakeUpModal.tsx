@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import { useState } from 'react';
 import { useRecordWakeUp, useResetDailyTasks } from '@/lib/hooks/useSupabase';
@@ -12,9 +12,8 @@ export function WakeUpModal({ onClose }: WakeUpModalProps) {
   const recordWakeUpMutation = useRecordWakeUp();
   const resetDailyTasksMutation = useResetDailyTasks();
 
-  // Get current time as default
-  const now = new Date();
-  const defaultTime = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+  // Get current time as default (computed inline)
+  const _d = new Date(); const defaultTime = String(_d.getHours()).padStart(2, '0') + ':' + String(_d.getMinutes()).padStart(2, '0');
 
   const [wakeTime, setWakeTime] = useState(defaultTime);
   const [mood, setMood] = useState<MoodLevel | undefined>();
@@ -26,11 +25,13 @@ export function WakeUpModal({ onClose }: WakeUpModalProps) {
     setIsSubmitting(true);
 
     try {
+      // Capture actual submit time so the offset is accurate even if the user sat on the modal
+      const now = new Date();
       // Calculate adjusted minutes from selected time vs now
       const [hours, minutes] = wakeTime.split(':').map(Number);
       const selectedTime = new Date();
       selectedTime.setHours(hours, minutes, 0, 0);
-      const adjustedMinutes = Math.round((now.getTime() - selectedTime.getTime()) / (1000 * 60));
+      const adjustedMinutes = Math.max(0, Math.round((now.getTime() - selectedTime.getTime()) / (1000 * 60)));
 
       // 1. Reset daily tasks (server-side via mutation)
       await resetDailyTasksMutation.mutateAsync();
@@ -49,11 +50,11 @@ export function WakeUpModal({ onClose }: WakeUpModalProps) {
   };
 
   const moods: { level: MoodLevel; label: string; icon: string }[] = [
-    { level: 5, label: 'Amazing', icon: '★★★' },
-    { level: 4, label: 'Good',    icon: '★★'  },
-    { level: 3, label: 'Okay',    icon: '★'   },
-    { level: 2, label: 'Tired',   icon: '—'   },
-    { level: 1, label: 'Awful',   icon: '✕'   },
+    { level: 5, label: 'Amazing', icon: 'â˜…â˜…â˜…' },
+    { level: 4, label: 'Good',    icon: 'â˜…â˜…'  },
+    { level: 3, label: 'Okay',    icon: 'â˜…'   },
+    { level: 2, label: 'Tired',   icon: 'â€”'   },
+    { level: 1, label: 'Awful',   icon: 'âœ•'   },
   ];
 
   return (
@@ -81,7 +82,7 @@ export function WakeUpModal({ onClose }: WakeUpModalProps) {
             className="text-sm mt-1"
             style={{ color: 'var(--text-2)' }}
           >
-            New day, fresh start — yesterday&apos;s tasks will reset.
+            New day, fresh start â€” yesterday&apos;s tasks will reset.
           </p>
         </div>
 
@@ -186,3 +187,6 @@ export function WakeUpModal({ onClose }: WakeUpModalProps) {
     </div>
   );
 }
+
+
+

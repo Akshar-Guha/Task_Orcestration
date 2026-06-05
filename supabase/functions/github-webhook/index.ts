@@ -1,9 +1,13 @@
-import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
+﻿import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+import { corsHeaders } from '../_shared/cors.ts';
 
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-hub-signature-256',
+// FIX: Removed inline corsHeaders. github-webhook had an extra header
+// (x-hub-signature-256) not present in _shared/cors.ts. Added it to the shared import
+// headers via the local override below so preflight works for signature validation.
+const githubCorsHeaders = {
+  ...corsHeaders,
+  'Access-Control-Allow-Headers': corsHeaders['Access-Control-Allow-Headers'] + ', x-hub-signature-256',
 };
 
 const GITHUB_TOKEN = Deno.env.get('GITHUB_TOKEN') || '';
@@ -33,23 +37,37 @@ async function generateEmbedding(supabaseUrl: string, serviceKey: string, text: 
 
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
-    return new Response('ok', { headers: corsHeaders });
+    return new Response('ok', { headers: githubCorsHeaders });
   }
 
   try {
     const supabaseUrl = Deno.env.get('SUPABASE_URL') ?? '';
     const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '';
+    // FIX: Validate Supabase env vars and USER_ID before processing
+    if (!supabaseUrl || !serviceRoleKey) {
+      throw new Error('SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY not configured');
+    }
+    if (!USER_ID) {
+      throw new Error('DEFAULT_USER_ID not configured');
+    }
+
     const supabaseClient = createClient(supabaseUrl, serviceRoleKey);
 
     const payload = await req.json();
     if (!payload.commits) {
       return new Response(
         JSON.stringify({ success: true, message: 'Not a push event, ignoring' }),
-        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        { headers: { ...githubCorsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
     const repo = payload.repository?.full_name;
+    // FIX: Missing repo check — without a repo name the GitHub API calls would
+    // produce garbage URLs and silently return 404s.
+    if (!repo) {
+      throw new Error('Missing repository.full_name in payload');
+    }
+
     const results: any[] = [];
 
     for (const commit of payload.commits) {
@@ -61,7 +79,10 @@ serve(async (req) => {
         }
 
         try {
-          const fileUrl = `https://api.github.com/repos/${repo}/contents/${encodeURIComponent(filePath)}`;
+          // FIX: Use commit.id (the commit SHA) for fetching the specific version of
+          // the file, not the repo default branch, to avoid race conditions when
+          // multiple commits arrive in the same push event.
+          const fileUrl = `https://api.github.com/repos/${repo}/contents/${encodeURIComponent(filePath)}?ref=${commit.id}`;
           const fileResponse = await fetch(fileUrl, {
             headers: {
               'Authorization': `Bearer ${GITHUB_TOKEN}`,
@@ -72,6 +93,7 @@ serve(async (req) => {
 
           if (!fileResponse.ok) {
             console.error(`Failed to fetch ${filePath}: ${fileResponse.statusText}`);
+            results.push({ file: filePath, status: 'error', error: fileResponse.statusText });
             continue;
           }
 
@@ -105,6 +127,7 @@ serve(async (req) => {
 
           if (insertError) {
             console.error(`Failed to save ${filePath}:`, insertError);
+            results.push({ file: filePath, status: 'error', error: insertError.message });
             continue;
           }
 
@@ -147,7 +170,7 @@ serve(async (req) => {
           }
 
           results.push({ file: filePath, status: 'synced', embedded: embedding != null });
-        } catch (fileError) {
+        } catch (fileError: any) {
           console.error(`Error processing ${filePath}:`, fileError);
           results.push({ file: filePath, status: 'error', error: fileError.message });
         }
@@ -160,14 +183,14 @@ serve(async (req) => {
         processed: results.length,
         files: results,
       }),
-      { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      { headers: { ...githubCorsHeaders, 'Content-Type': 'application/json' } }
     );
 
-  } catch (error) {
+  } catch (error: any) {
     console.error('Webhook error:', error);
     return new Response(
       JSON.stringify({ success: false, error: error.message }),
-      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      { status: 500, headers: { ...githubCorsHeaders, 'Content-Type': 'application/json' } }
     );
   }
 });

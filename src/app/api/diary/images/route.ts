@@ -1,11 +1,11 @@
-import { NextRequest, NextResponse } from 'next/server';
+﻿import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { getCurrentUserId } from '@/lib/user';
 
 // Initialize Supabase client with service role for storage operations
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+  process.env.SUPABASE_SERVICE_ROLE_KEY!
 );
 
 // POST /api/diary/images - Upload an image for a diary entry
@@ -81,6 +81,7 @@ export async function POST(request: NextRequest) {
       .from('images')
       .insert({
         entry_id: entryId,
+        user_id: userId,
         storage_path: storagePath,
         original_filename: file.name,
         mime_type: file.type,

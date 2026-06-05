@@ -23,6 +23,7 @@ export default function DiaryPage() {
   async function fetchEntries() {
     try {
       setLoading(true);
+      setError(null);
       const res = await fetch('/api/diary?limit=30', {
         headers: {
           'x-user-timezone': Intl.DateTimeFormat().resolvedOptions().timeZone,
@@ -59,16 +60,16 @@ export default function DiaryPage() {
 
   // Mood emoji mapping
   const moodEmoji = (mood?: number) => {
-    if (!mood) return '—';
-    const emojis = ['😢', '😕', '😐', '🙂', '😊'];
-    return emojis[mood - 1] || '—';
+    if (!mood) return 'â€”';
+    const emojis = ['ðŸ˜¢', 'ðŸ˜•', 'ðŸ˜', 'ðŸ™‚', 'ðŸ˜Š'];
+    return emojis[mood - 1] || 'â€”';
   };
 
   // Energy bar
   const energyBar = (energy?: number) => {
     if (!energy) return null;
-    const filled = '█'.repeat(energy);
-    const empty = '░'.repeat(10 - energy);
+    const filled = 'â–ˆ'.repeat(energy);
+    const empty = 'â–‘'.repeat(10 - energy);
     return (
       <span
         className="text-xs"
@@ -87,11 +88,8 @@ export default function DiaryPage() {
     >
       {/* Header */}
       <header
-        className="sticky top-0 z-10"
-        style={{
-          background: 'var(--bg)',
-          borderBottom: '1px solid var(--border)',
-        }}
+        className="sticky z-10"
+        style={{ top: "var(--header-h)", background: 'var(--bg)', borderBottom: '1px solid var(--border)' }}
       >
         <div className="max-w-4xl mx-auto px-4 py-4 flex items-center justify-between">
           <h1

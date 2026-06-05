@@ -1,4 +1,4 @@
-import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
+﻿import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2"
 import { corsHeaders } from "../_shared/cors.ts"
 
@@ -212,12 +212,14 @@ serve(async (req) => {
         break;
 
       case 'get_events':
-        const {limit = 50} = data || {};
-        const { data: events, error: getEventsError } = await supabase
+        const {limit = 50, user_id: eventsUserId} = data || {};
+        let eventsQuery = supabase
           .from('timeline_events')
           .select('*')
           .order('created_at', { ascending: false })
-          .limit(limit)
+          .limit(limit);
+        if (eventsUserId) eventsQuery = eventsQuery.eq('user_id', eventsUserId);
+        const { data: events, error: getEventsError } = await eventsQuery
 
         if (getEventsError) throw getEventsError
         result = { success: true, events }
@@ -261,7 +263,7 @@ serve(async (req) => {
       status: 200,
     })
 
-  } catch (error) {
+  } catch (error: any) {
     console.error(error)
     return new Response(JSON.stringify({ success: false, error: error.message }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
@@ -269,3 +271,6 @@ serve(async (req) => {
     })
   }
 })
+
+
+

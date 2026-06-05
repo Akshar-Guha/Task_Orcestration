@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
@@ -39,8 +39,10 @@ export function DiaryNav() {
             style={{ background: 'var(--border)' }}
           />
           {navItems.map((item) => {
-            const isActive =
-              pathname === item.match || pathname?.startsWith(item.match + '/');
+            // For the root diary path, use exact match to avoid highlighting it on sub-routes
+            const isActive = item.match === '/diary'
+              ? pathname === item.match
+              : pathname === item.match || pathname?.startsWith(item.match + '/');
             return (
               <Link
                 key={item.href}

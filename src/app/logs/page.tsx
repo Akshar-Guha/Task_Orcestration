@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import { useState } from 'react';
 import type { TimelineEventType } from '@/lib/types';
@@ -8,25 +8,25 @@ const EVENT_CATEGORIES: { label: string; types: TimelineEventType[]; icon: strin
   {
     label: 'Task Completions',
     types: ['task_completed'],
-    icon: '✅',
+    icon: 'âœ…',
     color: 'text-emerald-400 bg-emerald-500/10 border-emerald-500/30',
   },
   {
     label: 'Task Uncompleted',
     types: ['task_uncompleted'],
-    icon: '↩️',
+    icon: 'â†©ï¸',
     color: 'text-orange-400 bg-orange-500/10 border-orange-500/30',
   },
   {
     label: 'Creations',
     types: ['task_created', 'goal_created'],
-    icon: '➕',
+    icon: 'âž•',
     color: 'text-violet-400 bg-violet-500/10 border-violet-500/30',
   },
   {
     label: 'Goal Progress',
     types: ['goal_started', 'goal_completed'],
-    icon: '🎯',
+    icon: 'ðŸŽ¯',
     color: 'text-cyan-400 bg-cyan-500/10 border-cyan-500/30',
   },
 ];
@@ -65,42 +65,42 @@ export default function LogsPage() {
     switch (event.eventType) {
       case 'task_completed':
         return {
-          icon: '✅',
+          icon: 'âœ…',
           text: event.details || (task ? `Completed "${task.title}"` : 'Completed a task'),
           color: 'text-emerald-400',
         };
       case 'task_uncompleted':
         return {
-          icon: '↩️',
+          icon: 'â†©ï¸',
           text: event.details || (task ? `Uncompleted "${task.title}"` : 'Uncompleted a task'),
           color: 'text-orange-400',
         };
       case 'task_created':
         return {
-          icon: '➕',
+          icon: 'âž•',
           text: event.details || (task ? `Created task "${task.title}"` : 'Created a task'),
           color: 'text-violet-400',
         };
       case 'goal_created':
         return {
-          icon: '🎯',
+          icon: 'ðŸŽ¯',
           text: event.details || (goal ? `Created goal "${goal.title}"` : 'Created a goal'),
           color: 'text-violet-400',
         };
       case 'goal_started':
         return {
-          icon: '🚀',
+          icon: 'ðŸš€',
           text: event.details || (goal ? `Started goal "${goal.title}"` : 'Started a goal'),
           color: 'text-blue-400',
         };
       case 'goal_completed':
         return {
-          icon: '🏆',
+          icon: 'ðŸ†',
           text: event.details || (goal ? `Completed goal "${goal.title}"` : 'Completed a goal'),
           color: 'text-amber-400',
         };
       default:
-        return { icon: '•', text: event.details || 'Activity', color: 'text-slate-500' };
+        return { icon: 'â€¢', text: event.details || 'Activity', color: 'text-slate-500' };
     }
   };
   
@@ -151,7 +151,7 @@ export default function LogsPage() {
         {/* Event Timeline */}
         {filteredEvents.length === 0 ? (
           <div className="p-12 bg-slate-900/50 border border-slate-800 rounded-xl text-center">
-            <div className="text-5xl mb-3">📋</div>
+            <div className="text-5xl mb-3">ðŸ“‹</div>
             <h3 className="text-lg font-bold text-white mb-2">No Activity Yet</h3>
             <p className="text-slate-500">Start creating goals and completing tasks to see your activity history!</p>
           </div>
@@ -161,7 +161,8 @@ export default function LogsPage() {
               const dateEvents = eventsByDate[date];
               const dateObj = new Date(date);
               const isToday = date === new Date().toISOString().split('T')[0];
-              const isYesterday = date === new Date(new Date().setDate(new Date().getDate() - 1)).toISOString().split('T')[0];
+              const yesterdayDate = new Date(); yesterdayDate.setDate(yesterdayDate.getDate() - 1);
+              const isYesterday = date === yesterdayDate.toISOString().split('T')[0];
               
               let dateLabel = dateObj.toLocaleDateString('en-US', { 
                 weekday: 'long', 
