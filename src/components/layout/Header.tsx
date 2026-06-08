@@ -6,12 +6,12 @@ import { SyncIndicator } from '@/components/SyncStatus';
 export function Header() {
   return (
     <header
-      className="glass fixed top-0 left-0 right-0 z-50 h-16"
-      style={{ borderBottom: '1px solid var(--border)' }}
+      className="glass fixed top-0 left-0 right-0 z-50"
+      style={{ borderBottom: '1px solid var(--border)', paddingTop: 'env(safe-area-inset-top, 0px)' }}
     >
       <div className="flex items-center justify-between h-16 max-w-4xl mx-auto px-4">
         <div className="flex items-center gap-3">
-          {/* Wordmark icon — a simple diamond/target glyph in gold */}
+          {/* Wordmark icon â€” a simple diamond/target glyph in gold */}
           <svg
             width="20"
             height="20"
