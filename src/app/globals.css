@@ -1,13 +1,13 @@
 @import "tailwindcss";
 
-/* ─── Font utilities (consumed by Tailwind via @theme) ───────────────── */
+/* â”€â”€â”€ Font utilities (consumed by Tailwind via @theme) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 @theme {
   --font-family-display: var(--font-display, Georgia), serif;
   --font-family-body:    var(--font-body, system-ui), sans-serif;
   --font-family-mono:    var(--font-mono, "Courier New"), monospace;
 }
 
-/* ─── Void OS design tokens ──────────────────────────────────────────── */
+/* â”€â”€â”€ Void OS design tokens â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 :root {
   /* Backgrounds */
   --bg:          #060B11;
@@ -43,7 +43,7 @@
   --header-h:    calc(4rem + env(safe-area-inset-top, 0px));
 }
 
-/* ─── Base reset ─────────────────────────────────────────────────────── */
+/* â”€â”€â”€ Base reset â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 *, *::before, *::after { box-sizing: border-box; }
 
 html {
@@ -66,7 +66,7 @@ body {
   overscroll-behavior: none;
 }
 
-/* ─── Touch targets (iOS/Android 44 px minimum) ──────────────────────── */
+/* â”€â”€â”€ Touch targets (iOS/Android 44 px minimum) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 button,
 a,
 [role="button"],
@@ -76,7 +76,7 @@ input[type="radio"] {
   min-width: 44px;
 }
 
-/* ─── Focus ──────────────────────────────────────────────────────────── */
+/* â”€â”€â”€ Focus â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 :focus-visible {
   outline: 2px solid var(--gold);
   outline-offset: 2px;
@@ -87,7 +87,7 @@ input[type="radio"] {
   color: var(--text);
 }
 
-/* ─── Scrollbar ──────────────────────────────────────────────────────── */
+/* â”€â”€â”€ Scrollbar â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 ::-webkit-scrollbar { width: 4px; }
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb {
@@ -96,9 +96,10 @@ input[type="radio"] {
 }
 ::-webkit-scrollbar-thumb:hover { background: var(--border-hi); }
 
-/* ─── Layout helpers ─────────────────────────────────────────────────── */
+/* â”€â”€â”€ Layout helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 .safe-area-top    { padding-top:    var(--safe-t); }
 .safe-area-bottom { padding-bottom: var(--safe-b); }
+.safe-header { padding-top: env(safe-area-inset-top, 0px); }
 
 .page-content {
   padding-bottom: calc(var(--nav-h) + var(--safe-b) + 1rem);
@@ -110,7 +111,7 @@ input[type="radio"] {
   overscroll-behavior-y: contain;
 }
 
-/* ─── Keyframes ──────────────────────────────────────────────────────── */
+/* â”€â”€â”€ Keyframes â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 @keyframes fadeIn {
   from { opacity: 0; }
   to   { opacity: 1; }
@@ -149,7 +150,7 @@ input[type="radio"] {
   to   { opacity: 1; transform: scale(1); }
 }
 
-/* ─── Animation utilities ────────────────────────────────────────────── */
+/* â”€â”€â”€ Animation utilities â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 .animate-fade-in  { animation: fadeIn   200ms ease-out both; }
 .animate-slide-up { animation: slideUp  260ms ease-out both; }
 .animate-pulse    { animation: pulse    2s    infinite; }
@@ -157,7 +158,7 @@ input[type="radio"] {
 .animate-spin     { animation: spin     650ms linear infinite; }
 .animate-scale-in { animation: scaleIn  220ms ease-out both; }
 
-/* ─── Skeleton loader ────────────────────────────────────────────────── */
+/* â”€â”€â”€ Skeleton loader â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 .skeleton {
   background: linear-gradient(
     90deg,
@@ -170,14 +171,14 @@ input[type="radio"] {
   border-radius: 8px;
 }
 
-/* ─── Glass morphism ─────────────────────────────────────────────────── */
+/* â”€â”€â”€ Glass morphism â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 .glass {
   background: rgba(11, 22, 34, 0.75);
   backdrop-filter: blur(18px);
   -webkit-backdrop-filter: blur(18px);
 }
 
-/* ─── Desktop: hide bottom nav ───────────────────────────────────────── */
+/* â”€â”€â”€ Desktop: hide bottom nav â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 @media (min-width: 768px) {
   :root { --nav-h: 0px; }
 }
