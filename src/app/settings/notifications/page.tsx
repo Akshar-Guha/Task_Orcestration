@@ -251,10 +251,12 @@ export default function NotificationsPage() {
   return (
     <div className="min-h-screen" style={{ background: 'var(--bg)', fontFamily: 'var(--font-family-body)', paddingBottom: 'calc(var(--nav-h) + var(--safe-b) + 1rem)' }}>
       <div className="max-w-xl mx-auto px-4 py-8">
-        <h1 className="text-2xl font-semibold mb-1" style={{ color: 'var(--text)' }}>Notifications</h1>
-        <p className="text-sm mb-8" style={{ color: 'var(--text-secondary)' }}>
-          Alarm-style reminders tied to your habits, tasks, and goals. Re-fires every N minutes until you tap Done.
-        </p>
+        <div className="mb-8">
+          <h1 className="text-2xl font-bold mb-1" style={{ color: 'var(--text)' }}>Notifications</h1>
+          <p className="text-sm" style={{ color: 'var(--text-secondary)', lineHeight: 1.6 }}>
+            Alarm-style reminders tied to your habits, tasks &amp; goals — re-fires until you tap Done.
+          </p>
+        </div>
 
         {iosDevice && !standaloneMode && (
           <div className="rounded-xl p-4 mb-6" style={{ background: 'var(--card)', border: '1px solid var(--border)' }}>
@@ -284,21 +286,27 @@ export default function NotificationsPage() {
           </div>
         )}
 
-        <div className="mb-4 flex items-center justify-between">
-          <span className="text-sm font-medium" style={{ color: 'var(--text)' }}>Reminders</span>
+        <div className="mb-5 flex items-center justify-between">
+          <span className="text-xs font-semibold uppercase tracking-widest" style={{ color: 'var(--text-secondary)', letterSpacing: '0.1em' }}>Reminders</span>
           <button
             onClick={() => { setShowForm(true); setFormError(''); }}
-            className="text-sm px-3 py-1 rounded-lg font-medium"
-            style={{ background: 'var(--accent)', color: '#fff' }}
+            className="flex items-center gap-1.5 text-sm px-4 py-1.5 rounded-xl font-semibold"
+            style={{ background: 'var(--accent)', color: '#fff', boxShadow: '0 2px 8px rgba(0,0,0,0.25)' }}
           >
-            + Add
+            <span style={{ fontSize: '1rem', lineHeight: 1 }}>+</span> Add
           </button>
         </div>
 
         {rulesLoading ? (
           <p className="text-sm" style={{ color: 'var(--text-secondary)' }}>Loading…</p>
         ) : rules.length === 0 ? (
-          <p className="text-sm" style={{ color: 'var(--text-secondary)' }}>No reminders yet.</p>
+          <div className="flex flex-col items-center py-14 gap-3">
+            <span style={{ fontSize: '2.5rem' }}>🔔</span>
+            <p className="text-sm font-medium" style={{ color: 'var(--text)' }}>No reminders yet</p>
+            <p className="text-xs text-center max-w-xs" style={{ color: 'var(--text-secondary)' }}>
+              Tap <strong>+ Add</strong> to create your first alarm-style reminder tied to a habit, task, or goal.
+            </p>
+          </div>
         ) : (
           <div className="space-y-3">
             {rules.map(rule => (
@@ -411,25 +419,38 @@ export default function NotificationsPage() {
 
                 <label className="block text-xs font-medium mb-2" style={{ color: 'var(--text-secondary)' }}>Repeat on</label>
                 <div className="flex gap-1 mb-4">
-                  {DAY_LABELS.map((d, i) => (
-                    <button
-                      key={i}
-                      onClick={() => setForm(f => ({
-                        ...f,
-                        repeat_days: f.repeat_days.includes(i)
-                          ? f.repeat_days.filter(x => x !== i)
-                          : [...f.repeat_days, i].sort(),
-                      }))}
-                      className="flex-1 py-1.5 rounded-lg text-xs font-medium"
-                      style={{
-                        background: form.repeat_days.includes(i) ? 'var(--accent)' : 'var(--card)',
-                        color: form.repeat_days.includes(i) ? '#fff' : 'var(--text-secondary)',
-                        border: '1px solid var(--border)',
-                      }}
-                    >
-                      {d}
-                    </button>
-                  ))}
+                  {DAY_LABELS.map((d, i) => {
+                    const selected = form.repeat_days.includes(i);
+                    return (
+                      <button
+                        key={i}
+                        onClick={() => setForm(f => ({
+                          ...f,
+                          repeat_days: f.repeat_days.includes(i)
+                            ? f.repeat_days.filter(x => x !== i)
+                            : [...f.repeat_days, i].sort(),
+                        }))}
+                        className="flex-1 flex flex-col items-center gap-1 py-1.5 rounded-lg text-xs font-medium"
+                        style={{
+                          background: selected ? 'var(--accent)' : 'var(--card)',
+                          color: selected ? '#fff' : 'var(--text-secondary)',
+                          border: selected ? '2px solid var(--accent)' : '1px solid var(--border)',
+                          boxShadow: selected ? '0 0 0 2px rgba(var(--accent-rgb, 99,102,241),0.35)' : 'none',
+                        }}
+                      >
+                        {d}
+                        <span
+                          style={{
+                            width: 5,
+                            height: 5,
+                            borderRadius: '50%',
+                            background: selected ? '#fff' : 'transparent',
+                            display: 'block',
+                          }}
+                        />
+                      </button>
+                    );
+                  })}
                 </div>
 
                 <label className="block text-xs font-medium mb-2" style={{ color: 'var(--text-secondary)' }}>Re-fire every (if not tapped Done)</label>
@@ -485,60 +506,114 @@ function RuleCard({
   const typeLabel = TYPE_LABELS[rule.notification_type] || rule.notification_type;
   const snooze = rule.snooze_interval_minutes;
 
+  const TYPE_ICONS: Record<string, string> = {
+    task: '✅', habit: '🔁', goal: '🎯', sleep_wake: '😴', custom: '🔔',
+  };
+
   return (
     <div
-      className="rounded-xl p-4"
-      style={{ background: 'var(--card)', border: '1px solid var(--border)', opacity: rule.is_enabled ? 1 : 0.5 }}
+      className="rounded-xl overflow-hidden"
+      style={{
+        background: 'var(--card)',
+        border: '1px solid var(--border)',
+        opacity: rule.is_enabled ? 1 : 0.45,
+        transition: 'opacity 0.2s',
+      }}
     >
-      <div className="flex items-start justify-between gap-3">
-        <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2 mb-0.5 flex-wrap">
-            <span className="text-xs px-2 py-0.5 rounded-full font-medium" style={{ background: '#eff6ff', color: 'var(--accent)' }}>
-              {typeLabel}
-            </span>
-            {rule.linked_entity_name && (
-              <span className="text-xs" style={{ color: 'var(--text-secondary)' }}>{rule.linked_entity_name}</span>
-            )}
+      {/* Left accent stripe */}
+      <div className="flex">
+        <div style={{ width: 3, flexShrink: 0, background: rule.is_enabled ? 'var(--accent)' : 'var(--border)', borderRadius: '0 0 0 0' }} />
+        <div className="flex-1 p-4">
+          <div className="flex items-start justify-between gap-3">
+            <div className="flex-1 min-w-0">
+              {/* Type badge + entity */}
+              <div className="flex items-center gap-2 mb-1.5 flex-wrap">
+                <span
+                  className="inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full font-semibold"
+                  style={{
+                    background: 'rgba(var(--accent-rgb, 99,102,241), 0.15)',
+                    color: 'var(--accent)',
+                    border: '1px solid rgba(var(--accent-rgb, 99,102,241), 0.3)',
+                  }}
+                >
+                  <span>{TYPE_ICONS[rule.notification_type] || '🔔'}</span>
+                  {typeLabel}
+                </span>
+                {rule.linked_entity_name && (
+                  <span className="text-xs font-medium truncate" style={{ color: 'var(--text-secondary)' }}>
+                    {rule.linked_entity_name}
+                  </span>
+                )}
+              </div>
+
+              {/* Title + body */}
+              <p className="text-sm font-semibold truncate" style={{ color: 'var(--text)' }}>{rule.title}</p>
+              <p className="text-xs truncate mt-0.5" style={{ color: 'var(--text-secondary)' }}>{rule.body}</p>
+
+              {/* Metadata row */}
+              <div className="flex items-center gap-2 mt-2 flex-wrap">
+                {rule.schedule_time && (
+                  <span
+                    className="inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-md font-medium"
+                    style={{ background: 'var(--bg)', color: 'var(--text)', border: '1px solid var(--border)' }}
+                  >
+                    ⏰ {rule.schedule_time}
+                  </span>
+                )}
+                {snooze && (
+                  <span
+                    className="inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-md font-medium"
+                    style={{ background: 'var(--bg)', color: 'var(--text)', border: '1px solid var(--border)' }}
+                  >
+                    ↺ {snooze}m
+                  </span>
+                )}
+                <span className="text-xs" style={{ color: 'var(--text-secondary)' }}>
+                  {rule.repeat_days?.length
+                    ? rule.repeat_days.map(d => ['Su','Mo','Tu','We','Th','Fr','Sa'][d]).join(' · ')
+                    : 'Every day'}
+                </span>
+              </div>
+            </div>
+
+            {/* Toggle */}
+            <div className="flex flex-col items-center gap-1 flex-shrink-0">
+              <button
+                onClick={() => onToggle(rule.id, !rule.is_enabled)}
+                className="w-10 h-6 rounded-full relative"
+                style={{ background: rule.is_enabled ? 'var(--accent)' : 'var(--border)', transition: 'background 0.2s' }}
+                aria-label={rule.is_enabled ? 'Disable' : 'Enable'}
+              >
+                <span
+                  className="absolute top-0.5 w-5 h-5 rounded-full bg-white"
+                  style={{ transition: 'transform 0.2s', transform: rule.is_enabled ? 'translateX(18px)' : 'translateX(2px)' }}
+                />
+              </button>
+              <span className="text-[10px]" style={{ color: 'var(--text-secondary)' }}>
+                {rule.is_enabled ? 'On' : 'Off'}
+              </span>
+            </div>
           </div>
-          <p className="text-sm font-medium truncate mt-0.5" style={{ color: 'var(--text)' }}>{rule.title}</p>
-          <p className="text-xs truncate" style={{ color: 'var(--text-secondary)' }}>{rule.body}</p>
-          <div className="flex items-center gap-3 mt-1 text-xs" style={{ color: 'var(--text-secondary)' }}>
-            {rule.schedule_time && <span>⏰ {rule.schedule_time}</span>}
-            {snooze && <span>↺ {snooze}m</span>}
-            <span>
-              {rule.repeat_days?.length
-                ? rule.repeat_days.map(d => ['Su','Mo','Tu','We','Th','Fr','Sa'][d]).join(' ')
-                : 'Every day'}
-            </span>
+
+          {/* Actions */}
+          <div className="flex gap-2 mt-3 pt-3" style={{ borderTop: '1px solid var(--border)' }}>
+            <button
+              onClick={() => onSendNow(rule.id)}
+              disabled={sendingId === rule.id}
+              className="text-xs px-3 py-1.5 rounded-lg font-medium"
+              style={{ background: 'var(--bg)', border: '1px solid var(--border)', color: 'var(--text)' }}
+            >
+              {sendingId === rule.id ? '…Sending' : 'Test now'}
+            </button>
+            <button
+              onClick={() => onDelete(rule.id)}
+              className="text-xs px-3 py-1.5 rounded-lg font-medium"
+              style={{ background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.35)', color: '#ef4444' }}
+            >
+              Delete
+            </button>
           </div>
         </div>
-        <button
-          onClick={() => onToggle(rule.id, !rule.is_enabled)}
-          className="w-10 h-6 rounded-full flex-shrink-0 relative mt-0.5"
-          style={{ background: rule.is_enabled ? 'var(--accent)' : 'var(--border)' }}
-        >
-          <span
-            className="absolute top-0.5 w-5 h-5 rounded-full bg-white transition-transform"
-            style={{ transform: rule.is_enabled ? 'translateX(18px)' : 'translateX(2px)' }}
-          />
-        </button>
-      </div>
-      <div className="flex gap-2 mt-3">
-        <button
-          onClick={() => onSendNow(rule.id)}
-          disabled={sendingId === rule.id}
-          className="text-xs px-3 py-1 rounded-lg"
-          style={{ background: 'var(--bg)', border: '1px solid var(--border)', color: 'var(--text)' }}
-        >
-          {sendingId === rule.id ? 'Sending…' : 'Test now'}
-        </button>
-        <button
-          onClick={() => onDelete(rule.id)}
-          className="text-xs px-3 py-1 rounded-lg"
-          style={{ background: 'var(--bg)', border: '1px solid #ef4444', color: '#ef4444' }}
-        >
-          Delete
-        </button>
       </div>
     </div>
   );
