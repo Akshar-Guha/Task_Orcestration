@@ -1,4 +1,4 @@
-﻿import { NextRequest, NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { getCurrentUserId } from '@/lib/user';
 
@@ -37,7 +37,7 @@ export async function POST(request: NextRequest) {
   const {
     title, body: msgBody, schedule_time, repeat_days, is_manual,
     snooze_interval_minutes, notification_type, linked_entity_id, linked_entity_name,
-    requires_acknowledgment,
+    requires_acknowledgment, max_snooze_count, snooze_end_time,
   } = body as {
     title?: string;
     body?: string;
@@ -49,6 +49,8 @@ export async function POST(request: NextRequest) {
     linked_entity_id?: string;
     linked_entity_name?: string;
     requires_acknowledgment?: boolean;
+    max_snooze_count?: number;
+    snooze_end_time?: string;
   };
 
   if (!title?.trim() || !msgBody?.trim()) {
@@ -70,6 +72,8 @@ export async function POST(request: NextRequest) {
       is_manual: !!is_manual,
       snooze_interval_minutes: snooze_interval_minutes || null,
       requires_acknowledgment: requires_acknowledgment ?? true,
+      max_snooze_count: max_snooze_count ?? 10,
+      snooze_end_time: snooze_end_time || null,
     })
     .select()
     .single();

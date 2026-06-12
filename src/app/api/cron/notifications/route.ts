@@ -1,4 +1,4 @@
-﻿import { NextResponse } from 'next/server';
+import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { sendPushNotification } from '@/lib/push/server';
 
@@ -72,12 +72,13 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 
-  // Fetch all today's acks for this user
+  // Fetch all today's acks for this user (only genuine user acks, not fire-count tracking rows)
   const { data: acks } = await supabase
     .from('notification_acks')
     .select('rule_id')
     .eq('user_id', USER_ID)
-    .eq('acked_date', today);
+    .eq('acked_date', today)
+    .not('acked_at', 'is', null);
   const ackedRuleIds = new Set((acks || []).map((a: { rule_id: string }) => a.rule_id));
 
   // Auto-ack: check if the linked entity was already acted on today
@@ -121,14 +122,28 @@ export async function GET(request: Request) {
 
   async function autoAckAndMark(ruleId: string): Promise<void> {
     await supabase.from('notification_acks').upsert(
-      { rule_id: ruleId, user_id: USER_ID, acked_date: today },
+      { rule_id: ruleId, user_id: USER_ID, acked_date: today, acked_at: new Date().toISOString() },
       { onConflict: 'rule_id,acked_date' }
     );
     ackedRuleIds.add(ruleId);
   }
 
+  // Fetch today's fire counts for all rules (to enforce max_snooze_count)
+  const { data: ackRows } = await supabase
+    .from('notification_acks')
+    .select('rule_id, fire_count')
+    .eq('user_id', USER_ID)
+    .eq('acked_date', today);
+  const fireCountMap = new Map<string, number>(
+    (ackRows || []).map((a: { rule_id: string; fire_count: number }) => [a.rule_id, a.fire_count ?? 0])
+  );
+
+  // Hard safety net: never re-fire more than this many minutes after start
+  const ABSOLUTE_MAX_WINDOW_MINUTES = 240; // 4 hours
+
   const fired: string[] = [];
   const skipped: string[] = [];
+  const autoStopped: string[] = [];
 
   for (const rule of rules ?? []) {
     // Check day-of-week
@@ -167,6 +182,36 @@ export async function GET(request: Request) {
         }
       }
 
+      // ── STOP MECHANISM 1: Max snooze count ──
+      const maxSnooze: number = rule.max_snooze_count ?? 10; // default 10 fires
+      const currentFireCount = fireCountMap.get(rule.id) ?? 0;
+      if (currentFireCount >= maxSnooze) {
+        console.log(`[Cron/Notifications] Rule ${rule.id} hit max_snooze_count (${maxSnooze}), auto-acking`);
+        await autoAckAndMark(rule.id);
+        autoStopped.push(rule.id);
+        continue;
+      }
+
+      // ── STOP MECHANISM 2: Snooze end time cutoff ──
+      if (rule.snooze_end_time) {
+        const [endH, endM] = (rule.snooze_end_time as string).split(':').map(Number);
+        const endMinuteOfDay = endH * 60 + endM;
+        if (currentMinuteOfDay >= endMinuteOfDay) {
+          console.log(`[Cron/Notifications] Rule ${rule.id} past snooze_end_time (${rule.snooze_end_time}), auto-acking`);
+          await autoAckAndMark(rule.id);
+          autoStopped.push(rule.id);
+          continue;
+        }
+      }
+
+      // ── STOP MECHANISM 3: Absolute max window safety net ──
+      if (minutesSinceStart > ABSOLUTE_MAX_WINDOW_MINUTES) {
+        console.log(`[Cron/Notifications] Rule ${rule.id} exceeded ${ABSOLUTE_MAX_WINDOW_MINUTES}m window, auto-acking`);
+        await autoAckAndMark(rule.id);
+        autoStopped.push(rule.id);
+        continue;
+      }
+
       // Fire at exact start time OR at every snooze interval after start
       const atStartTime = minutesSinceStart === 0;
       const atSnoozeInterval = snoozeInterval > 0 && minutesSinceStart > 0 && minutesSinceStart % snoozeInterval === 0;
@@ -201,11 +246,34 @@ export async function GET(request: Request) {
       appUrl: appUrlMap[rule.notification_type] || '/dashboard',
     });
 
-    if (result.success) fired.push(rule.id);
-    else console.warn('[Cron/Notifications] Failed rule', rule.id, result.error);
+    if (result.success) {
+      fired.push(rule.id);
+
+      // Increment fire_count for this rule today
+      const prevCount = fireCountMap.get(rule.id) ?? 0;
+      await supabase.from('notification_acks').upsert(
+        {
+          rule_id: rule.id,
+          user_id: USER_ID,
+          acked_date: today,
+          fire_count: prevCount + 1,
+          // Don't set acked_at â€” that signals actual user acknowledgment
+        },
+        { onConflict: 'rule_id,acked_date' }
+      );
+      fireCountMap.set(rule.id, prevCount + 1);
+    } else {
+      console.warn('[Cron/Notifications] Failed rule', rule.id, result.error);
+    }
   }
 
-  console.log(`[Cron/Notifications] ${currentTime} â€” fired: ${fired.length}, skipped: ${skipped.length}`);
-  return NextResponse.json({ time: currentTime, fired: fired.length, skipped: skipped.length, firedIds: fired });
+  console.log(`[Cron/Notifications] ${currentTime} â€“ fired: ${fired.length}, skipped: ${skipped.length}, autoStopped: ${autoStopped.length}`);
+  return NextResponse.json({
+    time: currentTime,
+    fired: fired.length,
+    skipped: skipped.length,
+    autoStopped: autoStopped.length,
+    firedIds: fired,
+    autoStoppedIds: autoStopped,
+  });
 }
-

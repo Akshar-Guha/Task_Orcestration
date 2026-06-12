@@ -2,7 +2,7 @@
   "name": "GoalTracker",
   "short_name": "GoalTracker",
   "description": "Track your daily, weekly, monthly, quarterly and yearly goals with AI-powered suggestions",
-  "start_url": "/dashboard",
+  "start_url": "/capture",
   "display": "standalone",
   "background_color": "#0d0f17",
   "theme_color": "#0d0f17",
@@ -38,6 +38,18 @@
   ],
   "screenshots": [],
   "shortcuts": [
+    {
+      "name": "Capture",
+      "short_name": "Capture",
+      "description": "Quick capture - thoughts, tasks, mood",
+      "url": "/capture",
+      "icons": [
+        {
+          "src": "/icons/icon-192.png",
+          "sizes": "192x192"
+        }
+      ]
+    },
     {
       "name": "Today's Goals",
       "short_name": "Today",

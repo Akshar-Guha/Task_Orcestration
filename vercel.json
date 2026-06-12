@@ -1,6 +1,10 @@
 {
   "crons": [
     {
+      "path": "/api/cron/notifications",
+      "schedule": "* * * * *"
+    },
+    {
       "path": "/api/cron/morning-email",
       "schedule": "0 1 * * *"
     },
