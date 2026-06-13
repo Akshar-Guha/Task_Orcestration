@@ -3,9 +3,7 @@
 import { ReactNode } from 'react';
 import { Header } from './Header';
 import { MobileNav } from './MobileNav';
-
-
-
+import { NotificationOverlay, RoutineReviewOverlay } from '@/components/ui';
 import { usePathname } from 'next/navigation';
 
 interface AppShellProps {
@@ -19,6 +17,8 @@ export function AppShell({ children }: AppShellProps) {
     return (
       <div className="min-h-screen min-h-[100dvh] bg-slate-950 text-slate-100 dark">
         {children}
+        <NotificationOverlay />
+        <RoutineReviewOverlay />
       </div>
     );
   }
@@ -30,6 +30,9 @@ export function AppShell({ children }: AppShellProps) {
         {children}
       </main>
       <MobileNav />
+      <NotificationOverlay />
+      <RoutineReviewOverlay />
     </div>
   );
 }
+

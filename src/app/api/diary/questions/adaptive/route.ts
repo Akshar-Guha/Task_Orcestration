@@ -1,4 +1,4 @@
-﻿import { NextRequest, NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { getCurrentUserId } from '@/lib/user';
 
@@ -19,6 +19,7 @@ interface AdaptiveContext {
   goalsInProgress: string[];
   dayOfWeek: number;
   timeOfDay: 'morning' | 'afternoon' | 'evening';
+  recentReviews: Array<{ task_title: string; status: string; feedback: string }>;
 }
 
 interface Question {
@@ -40,7 +41,7 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const { currentEntry, includeSystemQuestions = true } = body;
 
-    // Gather context from recent entries
+    // Gather context from recent entries & task reviews
     const context = await gatherContext(userId);
 
     // Get system questions (always include some base questions)
@@ -116,6 +117,14 @@ async function gatherContext(userId: string): Promise<AdaptiveContext> {
     .eq('status', 'in_progress')
     .limit(5);
 
+  // Get recent task reviews (last 5)
+  const { data: recentReviewsData } = await supabase
+    .from('task_reviews')
+    .select('task_title, status, feedback')
+    .eq('user_id', userId)
+    .order('created_at', { ascending: false })
+    .limit(5);
+
   const now = new Date();
   const hour = now.getHours();
   const timeOfDay = hour < 12 ? 'morning' : hour < 17 ? 'afternoon' : 'evening';
@@ -128,6 +137,11 @@ async function gatherContext(userId: string): Promise<AdaptiveContext> {
     goalsInProgress: (goals || []).map((g) => g.title),
     dayOfWeek: now.getDay(),
     timeOfDay,
+    recentReviews: (recentReviewsData || []).map((r) => ({
+      task_title: r.task_title,
+      status: r.status,
+      feedback: r.feedback || '',
+    })),
   };
 }
 
@@ -144,11 +158,13 @@ async function generateAdaptiveQuestions(
       body: JSON.stringify({
         model: OLLAMA_MODEL,
         prompt,
-        system: `You are a thoughtful journaling coach. Generate 2-3 personalized follow-up questions based on the user's context. 
+ system: `You are a thoughtful journaling coach. Generate 2-3 personalized follow-up questions based on the user's context. 
 Each question should be:
 - Open-ended and reflective
-- Specific to their situation
+- Specific to their situation (such as following up on their tasks, goals, wins, challenges, and task reviews)
 - Encouraging and non-judgmental
+
+CRITICAL: If the context includes recent task reviews that are "blocked" or "skipped", formulate at least one question directly asking about how to resolve that blocker or how they plan to approach that task next. If a task was completed with feedback, ask a positive follow-up about that win or its impact.
 
 Respond with ONLY a JSON array of objects with "questionText" and "category" fields.
 Categories: reflection, planning, gratitude, growth, habits`,
@@ -216,10 +232,19 @@ function buildQuestionPrompt(
     parts.push(`Active goals: ${context.goalsInProgress.join(', ')}`);
   }
 
+  if (context.recentReviews.length > 0) {
+    parts.push(`Recent task reviews:`);
+    context.recentReviews.forEach(r => {
+      const fbStr = r.feedback ? ` (Feedback: ${r.feedback})` : '';
+      parts.push(`- Task: "${r.task_title}" | Status: ${r.status}${fbStr}`);
+    });
+  }
+
   parts.push(`Time: ${context.timeOfDay}, ${['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'][context.dayOfWeek]}`);
 
   return `Generate personalized journaling questions for this context:\n\n${parts.join('\n')}`;
 }
+
 
 function applyRules(
   context: AdaptiveContext,
