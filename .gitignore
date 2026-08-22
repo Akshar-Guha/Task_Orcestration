@@ -54,3 +54,4 @@ oci_config
 oci_keys/
 pin_test.json
 debug_data.ts
+.env*
