@@ -8,7 +8,7 @@ stress, Body Battery, SpO₂ and today's steps/calories/active minutes to
 1. Install the Connect IQ SDK Manager: https://developer.garmin.com/connect-iq/sdk/
    Sign in with your Garmin account, install the latest SDK, and under
    **Devices** download **vívoactive 5**.
-2. Create `source/Config.mc` from `source/Config.mc.example` and set
+2. Create `../garmin-shared/Config.mc` from `../garmin-shared/Config.mc.example` and set
    `INGEST_KEY` to the same value as `WATCH_INGEST_KEY` in Vercel.
 3. Generate a developer key (once):
    `openssl genrsa -out developer_key.pem 4096 && openssl pkcs8 -topk8 -inform PEM -outform DER -in developer_key.pem -out developer_key.der -nocrypt`

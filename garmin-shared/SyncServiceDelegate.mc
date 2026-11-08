@@ -19,7 +19,7 @@ class SyncServiceDelegate extends System.ServiceDelegate {
 
     function onTemporalEvent() as Void {
         var payload = {
-            "device" => "vivoactive5",
+            "device" => System.getDeviceSettings().partNumber,
             "sentAt" => Time.now().value(),
             "info" => activityInfo(),
             "hr" => history(:hr),
