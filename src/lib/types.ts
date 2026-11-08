@@ -131,6 +131,12 @@ export interface ProductivityLog {
 export interface ProductivityStats {
   todayMinutes: number;
   todayPercentage: number;
+  /** health_day.capacity_hours for today (PLAN.md B5) */
+  capacityHours?: number | null;
+  /** clamp(capacity_hours / 6, 0.3, 1); 1 when no health data */
+  expectedCapacity?: number;
+  /** todayPercentage / expectedCapacity, capped at 100 */
+  adjustedPercentage?: number;
   weekMinutes: number;
   weeklyAverage: number;
   topGoals: Array<{ goalId: string; minutes: number }>;

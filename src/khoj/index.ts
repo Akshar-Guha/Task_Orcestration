@@ -19,6 +19,7 @@ export {
   timeSlotToMarkdown,
   memoryToMarkdown,
   sleepLogToMarkdown,
+  healthDayToMarkdown,
 } from './lib/markdown-converter';
 
 // Components

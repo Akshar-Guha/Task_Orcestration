@@ -3,6 +3,7 @@ import { supabase } from '../supabase';
 import { getCurrentUserId } from '../user';
 import type { TimeSlot } from '../types';
 import { getLocalDateString } from '../date-utils';
+import { adjustedCompletion, expectedFromCapacity } from '../health-scoring';
 
 // ============================================
 // PRODUCTIVITY & ANALYTICS
@@ -55,9 +56,23 @@ export function useProductivity() {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const weekMinutes = logs.reduce((sum: number, l: any) => sum + (l.productive_minutes || 0), 0);
 
+      // Capacity weighting (PLAN.md B5): score relative to what the body could do today
+      const { data: healthToday } = await supabase
+        .from('health_day')
+        .select('capacity_hours')
+        .eq('user_id', userId)
+        .eq('date', today)
+        .maybeSingle();
+      const capacityHours = (healthToday as { capacity_hours: number | null } | null)?.capacity_hours ?? null;
+      const expectedCapacity = expectedFromCapacity(capacityHours);
+      const todayPercentage = Math.min(100, Math.round((productiveMinutes / totalWaking) * 100));
+
       return {
         todayMinutes: productiveMinutes,
-        todayPercentage: Math.min(100, Math.round((productiveMinutes / totalWaking) * 100)),
+        todayPercentage,
+        capacityHours,
+        expectedCapacity,
+        adjustedPercentage: adjustedCompletion(todayPercentage, expectedCapacity, 100),
         totalWakingMinutes: totalWaking,
         weekMinutes,
         weeklyAverage: Math.round(weekMinutes / Math.max(1, daysWithLogs)),

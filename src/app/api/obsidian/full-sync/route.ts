@@ -6,11 +6,15 @@
  *   MTO/Goals/{slug}.md         — 1 file per goal, always current state
  *   MTO/Daily/{date}.md         — 1 file per day from daily_entries (immutable once written)
  *   MTO/Sleep/{year}-{month}.md — monthly sleep log
+ *
+ * Daily files include a "## Body" section from health_day (PLAN.md B6). The
+ * vault is user-controlled; this markdown is never sent to an LLM.
  */
 
 import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { github } from '@/lib/github';
+import { BODY_COLUMNS, bodySectionMarkdown } from '@/lib/health-markdown';
 
 // Fix: use service-role client for full data access in server-side sync
 const supabase = createClient(
@@ -54,7 +58,8 @@ function dailyToMarkdown(
   entry: any,
   completedTasks: any[],
   allDailyTasks: any[],
-  sleep: any | null
+  sleep: any | null,
+  health: any | null = null
 ): string {
   const date = entry.date as string;
 
@@ -95,7 +100,7 @@ ${wins}${challenges}
 
 ## Tasks
 ${taskLines}
-${sleepSection}`;
+${sleepSection}${health ? `\n${bodySectionMarkdown(health)}` : ''}`;
 }
 
 function sleepMonthToMarkdown(logs: any[], month: string): string {
@@ -137,12 +142,14 @@ export async function POST() {
       { data: dailyEntries },
       { data: dailyTaskStatus },
       { data: sleepLogs },
+      { data: healthDays },
     ] = await Promise.all([
       supabase.from('goals').select('*').eq('user_id', userId),
       supabase.from('tasks').select('*, goals(title)').eq('user_id', userId),
       supabase.from('daily_entries').select('*').eq('user_id', userId).order('date', { ascending: true }),
       supabase.from('daily_task_status').select('*').eq('user_id', userId),
       supabase.from('sleep_wake_logs').select('*').eq('user_id', userId),
+      supabase.from('health_day').select(BODY_COLUMNS).eq('user_id', userId),
     ]);
 
     // 2. Build lookup maps
@@ -167,6 +174,9 @@ export async function POST() {
 
     const sleepByDate = new Map<string, any>();
     (sleepLogs || []).forEach((s: any) => { sleepByDate.set(s.date, s); });
+
+    const healthByDate = new Map<string, any>();
+    (healthDays || []).forEach((h: any) => { healthByDate.set(h.date, h); });
 
     // 3. Check which Daily files already exist (preserve historical immutability)
     const existingDailyFiles = new Set<string>();
@@ -202,7 +212,7 @@ export async function POST() {
       );
       filesToSync.push({
         path: `MTO/Daily/${date}.md`,
-        content: dailyToMarkdown(entry, completedTasks, tasksOnDate, sleepByDate.get(date) ?? null),
+        content: dailyToMarkdown(entry, completedTasks, tasksOnDate, sleepByDate.get(date) ?? null, healthByDate.get(date) ?? null),
       });
     });
 

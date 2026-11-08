@@ -6,6 +6,7 @@
  */
 
 import type { Goal, Task, TimeSlot, SleepWakeLog } from '@/lib/types';
+import { bodySectionMarkdown, type BodyFields } from '@/lib/health-markdown';
 
 /**
  * Convert a Goal to markdown for Khoj
@@ -136,7 +137,7 @@ ${memory.metadata?.keywords ? `\n**Keywords**: ${memory.metadata.keywords}` : ''
 /**
  * Convert a SleepWakeLog to markdown for Khoj
  */
-export function sleepLogToMarkdown(log: SleepWakeLog): string {
+export function sleepLogToMarkdown(log: SleepWakeLog, health?: BodyFields | null): string {
   return `---
 id: ${log.id}
 date: ${log.date}
@@ -155,7 +156,26 @@ wake_up_mood: ${log.wakeUpMood || 'N/A'}
 ## Sleep
 - Went to bed: ${log.sleepTime || 'Not recorded'}
 - Duration: ${log.sleepDurationMinutes ? `${Math.floor(log.sleepDurationMinutes / 60)}h ${log.sleepDurationMinutes % 60}m` : 'N/A'}
-`;
+${health ? `\n${bodySectionMarkdown(health)}` : ''}`;
+}
+
+/**
+ * Convert one day's health_day row to markdown for Khoj (PLAN.md B6), so notes
+ * are searchable by body state. Returns '' when there is no data.
+ * Only index this into a self-hosted Khoj (KHOJ_URL), never a cloud LLM.
+ */
+export function healthDayToMarkdown(health: BodyFields & { date: string }): string {
+  const body = bodySectionMarkdown(health);
+  if (!body) return '';
+  return `---
+date: ${health.date}
+type: health-day
+illness_flag: ${health.illness_flag ? 'true' : 'false'}
+---
+
+# Day: ${health.date}
+
+${body}`;
 }
 
 // Helper functions

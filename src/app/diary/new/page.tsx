@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import type { ProductivityData } from '@/lib/diary-types';
 import { getLocalDateString } from '@/lib/date-utils';
+import { useHealthDay } from '@/lib/hooks/useHealth';
 
 interface ExtractionResult {
   mood?: number;
@@ -32,7 +33,14 @@ function NewDiaryEntryContent() {
   
   // Editable extracted data
   const [mood, setMood] = useState<number>(3);
-  const [energy, setEnergy] = useState<number>(5);
+  // null = not set by the user yet → fall back to Body Battery at wake (B6)
+  const [energyInput, setEnergy] = useState<number | null>(null);
+  const { data: health } = useHealthDay(dateParam);
+  const bodyEnergy = health?.bb_at_wake != null
+    ? Math.min(10, Math.max(1, Math.round(health.bb_at_wake / 10)))
+    : null;
+  const energy = energyInput ?? bodyEnergy ?? 5;
+  const energyFromBody = energyInput == null && bodyEnergy != null;
   const [wins, setWins] = useState<string[]>([]);
   const [challenges, setChallenges] = useState<string[]>([]);
   const [productivityData, setProductivityData] = useState<ProductivityData>({});
@@ -271,7 +279,10 @@ function NewDiaryEntryContent() {
                 </div>
               </div>
               <div>
-                <label className="block text-white/80 text-sm font-medium mb-3">Energy ({energy}/10)</label>
+                <label className="block text-white/80 text-sm font-medium mb-3">
+                  Energy ({energy}/10)
+                  {energyFromBody && <span className="ml-2 text-xs font-normal text-purple-300/80">from Body Battery</span>}
+                </label>
                 <input
                   type="range"
                   min="1"

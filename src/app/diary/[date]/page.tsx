@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
 import type { DailyEntry } from '@/lib/diary-types';
+import { useHealthDay, type HealthDayRow } from '@/lib/hooks/useHealth';
 
 interface QuestionAnswer {
   id: string;
@@ -26,6 +27,7 @@ export default function DiaryEntryPage() {
   const [images, setImages] = useState<Image[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const { data: health } = useHealthDay(date);
 
   useEffect(() => {
     if (date) fetchEntry();
@@ -125,6 +127,7 @@ export default function DiaryEntryPage() {
             {/* Date Header */}
             <div className="text-center">
               <h2 className="text-3xl font-bold text-white">{formattedDate}</h2>
+              {health && <BodyHeader health={health} />}
             </div>
 
             {/* Metrics Card */}
@@ -220,6 +223,31 @@ export default function DiaryEntryPage() {
           </div>
         )}
       </main>
+    </div>
+  );
+}
+
+/** Compact one-line body state for the day (PLAN.md B6). Renders nothing without data. */
+function BodyHeader({ health }: { health: HealthDayRow }) {
+  const parts: string[] = [];
+  if (health.sleep_minutes != null) {
+    const h = Math.floor(health.sleep_minutes / 60);
+    const m = String(Math.round(health.sleep_minutes % 60)).padStart(2, '0');
+    parts.push(`😴 ${h}:${m}`);
+  }
+  if (health.recovery != null) parts.push(`Recovery ${Math.round(health.recovery)}`);
+  if (health.stress_avg != null) parts.push(`Stress ${Math.round(health.stress_avg)}`);
+  if (health.bb_at_wake != null) parts.push(`🔋 ${Math.round(health.bb_at_wake)} at wake`);
+  if (parts.length === 0 && !health.illness_flag) return null;
+
+  return (
+    <div className="mt-2 flex flex-wrap items-center justify-center gap-x-2 text-sm text-white/60">
+      <span>{parts.join(' · ')}</span>
+      {health.illness_flag && (
+        <span className="px-2 py-0.5 text-xs rounded-full bg-red-500/20 text-red-300 border border-red-500/30">
+          🤒 Possible illness
+        </span>
+      )}
     </div>
   );
 }

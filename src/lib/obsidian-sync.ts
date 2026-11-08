@@ -7,6 +7,9 @@
 
 import type { Goal, Task, SleepWakeLog } from './types';
 import type { DailyEntry, Question, QuestionAnswer } from './diary-types';
+import { BODY_COLUMNS, bodySectionMarkdown, type BodyFields } from './health-markdown';
+import { getSupabaseAdmin, supabase } from './supabase';
+import { getCurrentUserId } from './user';
 
 // Schema version for migration support
 const SCHEMA_VERSION = '2026.1';
@@ -135,7 +138,7 @@ ${entries || '*No entries this month*'}
 /**
  * Convert DailyEntry to Obsidian markdown
  */
-function diaryEntryToMarkdown(entry: DailyEntry, answers?: QuestionAnswer[], questions?: Question[]): string {
+function diaryEntryToMarkdown(entry: DailyEntry, answers?: QuestionAnswer[], questions?: Question[], health?: BodyFields | null): string {
   const moodEmoji = entry.mood ? ['ðŸ˜¢', 'ðŸ˜•', 'ðŸ˜', 'ðŸ™‚', 'ðŸ˜Š'][entry.mood - 1] : 'â“';
   const energyBar = entry.energyLevel 
     ? 'â–ˆ'.repeat(entry.energyLevel) + 'â–‘'.repeat(10 - entry.energyLevel)
@@ -185,6 +188,7 @@ ${entry.summary ? `## ðŸ“ Summary\n${entry.summary}\n` : ''}
 ${winsSection}
 ${challengesSection}
 ${productivitySection}
+${bodySectionMarkdown(health)}
 ${qaSection}
 `;
 }
@@ -250,13 +254,36 @@ export async function syncDiaryEntry(
   entry: DailyEntry,
   answers?: QuestionAnswer[],
   questions?: Question[],
-  action: 'upsert' | 'delete' = 'upsert'
+  action: 'upsert' | 'delete' = 'upsert',
+  health?: BodyFields | null
 ): Promise<boolean> {
   const path = `MTO/Daily/${entry.date}.md`;
-  const content = action === 'delete' ? null : diaryEntryToMarkdown(entry, answers, questions);
+  const body = action === 'delete' ? null : health !== undefined ? health : await loadBodyFields(entry);
+  const content = action === 'delete' ? null : diaryEntryToMarkdown(entry, answers, questions, body);
   const message = `[MTO] ${action === 'delete' ? 'Delete' : 'Sync'} diary: ${entry.date}`;
 
   return await callSyncApi(path, action, content, message);
+}
+
+/**
+ * health_day row for the entry's date (PLAN.md B6). Service role on the
+ * server, anon client (RLS) in the browser. Never throws; null when missing.
+ */
+async function loadBodyFields(entry: DailyEntry): Promise<BodyFields | null> {
+  try {
+    const userId = entry.userId || getCurrentUserId();
+    if (!userId) return null;
+    const db = typeof window === 'undefined' ? getSupabaseAdmin() : supabase;
+    const { data } = await db
+      .from('health_day')
+      .select(BODY_COLUMNS)
+      .eq('user_id', userId)
+      .eq('date', entry.date)
+      .maybeSingle();
+    return (data as BodyFields | null) ?? null;
+  } catch {
+    return null;
+  }
 }
 
 /**

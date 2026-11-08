@@ -2,6 +2,7 @@
 import { createClient } from '@supabase/supabase-js';
 import { getCurrentUserId } from '@/lib/user';
 import { getDateInTimeZone, resolveUserTimeZone } from '@/lib/server-user-context';
+import { illnessAwareStreak } from '@/lib/health-scoring';
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -147,21 +148,22 @@ export async function POST(request: NextRequest) {
     .order('date', { ascending: false })
     .limit(30);
 
+  // Illness-aware (PLAN.md B5): days flagged as illness in health_day are
+  // frozen, so they neither break nor extend the streak.
   let streak = 0;
   if (recentEntries?.length) {
-    const dates = recentEntries.map(e => e.date);
-    // Use the timezone-aware 	oday (already computed above) as the streak anchor
-    // to avoid crossing midnight issues when the server is in a different timezone
-    for (let i = 0; i < 30; i++) {
-      const anchor = new Date(today + 'T12:00:00Z');
-      anchor.setUTCDate(anchor.getUTCDate() - i);
-      const dateStr = anchor.toISOString().split('T')[0];
-      if (dates.includes(dateStr)) {
-        streak++;
-      } else {
-        break;
-      }
-    }
+    const { data: illDays } = await supabase
+      .from('health_day')
+      .select('date')
+      .eq('user_id', userId)
+      .eq('illness_flag', true)
+      .gte('date', recentEntries[recentEntries.length - 1].date)
+      .lte('date', today);
+    streak = illnessAwareStreak(
+      recentEntries.map(e => e.date),
+      (illDays || []).map((h: { date: string }) => h.date),
+      today
+    ).current_streak;
   }
 
   return NextResponse.json({

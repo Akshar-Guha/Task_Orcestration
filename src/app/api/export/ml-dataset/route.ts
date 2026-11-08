@@ -5,6 +5,11 @@
 //
 // Each row = one calendar day. All columns null-safe — missing data is null, not omitted.
 // Sorted ascending by date so rows are temporally ordered for sequential models.
+//
+// Health features (PLAN.md B7) come from health_day as `health_<column>` (numeric
+// columns as-is, booleans as 0/1). steps / active_minutes are also filled from
+// health_day (sensor_logs never existed in prod). This export is for local /
+// on-device models only; never forward it to a hosted LLM.
 
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
@@ -14,6 +19,29 @@ const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.SUPABASE_SERVICE_ROLE_KEY!,
 );
+
+/** Numeric health_day columns exported as `health_<name>` */
+const HEALTH_NUMERIC_COLUMNS = [
+  'sleep_minutes', 'deep_minutes', 'light_minutes', 'rem_minutes', 'awake_minutes',
+  'sleep_score', 'sleep_midpoint_min',
+  'hrv_night', 'rhr', 'resp_night', 'spo2_avg',
+  'steps', 'step_goal', 'active_kcal', 'intensity_minutes',
+  'stress_avg', 'stress_max', 'high_stress_minutes',
+  'bb_high', 'bb_low', 'bb_charged', 'bb_drained', 'bb_at_wake',
+  'vo2max', 'max_hr_observed',
+  'training_load', 'strain', 'ctl', 'atl', 'tsb',
+  'sleep_need_minutes', 'sleep_debt_minutes', 'sleep_consistency',
+  'recovery', 'readiness', 'capacity_hours', 'illness_score', 'burnout_index', 'baseline_days',
+] as const;
+/** Boolean health_day columns exported as `health_<name>` = 0/1 */
+const HEALTH_BOOLEAN_COLUMNS = ['illness_flag', 'late_activity'] as const;
+
+/** Postgres / PostgREST "table does not exist" — treat as empty optional source */
+function isMissingTable(error: unknown): boolean {
+  const e = error as { code?: string; message?: string } | null;
+  if (!e) return false;
+  return e.code === '42P01' || e.code === 'PGRST205' || /does not exist|could not find the table/i.test(e.message ?? '');
+}
 
 export async function GET(request: NextRequest) {
   // Auth gate
@@ -33,7 +61,7 @@ export async function GET(request: NextRequest) {
   // ── Fetch all tables in parallel ──────────────────────────────────────────
   const [
     diaryRes,
-    sensorRes,
+    healthRes,
     sleepRes,
     habitRes,
     readinessRes,
@@ -47,8 +75,8 @@ export async function GET(request: NextRequest) {
       .then(r => applyDateRange(r, startDate, endDate, 'date')),
 
     supabase
-      .from('sensor_logs')
-      .select('date,steps,distance_meters,active_minutes,source')
+      .from('health_day')
+      .select<string, { date: string } & Record<string, unknown>>(['date', ...HEALTH_NUMERIC_COLUMNS, ...HEALTH_BOOLEAN_COLUMNS].join(','))
       .eq('user_id', userId)
       .order('date', { ascending: true })
       .then(r => applyDateRange(r, startDate, endDate, 'date')),
@@ -82,9 +110,15 @@ export async function GET(request: NextRequest) {
       .order('evaluated_at', { ascending: true }),
   ]);
 
-  // Surface any DB errors
-  for (const res of [diaryRes, sensorRes, sleepRes, habitRes, readinessRes, nudgeRes]) {
-    if (res.error) return NextResponse.json({ error: res.error.message }, { status: 500 });
+  // Surface DB errors; optional sources whose table doesn't exist are skipped
+  for (const res of [diaryRes, healthRes, sleepRes, habitRes, readinessRes, nudgeRes]) {
+    if (!res.error) continue;
+    if (res !== diaryRes && isMissingTable(res.error)) {
+      console.warn('[ML export] skipping missing table:', (res.error as { message?: string }).message);
+      (res as { data: unknown[] | null }).data = [];
+      continue;
+    }
+    return NextResponse.json({ error: (res.error as { message?: string }).message ?? 'Database error' }, { status: 500 });
   }
 
   // ── Index by date ─────────────────────────────────────────────────────────
@@ -107,12 +141,16 @@ export async function GET(request: NextRequest) {
     d.has_embedding = row.embedding != null;
   }
 
-  for (const row of sensorRes.data ?? []) {
-    const d = upsert(row.date);
-    d.steps = row.steps ?? null;
-    d.distance_meters = row.distance_meters ?? null;
-    d.active_minutes = row.active_minutes ?? null;
-    d.sensor_source = row.source ?? null;
+  for (const raw of healthRes.data ?? []) {
+    const d = upsert(raw.date);
+    const num = (v: unknown) => (typeof v === 'number' && Number.isFinite(v) ? v : v == null ? null : Number(v));
+    for (const col of HEALTH_NUMERIC_COLUMNS) d[`health_${col}`] = num(raw[col]);
+    for (const col of HEALTH_BOOLEAN_COLUMNS) d[`health_${col}`] = raw[col] == null ? null : raw[col] ? 1 : 0;
+    // Legacy sensor columns (formerly from sensor_logs)
+    d.steps = num(raw.steps);
+    d.distance_meters = null;
+    d.active_minutes = num(raw.intensity_minutes);
+    d.sensor_source = 'health_day';
   }
 
   for (const row of sleepRes.data ?? []) {
@@ -204,7 +242,7 @@ interface DailyRow {
   productivity_data?: Record<string, unknown> | null;
   custom_fields?: Record<string, unknown> | null;
   has_embedding?: boolean;
-  // sensor
+  // sensor (now sourced from health_day)
   steps?: number | null;
   distance_meters?: number | null;
   active_minutes?: number | null;
@@ -233,4 +271,6 @@ interface DailyRow {
   nudge_evaluations?: number;
   nudges_shown?: number;
   last_nudge_type?: string;
+  // health_day features: health_<column> (numbers; booleans as 0/1)
+  [healthFeature: `health_${string}`]: number | null | undefined;
 }
