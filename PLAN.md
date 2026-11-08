@@ -128,6 +128,94 @@ A1–A4 need ~14 days of history to be trustworthy → backfill 90 days on conne
 - Observability: last-sync, gaps, score history page in Settings.
 - **TODO:** test fixtures from real Garmin payloads once approved.
 
+### B9. Watch as a two-way terminal for routine tasks
+- Connect IQ app polls `GET /api/watch/tasks` every 5 min (Garmin minimum);
+  due routine task → vibration + wake notification; on-wrist list of today's
+  routine tasks with **Done / Snooze 15 / Skip (reason)** →
+  `POST /api/watch/tasks/{id}/action` (reuses push ack/action logic).
+- Quick-capture presets ("idea", "low energy", "distracted", "break") logged
+  with timestamp + current HR/stress → feeds A7 correlations.
+- Glance widget: next task + time left. Health-aware timing (B4): alerts
+  wait during workouts / stress spikes.
+- iPhone limit: mirrored push is display-only; all actions go through the
+  CIQ app. Phone push stays alongside; ack on either clears both.
+- **TODO:** endpoint contracts; offline queue on watch when phone is away.
+
+---
+
+## Part C — More paid / enterprise features we can build for free
+
+Prices are approximate 2026 list prices; several vendors changed pricing this
+year and sources conflict. "Needs" = data we already have or will have.
+
+### C1. Planning & time (Motion ~$19–29/mo, Reclaim ~$10/mo, Sunsama ~$20/mo)
+| Feature | Needs | What we build |
+|---|---|---|
+| **Auto-scheduling / auto-rescheduling** of tasks into free slots | tasks, time_slots | Planner fills slots by priority + deadline; re-plans when a task overruns or recovery is low (B3) |
+| **Habit / focus-time protection** (Reclaim "Habits") | routine tasks | Routine tasks are reserved blocks the scheduler can't overwrite; defended by watch nudges (B9) |
+| **Daily planning ritual + shutdown ritual** (Sunsama) | diary, tasks | Morning: plan sized by readiness; evening: unfinished → tomorrow, with sleep target from debt |
+| **Workload / capacity view** | tasks + health_day | Week view shows planned hours vs. body-adjusted capacity, not a flat 8h |
+| **Buffer & travel time, meeting recovery** | calendar (if connected later) | Insert recovery gaps after high-stress blocks (stress series shows which ones) |
+
+### C2. Focus & attention (Rize ~$10–24/mo, Opal ~$100/yr, Freedom ~$40/yr)
+| Feature | Needs | What we build |
+|---|---|---|
+| **Automatic focus/work-session detection** | watch HR/stress + task in progress | A started task + stable HR/stress = focus session; spikes = interruption, logged automatically |
+| **Focus score & "best focus hours"** | epochs, stress, task completion | Hours of day where you complete most with lowest stress → feeds energy schedule (A3) |
+| **Break reminders by physiology, not timer** (Rize) | 5-min watch data | Already B4: stress plateau → break nudge on wrist |
+| **Overwork alerts** | strain + late-work diary tags | "3rd day >10h with falling HRV" warning |
+
+### C3. Sleep & circadian (Rise ~$70/yr, Sleep Cycle ~$40/yr, Garmin Connect+ ~$7/mo)
+| Feature | Needs | What we build |
+|---|---|---|
+| **Sleep debt, sleep need, melatonin window, bedtime target** | sleeps, 14-day history | A3; bedtime target pushed in night email + watch |
+| **Social jet-lag / consistency score** | sleep midpoints | Weekly consistency score; correlate with productive hours |
+| **Nap advisor** | Body Battery curve, afternoon dip | "A 20-min nap at 14:30 would lift Body Battery before your 16:00 block" |
+| **Sleep coaching rules** (Connect+ "Sleep Coach") | sleeps + activities + stress | Rule-based advice ("your HRV is lower after sessions ending >20:00") |
+
+### C4. Recovery, training & longevity (Whoop ~$25–40/mo, Oura ~$6/mo, Garmin Connect+)
+| Feature | Needs | What we build |
+|---|---|---|
+| **Recovery, strain, fitness/fatigue/form** | A1, A2, A6 | — |
+| **Cardiovascular age / VO₂ max trend / resilience** | userMetrics, RHR, HRV | Trend lines + "what changed" explanations from correlations |
+| **Workout readiness + suggested session type** (Garmin Connect+ Training Readiness) | recovery, strain, CTL/ATL | "Easy aerobic 40 min" vs. "intervals OK" each morning |
+| **Chronic stress / resilience score** (Oura Resilience) | stress bands, Body Battery charge/drain | Daytime recovery vs. night recovery balance over 2 weeks |
+| **Women's health cycle-aware adjustments** (Oura/Whoop) | Women's Health API (optional) | Phase-aware recovery baselines if enabled |
+
+### C5. Stress & mental health (Welltory ~$5–10/mo, Lief, Calm/Headspace ~$70/yr, Bearable)
+| Feature | Needs | What we build |
+|---|---|---|
+| **Stress load timeline with causes** | stressDetails + tasks/timeline | Overlay stress series on your task timeline → which tasks/people/meetings spike you |
+| **Guided breathing when stress crosses threshold** (Lief) | 5-min watch data | Watch nudge opens the watch's built-in Breathwork; we log before/after stress |
+| **Mood ↔ physiology correlation** (Bearable) | diary mood + health_day | "Your mood tracks HRV 2 days later" style insights (A7) |
+| **Burnout index** | A5 | — |
+
+### C6. Habit & journaling (Streaks ~$5, Day One ~$35/yr, Reflectly, Exist.io ~$6/mo)
+| Feature | Needs | What we build |
+|---|---|---|
+| **Auto-completed habits** (exercise, steps, bedtime, no-late-caffeine via HR) | activities, dailies, sleeps | B2/B5 |
+| **Smart streak freeze on illness / travel** | A4 illness flag | B5 |
+| **"On this day" + body-state header on every entry** (Day One) | diary + health_day | B6 |
+| **Cross-domain correlations dashboard** (Exist.io) | everything | A7 as a page, not just a weekly card |
+
+### C7. Enterprise wellbeing & analytics (Virgin Pulse / Wellhub ~$5–15/user/mo, Gyroscope ~$30/mo)
+| Feature | Needs | What we build |
+|---|---|---|
+| **Personal "life dashboard"** (Gyroscope) | all tables | One page: readiness, strain, focus score, goals, mood, sleep — 7/30/90 day |
+| **Health-risk flags & trends** | RHR, SpO₂, respiration, VO₂ | Long-term drift alerts (e.g. resting HR +5 over 3 months) |
+| **Monthly / quarterly performance report (PDF)** | A8 | — |
+| **Data ownership: full export, replay, local ML** | B7 | — |
+
+### C8. Watch-side (Garmin Connect+ "Active Intelligence", third-party CIQ apps $2–10)
+| Feature | Needs | What we build |
+|---|---|---|
+| **Personalised on-wrist insights** | health_day + tasks | Glance text generated by rules ("Readiness 82 — good day for the hard task") |
+| **Routine tasks & two-way actions on the wrist** | B9 | — |
+| **Context capture with physiology** | B9 quick-capture | — |
+
+Everything in C respects: no Garmin data to LLMs; all baselines personal;
+nothing duplicated from the built-in Garmin Connect app (raw charts).
+
 ---
 
 ## Open questions
