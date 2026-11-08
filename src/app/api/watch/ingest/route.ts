@@ -2,6 +2,7 @@ import crypto from 'crypto';
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseAdmin } from '@/lib/supabase';
 import { getCurrentUserId } from '@/lib/user';
+import { localToday, processHealthFrom } from '@/lib/health-server';
 
 /**
  * POST /api/watch/ingest — called every 5 minutes by the Garmin watch app
@@ -87,6 +88,11 @@ export async function POST(request: NextRequest) {
       console.error('[Watch] daily upsert failed', error.message);
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
+  }
+
+  // Keep today's health_day fresh (cheap: one day)
+  if (rows.length || info) {
+    await processHealthFrom(userId, localToday()).catch((e) => console.error('[Watch] health processing failed', e));
   }
 
   return NextResponse.json({ ok: true, samples: rows.length });
