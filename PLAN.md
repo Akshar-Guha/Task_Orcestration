@@ -36,6 +36,36 @@ stress avg/max + time in stress bands, Body Battery charged/drained/high/low),
 
 ---
 
+## Build status (9 Nov 2026)
+
+Built, tested with synthetic Garmin payloads against the real database (test
+data removed afterwards), production build passes, Vercel preview READY.
+Not yet on production.
+
+| Area | Status | Where |
+|---|---|---|
+| B1 pipeline (`health_day`, scores, webhook log, nightly cron + gap backfill) | ✅ | `src/lib/health/*`, `src/lib/health-server.ts`, `/api/cron/health` |
+| A1–A7 scores (recovery, strain, sleep debt/energy, illness, burnout, CTL/ATL/TSB, correlations) | ✅ 15 unit tests | `src/lib/health/scores.ts`, `correlations.ts` |
+| B2 sleep auto-logged, override, mood-only tap, exercise auto-complete, energy prefill | ✅ | `health-server.ts`, `/sleep`, diary new |
+| Part D UI: dashboard readiness line, Sleep → Body page, planner capacity | ✅ | `src/components/health/*`, `src/app/sleep` |
+| B4 nudges (stress break, low Body Battery, illness quiet day), readiness/night emails | ✅ (edge functions need deploy) | `src/lib/health-nudges.ts`, `supabase/functions/*` |
+| A8 monthly report | ✅ | `/api/cron/monthly-report` |
+| B5 illness-aware streaks, capacity-weighted completion | ✅ | `src/lib/health-scoring.ts` |
+| B6 diary body header, Obsidian/Khoj Body section | ✅ | diary pages, `health-markdown.ts` |
+| B7 ML export on `health_day` | ✅ | `/api/export/ml-dataset` |
+| B9 two-way watch tasks, quick capture, glance, offline queue | ✅ compiles with stand-in device file; not run on device | `garmin-shared`, `garmin-watch`, `garmin-face`, `/api/watch/*` |
+| Fixed along the way | `sleep_wake_logs.wake_up_confirmed_at` was missing in prod (wake-up button was failing) | migration `20261109_health_pipeline.sql` |
+
+**Waiting on:** Garmin app approval (Pending) for real data; one-time watch
+install from a computer; production deploy; `supabase functions deploy
+wake-up-email sleep-email morning-briefing`.
+
+**Next to expand:** C1 auto-scheduling, C2 automatic focus-session detection,
+C5 stress-on-timeline overlay, Toybox.Notifications action buttons on the
+watch (vívoactive 5 supports API 5.1).
+
+---
+
 ## Part A — Health features that replace paid products
 
 None of this sends Garmin data to an LLM (Garmin terms + our privacy page).
@@ -44,14 +74,14 @@ computed against **your own rolling baseline**, not population norms.
 
 | # | Feature (who charges) | Computation | Value to you | Status |
 |---|---|---|---|---|
-| A1 | **Recovery score** (Whoop $30/mo, Oura $6/mo) | Overnight HRV, resting HR, respiration, sleep duration/efficiency vs. 30-day baseline → 0–100 | Morning green/yellow/red, personal to you | planned |
-| A2 | **Strain + daily strain target** (Whoop) | Time-in-HR-zones (epochs + activities) + intensity minutes → load; recovery sets tomorrow's target | "Room for a hard session" / "stay easy" | planned |
-| A3 | **Sleep debt + energy schedule** (Rise $70/yr) | 14-day sleep need vs. actual; sleep midpoint → chronotype → predicted peaks/dips | Planner places deep work in your peak window | planned |
-| A4 | **Illness early warning** (Oura Symptom Radar) | Same-night deviation: RHR ↑, HRV ↓, respiration ↑, SpO₂ ↓ | "Lighten today" 1–2 days before symptoms | planned |
-| A5 | **Burnout risk index** (corporate wellness $5–15/user/mo) | 14-day stress load + sleep debt + HRV slope **+ task-completion rate + diary mood** | What no wearable app can do: it sees your work too | planned |
-| A6 | **Fitness / fatigue / form** (TrainingPeaks $20/mo) | Activities + HR → TSS → CTL/ATL/TSB | Peak vs. flat; when to rest | planned |
-| A7 | **Behaviour → outcome correlations** (Whoop Journal, Exist.io) | Diary tags/habits (caffeine, alcohol, screens, late work) vs. next-day recovery & productive hours | "Alcohol costs you 11 HRV and 1.5 productive hours" | planned |
-| A8 | **Monthly performance report** (Whoop MPA, Garmin Connect+ $7/mo) | Auto PDF/email from A1–A7 | Replaces the Connect+ subscription | planned |
+| A1 | **Recovery score** (Whoop $30/mo, Oura $6/mo) | Overnight HRV, resting HR, respiration, sleep duration/efficiency vs. 30-day baseline → 0–100 | Morning green/yellow/red, personal to you | ✅ built |
+| A2 | **Strain + daily strain target** (Whoop) | Time-in-HR-zones (epochs + activities) + intensity minutes → load; recovery sets tomorrow's target | "Room for a hard session" / "stay easy" | ✅ built |
+| A3 | **Sleep debt + energy schedule** (Rise $70/yr) | 14-day sleep need vs. actual; sleep midpoint → chronotype → predicted peaks/dips | Planner places deep work in your peak window | ✅ built |
+| A4 | **Illness early warning** (Oura Symptom Radar) | Same-night deviation: RHR ↑, HRV ↓, respiration ↑, SpO₂ ↓ | "Lighten today" 1–2 days before symptoms | ✅ built |
+| A5 | **Burnout risk index** (corporate wellness $5–15/user/mo) | 14-day stress load + sleep debt + HRV slope **+ task-completion rate + diary mood** | What no wearable app can do: it sees your work too | ✅ built |
+| A6 | **Fitness / fatigue / form** (TrainingPeaks $20/mo) | Activities + HR → TSS → CTL/ATL/TSB | Peak vs. flat; when to rest | ✅ built |
+| A7 | **Behaviour → outcome correlations** (Whoop Journal, Exist.io) | Diary tags/habits (caffeine, alcohol, screens, late work) vs. next-day recovery & productive hours | "Alcohol costs you 11 HRV and 1.5 productive hours" | ✅ built |
+| A8 | **Monthly performance report** (Whoop MPA, Garmin Connect+ $7/mo) | Auto PDF/email from A1–A7 | Replaces the Connect+ subscription | ✅ built |
 
 Build order: **A1 → A3 → A5 → A4 → A2 → A6 → A7 → A8.**
 A1–A4 need ~14 days of history to be trustworthy → backfill 90 days on connect.
