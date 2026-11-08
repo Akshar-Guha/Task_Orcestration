@@ -1,505 +1,282 @@
-﻿'use client';
+'use client';
 
 import { useState } from 'react';
 import Link from 'next/link';
-import { motion } from 'framer-motion';
-import { WakeUpModal } from '@/components/sleep/WakeUpModal';
-import { useSleepLogs, useRecordSleep } from '@/lib/hooks/useSupabase';
+import { ManualSleepView } from '@/components/sleep/ManualSleepView';
+import { readinessColor } from '@/components/health/ReadinessLine';
+import { useBodyPatterns, useBodyToday, useRecordMood, useSleepOverride } from '@/lib/hooks/useBody';
+import { useSleepLogs } from '@/lib/hooks/useSupabase';
+import { getLocalDateString } from '@/lib/date-utils';
+import type { HealthDay } from '@/lib/health';
 
-// Quick Actions component for manual wake-up/sleep entry
-function QuickActions() {
-  const [showWakeUpModal, setShowWakeUpModal] = useState(false);
-  const [loading, setLoading] = useState(false);
-  const [message, setMessage] = useState('');
+/* ─── helpers ─────────────────────────────────────────────────────────── */
 
-  const { data: sleepWakeLogs = [] } = useSleepLogs();
-  const recordSleepMutation = useRecordSleep();
+const hm = (min: number | null | undefined) =>
+  min == null ? '–' : `${Math.floor(min / 60)}h ${String(Math.round(min % 60)).padStart(2, '0')}m`;
 
-  const today = new Date().toISOString().split('T')[0];
-  const todayLog = sleepWakeLogs.find(log => log.date === today);
+const fmt = (v: number | null | undefined, digits = 0, unit = '') =>
+  v == null ? '–' : `${Number(v).toFixed(digits)}${unit}`;
 
-  const handleRecordSleep = async () => {
-    setLoading(true);
-    setMessage('');
-    try {
-      await recordSleepMutation.mutateAsync();
-      setMessage('Sleep time recorded');
-    } catch {
-      setMessage('Failed to record sleep');
-    }
-    setLoading(false);
-  };
+const clock = (iso: string | null) =>
+  iso ? new Date(iso).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false }) : '–';
 
-  const messageIsError = message === 'Failed to record sleep';
+function avg(days: HealthDay[], key: keyof HealthDay): number | null {
+  const xs = days.map((d) => d[key]).filter((v): v is number => typeof v === 'number');
+  return xs.length ? xs.reduce((a, b) => a + b, 0) / xs.length : null;
+}
 
+/** "▲ 4 vs 30d" style delta */
+function Delta({ now, base, digits = 0, invert = false }: { now: number | null; base: number | null; digits?: number; invert?: boolean }) {
+  if (now == null || base == null) return null;
+  const d = now - base;
+  if (Math.abs(d) < Math.pow(10, -digits) / 2) return <span style={{ color: 'var(--text-3)' }}> = 30d</span>;
+  const good = invert ? d < 0 : d > 0;
   return (
-    <>
-      {showWakeUpModal && (
-        <WakeUpModal
-          onClose={() => {
-            setShowWakeUpModal(false);
-            setMessage('Wake-up time recorded');
-          }}
-        />
-      )}
-
-      <div
-        className="mb-8 p-5 rounded-2xl"
-        style={{
-          background: 'var(--surface)',
-          border: '1px solid var(--border)',
-          fontFamily: 'var(--font-family-body)',
-        }}
-      >
-        <h2
-          className="text-sm font-medium uppercase tracking-widest mb-4"
-          style={{ color: 'var(--text-2)' }}
-        >
-          Quick Actions
-        </h2>
-
-        <div className="grid grid-cols-2 gap-3">
-          {/* Record Wake-Up */}
-          <button
-            onClick={() => setShowWakeUpModal(true)}
-            disabled={loading || !!todayLog?.wakeUpTime}
-            className="p-4 rounded-xl flex flex-col items-center gap-2 transition-all active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed"
-            style={{
-              background: todayLog?.wakeUpTime ? 'var(--elevated)' : 'var(--gold-dim)',
-              border: `1px solid ${todayLog?.wakeUpTime ? 'var(--border)' : 'var(--gold)'}`,
-              color: todayLog?.wakeUpTime ? 'var(--text-2)' : 'var(--gold)',
-            }}
-          >
-            {/* Sun icon */}
-            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
-              <circle cx="12" cy="12" r="5" />
-              <line x1="12" y1="1" x2="12" y2="3" />
-              <line x1="12" y1="21" x2="12" y2="23" />
-              <line x1="4.22" y1="4.22" x2="5.64" y2="5.64" />
-              <line x1="18.36" y1="18.36" x2="19.78" y2="19.78" />
-              <line x1="1" y1="12" x2="3" y2="12" />
-              <line x1="21" y1="12" x2="23" y2="12" />
-              <line x1="4.22" y1="19.78" x2="5.64" y2="18.36" />
-              <line x1="18.36" y1="5.64" x2="19.78" y2="4.22" />
-            </svg>
-            <span className="text-sm font-medium text-center leading-tight">
-              {todayLog?.wakeUpTime
-                ? <span style={{ fontFamily: 'var(--font-family-mono)' }}>{todayLog.wakeUpTime}</span>
-                : 'Record Wake-Up'}
-            </span>
-          </button>
-
-          {/* Record Sleep */}
-          <button
-            onClick={handleRecordSleep}
-            disabled={loading || !!todayLog?.sleepTime}
-            className="p-4 rounded-xl flex flex-col items-center gap-2 transition-all active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed"
-            style={{
-              background: todayLog?.sleepTime ? 'var(--elevated)' : 'var(--sky-dim)',
-              border: `1px solid ${todayLog?.sleepTime ? 'var(--border)' : 'var(--sky)'}`,
-              color: todayLog?.sleepTime ? 'var(--text-2)' : 'var(--sky)',
-            }}
-          >
-            {/* Moon icon */}
-            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" />
-            </svg>
-            <span className="text-sm font-medium text-center leading-tight">
-              {loading
-                ? 'Recording...'
-                : todayLog?.sleepTime
-                  ? <span style={{ fontFamily: 'var(--font-family-mono)' }}>{todayLog.sleepTime}</span>
-                  : 'Going to Sleep'}
-            </span>
-          </button>
-        </div>
-
-        {message && (
-          <div
-            className="mt-3 py-2 px-3 rounded-lg text-sm text-center"
-            style={{
-              background: messageIsError ? 'var(--coral-dim)' : 'var(--jade-dim)',
-              color: messageIsError ? 'var(--coral)' : 'var(--jade)',
-              border: `1px solid ${messageIsError ? 'var(--coral)' : 'var(--jade)'}`,
-              opacity: 0.9,
-            }}
-          >
-            {message}
-          </div>
-        )}
-
-        {!todayLog?.wakeUpTime && !todayLog?.sleepTime && (
-          <p
-            className="text-xs mt-3 text-center"
-            style={{ color: 'var(--text-3)' }}
-          >
-            Record wake-up in the morning, sleep at night
-          </p>
-        )}
-      </div>
-    </>
+    <span style={{ color: good ? 'var(--jade)' : 'var(--coral)' }}>
+      {' '}
+      {d > 0 ? '▲' : '▼'} {Math.abs(d).toFixed(digits)}
+    </span>
   );
 }
 
-// Duration color helper using CSS vars
-function getDurationStyle(minutes: number): { color: string } {
-  if (minutes >= 480) return { color: 'var(--jade)' };   // 8h+
-  if (minutes >= 420) return { color: 'var(--sky)' };    // 7h+
-  if (minutes >= 360) return { color: 'var(--gold)' };   // 6h+
-  return { color: 'var(--coral)' };                      // <6h
+function Stat({ label, value, sub }: { label: string; value: React.ReactNode; sub?: React.ReactNode }) {
+  return (
+    <div className="p-3 rounded-xl" style={{ background: 'var(--elevated)', border: '1px solid var(--border)' }}>
+      <div className="text-[10px] uppercase tracking-widest mb-1" style={{ color: 'var(--text-3)' }}>{label}</div>
+      <div className="text-base font-semibold" style={{ color: 'var(--text)', fontFamily: 'var(--font-family-mono)' }}>{value}</div>
+      {sub && <div className="text-xs mt-0.5" style={{ color: 'var(--text-2)' }}>{sub}</div>}
+    </div>
+  );
 }
 
-// Mood label (no emoji)
-function getMoodLabel(level?: number): string {
-  switch (level) {
-    case 5: return 'Amazing';
-    case 4: return 'Good';
-    case 3: return 'Okay';
-    case 2: return 'Tired';
-    case 1: return 'Awful';
-    default: return 'â€”';
-  }
+function Section({ title, summary, children }: { title: string; summary: string; children: React.ReactNode }) {
+  return (
+    <details className="mb-3 rounded-2xl group" style={{ background: 'var(--surface)', border: '1px solid var(--border)' }}>
+      <summary className="flex items-center justify-between px-4 py-3 cursor-pointer list-none">
+        <span className="text-sm font-medium" style={{ color: 'var(--text)' }}>{title}</span>
+        <span className="text-xs flex items-center gap-2" style={{ color: 'var(--text-2)' }}>
+          {summary}
+          <span className="transition-transform group-open:rotate-90">›</span>
+        </span>
+      </summary>
+      <div className="px-4 pb-4 grid grid-cols-2 gap-2">{children}</div>
+    </details>
+  );
 }
 
-// Mood color
-function getMoodColor(level?: number): string {
-  switch (level) {
-    case 5: return 'var(--jade)';
-    case 4: return 'var(--sky)';
-    case 3: return 'var(--gold)';
-    case 2: return 'var(--coral)';
-    case 1: return 'var(--coral)';
-    default: return 'var(--text-3)';
-  }
-}
+/* ─── last night + mood + override ────────────────────────────────────── */
 
-export default function SleepPage() {
+function LastNight({ today }: { today: HealthDay }) {
   const { data: logs = [] } = useSleepLogs();
-
-  const getSleepStats = () => {
-    if (logs.length === 0)
-      return { averageMood: 0, averageSleepDuration: 0, sleepDebtMinutes: 0 };
-
-    const totalMood = logs.reduce((sum, log) => sum + (log.wakeUpMood || 0), 0);
-    const totalDuration = logs.reduce(
-      (sum, log) => sum + (log.sleepDurationMinutes || 0),
-      0
-    );
-    const targetMinutes = 8 * 60;
-    const totalDebt = logs.reduce((sum, log) => {
-      if (!log.sleepDurationMinutes) return sum;
-      return sum + (targetMinutes - log.sleepDurationMinutes);
-    }, 0);
-
-    return {
-      averageMood: totalMood / (logs.length || 1) / 5,
-      averageSleepDuration: Math.round(totalDuration / (logs.length || 1)),
-      sleepDebtMinutes: totalDebt,
-    };
-  };
-
-  const stats = getSleepStats();
-
-  const avgDurationStyle = getDurationStyle(stats.averageSleepDuration);
+  const recordMood = useRecordMood();
+  const override = useSleepOverride();
+  const [editing, setEditing] = useState(false);
+  const [bed, setBed] = useState('23:00');
+  const [wake, setWake] = useState('07:00');
+  const todayLog = logs.find((l) => l.date === getLocalDateString());
+  const total = (today.deep_minutes ?? 0) + (today.light_minutes ?? 0) + (today.rem_minutes ?? 0) + (today.awake_minutes ?? 0);
+  const stages = [
+    { k: 'Deep', v: today.deep_minutes, c: 'var(--sky)' },
+    { k: 'Light', v: today.light_minutes, c: 'var(--text-3)' },
+    { k: 'REM', v: today.rem_minutes, c: 'var(--gold)' },
+    { k: 'Awake', v: today.awake_minutes, c: 'var(--coral)' },
+  ];
+  const moods = [
+    { v: 1, l: 'Awful' }, { v: 2, l: 'Tired' }, { v: 3, l: 'Okay' }, { v: 4, l: 'Good' }, { v: 5, l: 'Great' },
+  ];
 
   return (
-    <div
-      className="min-h-screen pb-24"
-      style={{
-        background: 'var(--bg)',
-        fontFamily: 'var(--font-family-body)',
-        color: 'var(--text)',
-      }}
-    >
-      <div className="max-w-2xl mx-auto px-4 py-6">
+    <div className="mb-3 p-4 rounded-2xl" style={{ background: 'var(--surface)', border: '1px solid var(--border)' }}>
+      <div className="flex items-baseline justify-between mb-2">
+        <span className="text-xs uppercase tracking-widest" style={{ color: 'var(--text-3)' }}>Last night · from your watch</span>
+        <button className="text-xs underline" style={{ color: 'var(--text-2)' }} onClick={() => setEditing((e) => !e)}>
+          {editing ? 'Cancel' : 'Correct this'}
+        </button>
+      </div>
 
-        {/* Header */}
-        <div className="flex items-center gap-4 mb-8">
-          <Link
-            href="/profile"
-            className="flex items-center justify-center w-10 h-10 rounded-xl transition-colors"
-            style={{
-              background: 'var(--surface)',
-              border: '1px solid var(--border)',
-              color: 'var(--text-2)',
-            }}
-            aria-label="Back to profile"
+      {today.sleep_minutes == null ? (
+        <p className="text-sm" style={{ color: 'var(--text-2)' }}>Waiting for your watch to sync last night&apos;s sleep.</p>
+      ) : (
+        <>
+          <div className="flex items-baseline gap-3 mb-2">
+            <span className="text-3xl" style={{ color: 'var(--text)', fontFamily: 'var(--font-family-display)', fontStyle: 'italic' }}>
+              {hm(today.sleep_minutes)}
+            </span>
+            <span className="text-sm" style={{ color: 'var(--text-2)', fontFamily: 'var(--font-family-mono)' }}>
+              {clock(today.sleep_start)} → {clock(today.sleep_end)}
+            </span>
+            {today.sleep_score != null && (
+              <span className="text-sm ml-auto" style={{ color: 'var(--text-2)' }}>score {today.sleep_score}</span>
+            )}
+          </div>
+          {total > 0 && (
+            <div className="flex h-1.5 rounded-full overflow-hidden mb-1">
+              {stages.map((s) => (
+                <div key={s.k} style={{ width: `${((s.v ?? 0) / total) * 100}%`, background: s.c }} />
+              ))}
+            </div>
+          )}
+        </>
+      )}
+
+      {editing && (
+        <div className="flex items-end gap-2 mt-3">
+          <label className="text-xs" style={{ color: 'var(--text-2)' }}>
+            Bed
+            <input type="time" value={bed} onChange={(e) => setBed(e.target.value)} className="block mt-1 px-2 py-1 rounded-lg"
+              style={{ background: 'var(--elevated)', border: '1px solid var(--border)', color: 'var(--text)' }} />
+          </label>
+          <label className="text-xs" style={{ color: 'var(--text-2)' }}>
+            Wake
+            <input type="time" value={wake} onChange={(e) => setWake(e.target.value)} className="block mt-1 px-2 py-1 rounded-lg"
+              style={{ background: 'var(--elevated)', border: '1px solid var(--border)', color: 'var(--text)' }} />
+          </label>
+          <button
+            className="px-3 py-1.5 rounded-lg text-sm"
+            style={{ background: 'var(--gold-dim)', border: '1px solid var(--gold)', color: 'var(--gold)' }}
+            onClick={() => override.mutate({ bed, wake }, { onSuccess: () => setEditing(false) })}
           >
-            {/* Left arrow SVG */}
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <polyline points="15 18 9 12 15 6" />
-            </svg>
+            Save
+          </button>
+        </div>
+      )}
+
+      <div className="mt-3">
+        <div className="text-xs mb-1.5" style={{ color: 'var(--text-2)' }}>How do you feel?</div>
+        <div className="flex gap-1.5">
+          {moods.map((m) => {
+            const on = todayLog?.wakeUpMood === m.v;
+            return (
+              <button
+                key={m.v}
+                onClick={() => recordMood.mutate(m.v)}
+                className="flex-1 py-1.5 rounded-lg text-xs transition-all active:scale-95"
+                style={{
+                  background: on ? 'var(--gold-dim)' : 'var(--elevated)',
+                  border: `1px solid ${on ? 'var(--gold)' : 'var(--border)'}`,
+                  color: on ? 'var(--gold)' : 'var(--text-2)',
+                }}
+              >
+                {m.l}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ─── page ────────────────────────────────────────────────────────────── */
+
+export default function BodyPage() {
+  const { today, days, hasWatch, isLoading } = useBodyToday();
+  const patterns = useBodyPatterns(days);
+
+  if (isLoading) return null;
+  if (!hasWatch) return <ManualSleepView />;
+
+  const d = today ?? days[days.length - 1];
+  const last30 = days.slice(-31, -1);
+  const last7 = days.slice(-7);
+  const top = d.insights?.[0];
+  const ew = d.energy_windows;
+
+  return (
+    <div className="min-h-screen pb-24" style={{ background: 'var(--bg)', color: 'var(--text)', fontFamily: 'var(--font-family-body)' }}>
+      <div className="max-w-2xl mx-auto px-4 py-6">
+        <div className="flex items-center gap-4 mb-5">
+          <Link href="/dashboard" aria-label="Back" className="flex items-center justify-center w-10 h-10 rounded-xl"
+            style={{ background: 'var(--surface)', border: '1px solid var(--border)', color: 'var(--text-2)' }}>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><polyline points="15 18 9 12 15 6" /></svg>
           </Link>
           <div>
-            <h1
-              className="text-2xl font-semibold leading-tight"
-              style={{ color: 'var(--text)' }}
-            >
-              Sleep Insights
-            </h1>
-            <p
-              className="text-sm"
-              style={{ color: 'var(--text-2)' }}
-            >
-              Track your rest and recovery
+            <h1 className="text-2xl font-semibold leading-tight">Body</h1>
+            <p className="text-sm" style={{ color: 'var(--text-2)' }}>
+              {d.date === getLocalDateString() ? 'Today' : `Last synced ${d.date}`} · updates when your watch syncs
             </p>
           </div>
         </div>
 
-        {/* Key Metrics */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-8">
-          {/* Avg Score */}
-          <div
-            className="p-4 rounded-xl"
-            style={{
-              background: 'var(--surface)',
-              border: '1px solid var(--border)',
-            }}
-          >
-            <div
-              className="text-xs font-medium uppercase tracking-widest mb-2"
-              style={{ color: 'var(--text-2)' }}
-            >
-              Avg Score
+        {/* Readiness hero */}
+        <div className="mb-3 p-4 rounded-2xl flex items-center gap-4" style={{ background: 'var(--surface)', border: '1px solid var(--border)' }}>
+          <div className="text-center">
+            <div className="text-5xl leading-none" style={{ color: readinessColor(d.readiness), fontFamily: 'var(--font-family-display)', fontStyle: 'italic' }}>
+              {d.readiness ?? '–'}
             </div>
-            <div
-              className="text-3xl italic leading-none"
-              style={{
-                color: 'var(--sky)',
-                fontFamily: 'var(--font-family-display)',
-              }}
-            >
-              {Math.round(stats.averageMood * 20)}%
-            </div>
+            <div className="text-[10px] uppercase tracking-widest mt-1" style={{ color: 'var(--text-3)' }}>Readiness</div>
           </div>
-
-          {/* Avg Duration */}
-          <div
-            className="p-4 rounded-xl"
-            style={{
-              background: 'var(--surface)',
-              border: '1px solid var(--border)',
-            }}
-          >
-            <div
-              className="text-xs font-medium uppercase tracking-widest mb-2"
-              style={{ color: 'var(--text-2)' }}
-            >
-              Avg Duration
-            </div>
-            <div
-              className="text-3xl italic leading-none"
-              style={{
-                ...avgDurationStyle,
-                fontFamily: 'var(--font-family-display)',
-              }}
-            >
-              {Math.floor(stats.averageSleepDuration / 60)}
-              <span className="text-xl">h</span>
-              {' '}
-              {stats.averageSleepDuration % 60}
-              <span className="text-xl">m</span>
-            </div>
-          </div>
-
-          {/* Sleep Debt */}
-          <div
-            className="p-4 rounded-xl"
-            style={{
-              background: 'var(--surface)',
-              border: '1px solid var(--border)',
-            }}
-          >
-            <div
-              className="text-xs font-medium uppercase tracking-widest mb-2"
-              style={{ color: 'var(--text-2)' }}
-            >
-              Sleep Debt
-            </div>
-            <div
-              className="text-3xl italic leading-none"
-              style={{
-                color: stats.sleepDebtMinutes > 0 ? 'var(--coral)' : 'var(--jade)',
-                fontFamily: 'var(--font-family-display)',
-              }}
-            >
-              {Math.floor(Math.abs(stats.sleepDebtMinutes) / 60)}
-              <span className="text-xl">h</span>
-            </div>
-          </div>
-
-          {/* Logged */}
-          <div
-            className="p-4 rounded-xl"
-            style={{
-              background: 'var(--surface)',
-              border: '1px solid var(--border)',
-            }}
-          >
-            <div
-              className="text-xs font-medium uppercase tracking-widest mb-2"
-              style={{ color: 'var(--text-2)' }}
-            >
-              Logged
-            </div>
-            <div
-              className="text-3xl italic leading-none"
-              style={{
-                color: 'var(--gold)',
-                fontFamily: 'var(--font-family-display)',
-              }}
-            >
-              {logs.length}
-              <span className="text-xl"> days</span>
-            </div>
-          </div>
-        </div>
-
-        {/* Quick Actions */}
-        <QuickActions />
-
-        {/* Sleep Logs List */}
-        <div>
-          <h2
-            className="text-sm font-medium uppercase tracking-widest mb-4"
-            style={{ color: 'var(--text-2)' }}
-          >
-            Recent History
-          </h2>
-
-          {logs.length === 0 ? (
-            <div
-              className="text-center py-12 rounded-2xl"
-              style={{
-                background: 'var(--surface)',
-                border: '1px dashed var(--border)',
-              }}
-            >
-              {/* Sleep icon */}
-              <div className="flex justify-center mb-3">
-                <svg
-                  width="36"
-                  height="36"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="1.25"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  style={{ color: 'var(--text-3)' }}
-                >
-                  <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" />
-                </svg>
-              </div>
-              <h3
-                className="text-base font-medium mb-1"
-                style={{ color: 'var(--text)' }}
-              >
-                No sleeps logged yet
-              </h3>
-              <p
-                className="text-sm"
-                style={{ color: 'var(--text-2)' }}
-              >
-                Use the &quot;Going to Sleep&quot; button on the dashboard to start tracking.
+          <div className="min-w-0">
+            <p className="text-sm font-medium" style={{ color: 'var(--text)' }}>
+              {top?.title ?? `${d.capacity_hours ?? '–'}h focus capacity today`}
+            </p>
+            <p className="text-xs" style={{ color: 'var(--text-2)' }}>{top?.body ?? d.session_advice}</p>
+            {d.baseline_days < 14 && (
+              <p className="text-[11px] mt-1" style={{ color: 'var(--text-3)' }}>
+                Learning your baseline: {d.baseline_days}/14 days. Scores get personal after two weeks.
               </p>
-            </div>
-          ) : (
-            <div className="space-y-3">
-              {logs.map((log, idx) => {
-                const durationStyle = log.sleepDurationMinutes
-                  ? getDurationStyle(log.sleepDurationMinutes)
-                  : {};
-
-                return (
-                  <motion.div
-                    key={log.id}
-                    initial={{ opacity: 0, y: 8 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: idx * 0.04 }}
-                    className="p-4 rounded-xl flex items-center justify-between gap-4"
-                    style={{
-                      background: 'var(--surface)',
-                      border: '1px solid var(--border)',
-                    }}
-                  >
-                    {/* Left: date + times */}
-                    <div className="flex items-center gap-3 min-w-0">
-                      {/* Mood indicator */}
-                      <div
-                        className="w-10 h-10 flex-shrink-0 flex flex-col items-center justify-center rounded-lg text-xs font-semibold"
-                        style={{
-                          background: 'var(--elevated)',
-                          border: '1px solid var(--border)',
-                          color: getMoodColor(log.wakeUpMood),
-                          fontFamily: 'var(--font-family-body)',
-                        }}
-                      >
-                        {getMoodLabel(log.wakeUpMood)}
-                      </div>
-                      <div className="min-w-0">
-                        <div
-                          className="font-medium text-sm truncate"
-                          style={{ color: 'var(--text)' }}
-                        >
-                          {new Date(log.date + 'T00:00:00').toLocaleDateString('en-US', {
-                            weekday: 'long',
-                            month: 'short',
-                            day: 'numeric',
-                          })}
-                        </div>
-                        <div
-                          className="text-xs mt-0.5 flex gap-2"
-                          style={{
-                            color: 'var(--text-2)',
-                            fontFamily: 'var(--font-family-mono)',
-                          }}
-                        >
-                          <span>bed {log.sleepTime || '--:--'}</span>
-                          <span style={{ color: 'var(--text-3)' }}>Â·</span>
-                          <span>up {log.wakeUpTime || '--:--'}</span>
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Right: duration */}
-                    <div className="text-right flex-shrink-0">
-                      {log.sleepDurationMinutes ? (
-                        <>
-                          <div
-                            className="text-xl italic leading-none"
-                            style={{
-                              ...durationStyle,
-                              fontFamily: 'var(--font-family-display)',
-                            }}
-                          >
-                            {Math.floor(log.sleepDurationMinutes / 60)}h{' '}
-                            {log.sleepDurationMinutes % 60}m
-                          </div>
-                          <div
-                            className="text-xs mt-0.5"
-                            style={{ color: 'var(--text-2)' }}
-                          >
-                            {log.sleepDurationMinutes >= 480
-                              ? 'Target met'
-                              : `${480 - log.sleepDurationMinutes}m short`}
-                          </div>
-                        </>
-                      ) : (
-                        <div
-                          className="text-sm"
-                          style={{ color: 'var(--text-2)' }}
-                        >
-                          In progress
-                        </div>
-                      )}
-                    </div>
-                  </motion.div>
-                );
-              })}
-            </div>
-          )}
+            )}
+          </div>
         </div>
+
+        <LastNight today={d} />
+
+        <Section title="Recovery" summary={`${d.recovery ?? '–'} · HRV ${fmt(d.hrv_night)}`}>
+          <Stat label="Recovery" value={d.recovery ?? '–'} sub={d.illness_flag ? 'Illness signals detected' : undefined} />
+          <Stat label="HRV (night)" value={fmt(d.hrv_night, 0, ' ms')} sub={<>30d {fmt(avg(last30, 'hrv_night'))}<Delta now={d.hrv_night} base={avg(last30, 'hrv_night')} /></>} />
+          <Stat label="Resting HR" value={fmt(d.rhr, 0, ' bpm')} sub={<>30d {fmt(avg(last30, 'rhr'))}<Delta now={d.rhr} base={avg(last30, 'rhr')} invert /></>} />
+          <Stat label="Breathing" value={fmt(d.resp_night, 1, ' brpm')} sub={<Delta now={d.resp_night} base={avg(last30, 'resp_night')} digits={1} invert />} />
+          <Stat label="SpO₂" value={fmt(d.spo2_avg, 1, '%')} />
+          <Stat label="Body Battery at wake" value={d.bb_at_wake ?? '–'} />
+        </Section>
+
+        <Section title="Sleep" summary={`debt ${hm(d.sleep_debt_minutes)}${ew ? ` · bed ${ew.bedtime}` : ''}`}>
+          <Stat label="Need tonight" value={hm(d.sleep_need_minutes)} />
+          <Stat label="Sleep debt (14d)" value={hm(d.sleep_debt_minutes)} />
+          <Stat label="Bedtime target" value={ew?.bedtime ?? '–'} sub={ew ? `wake ~${ew.wake}` : undefined} />
+          <Stat label="Consistency" value={d.sleep_consistency ?? '–'} sub="0–100, same times daily" />
+          <Stat label="Energy peak" value={ew ? `${ew.peak1[0]}–${ew.peak1[1]}` : '–'} sub={ew ? `2nd ${ew.peak2[0]}–${ew.peak2[1]}` : undefined} />
+          <Stat label="Afternoon dip" value={ew ? `${ew.dip[0]}–${ew.dip[1]}` : '–'} sub="admin, walks, naps" />
+          <Stat label="7-night avg" value={hm(avg(last7, 'sleep_minutes'))} />
+          <Stat label="Focus capacity" value={d.capacity_hours != null ? `${d.capacity_hours}h` : '–'} />
+        </Section>
+
+        <Section title="Strain & fitness" summary={`strain ${fmt(d.strain, 1)} · form ${fmt(d.tsb, 0)}`}>
+          <Stat label="Strain today" value={fmt(d.strain, 1)} sub="0–21" />
+          <Stat label="Form (TSB)" value={fmt(d.tsb, 0)} sub={d.tsb != null ? (d.tsb < -25 ? 'fatigued' : d.tsb > 5 ? 'fresh' : 'productive') : undefined} />
+          <Stat label="Fitness (CTL)" value={fmt(d.ctl, 0)} sub={<Delta now={d.ctl} base={days[0]?.ctl ?? null} />} />
+          <Stat label="Fatigue (ATL)" value={fmt(d.atl, 0)} />
+          <Stat label="VO₂ max" value={fmt(d.vo2max, 0)} sub={<Delta now={d.vo2max} base={days.find((x) => x.vo2max != null)?.vo2max ?? null} />} />
+          <Stat label="Today's session" value={<span className="text-xs font-normal" style={{ fontFamily: 'var(--font-family-body)' }}>{d.session_advice ?? '–'}</span>} />
+        </Section>
+
+        <Section title="Stress" summary={`avg ${fmt(d.stress_avg)} · burnout ${d.burnout_index ?? '–'}`}>
+          <Stat label="Stress avg" value={fmt(d.stress_avg)} sub={<Delta now={d.stress_avg} base={avg(last30, 'stress_avg')} invert />} />
+          <Stat label="High stress" value={hm(d.high_stress_minutes)} />
+          <Stat label="Body Battery" value={`${d.bb_low ?? '–'}–${d.bb_high ?? '–'}`} sub="low–high" />
+          <Stat label="Burnout risk" value={d.burnout_index ?? '–'} sub="14-day, includes your tasks & mood" />
+        </Section>
+
+        {(patterns.data?.length ?? 0) > 0 && (
+          <Section title="Your patterns" summary={`${patterns.data!.length} found`}>
+            {patterns.data!.map((p) => (
+              <div key={`${p.behaviour}-${p.outcome}`} className="col-span-2 text-sm py-1" style={{ color: 'var(--text)' }}>
+                {p.sentence}
+              </div>
+            ))}
+          </Section>
+        )}
+
+        {(d.insights?.length ?? 0) > 1 && (
+          <Section title="Other notes" summary={`${d.insights.length - 1}`}>
+            {d.insights.slice(1).map((i) => (
+              <div key={i.id} className="col-span-2 text-sm py-1">
+                <span style={{ color: 'var(--text)' }}>{i.title}.</span>{' '}
+                <span style={{ color: 'var(--text-2)' }}>{i.body}</span>
+              </div>
+            ))}
+          </Section>
+        )}
       </div>
     </div>
   );

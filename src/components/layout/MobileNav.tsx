@@ -59,7 +59,7 @@ const NAV = [
   { href: '/dashboard', label: 'Home',   Icon: IconHome   },
   { href: '/goals',     label: 'Goals',  Icon: IconTarget },
   { href: '/create',    label: '',       Icon: IconPlus,  isCreate: true },
-  { href: '/sleep',     label: 'Sleep',  Icon: IconMoon   },
+  { href: '/sleep',     label: 'Body',   Icon: IconMoon   },
   { href: '/diary',     label: 'Diary',  Icon: IconBook   },
 ];
 

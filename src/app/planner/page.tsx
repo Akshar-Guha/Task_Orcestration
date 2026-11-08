@@ -13,6 +13,7 @@ import {
   useUncompleteTask,
   useUpdateTimeSlot
 } from '@/lib/hooks/useSupabase';
+import { CapacityBar } from '@/components/health/CapacityBar';
 
 export default function PlannerPage() {
   // React Query data
@@ -129,6 +130,10 @@ export default function PlannerPage() {
     <div className="min-h-screen bg-slate-950" style={{ paddingBottom: 'calc(var(--nav-h) + var(--safe-b) + 1rem)' }}>
       <div className="max-w-7xl mx-auto px-4 py-6">
         
+        <CapacityBar
+          plannedMinutes={tasks.filter((t) => !t.isArchived && !t.isCompleted).reduce((sum, t) => sum + (t.estimatedMinutes || 0), 0)}
+        />
+
         {/* Header */}
         <div className="flex items-center justify-between mb-6">
           <div>

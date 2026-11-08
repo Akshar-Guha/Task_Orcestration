@@ -3,8 +3,10 @@
 import { useState, useEffect, useRef } from 'react';
 import { useAppStore } from '@/lib/store';
 import { SleepButton } from '@/components/sleep/SleepButton';
+import { ReadinessLine } from '@/components/health/ReadinessLine';
+import { useBodyToday } from '@/lib/hooks/useBody';
 import { formatDuration } from '@/lib/date-utils';
-import { calculateSleepMinutesSoFar } from '@/lib/date-utils';
+import { calculateSleepMinutesSoFar, getLocalDateString } from '@/lib/date-utils';
 import Link from 'next/link';
 import {
   useGoals,
@@ -565,6 +567,7 @@ export default function DashboardPage() {
   const { data: tasks = [] }      = useTasks();
   const { data: productivity }    = useProductivity();
   const { data: sleepLogs = [] }  = useSleepLogs();
+  const { hasWatch }              = useBodyToday();
 
   const completeTaskMutation   = useCompleteTask();
   const uncompleteTaskMutation = useUncompleteTask();
@@ -574,7 +577,7 @@ export default function DashboardPage() {
   const now          = useTime();
 
   // ── sleep math ──
-  const todayStr     = new Date().toISOString().split('T')[0];
+  const todayStr     = getLocalDateString();
   const todaySleepLog = sleepLogs.find((l) => l.date === todayStr);
   let sleepMinutes    = todaySleepLog?.sleepDurationMinutes ?? 0;
   if (todaySleepLog?.sleepTime && !todaySleepLog.wakeUpTime) {
@@ -699,6 +702,9 @@ export default function DashboardPage() {
         )}
       </div>
 
+      {/* ── Readiness (one number + one sentence) ──────────────── */}
+      <ReadinessLine />
+
       {/* ── Quick Add ──────────────────────────────────────────── */}
       <QuickAdd goals={goals} />
 
@@ -730,10 +736,12 @@ export default function DashboardPage() {
         hasSleepLog={!!todaySleepLog}
       />
 
-      {/* ── Sleep button ───────────────────────────────────────── */}
-      <div className="mb-4">
-        <SleepButton />
-      </div>
+      {/* ── Sleep button (only without a watch: Garmin logs sleep) ─ */}
+      {!hasWatch && (
+        <div className="mb-4">
+          <SleepButton />
+        </div>
+      )}
 
       {/* ── Time slots ─────────────────────────────────────────── */}
       <div className="space-y-2.5">
