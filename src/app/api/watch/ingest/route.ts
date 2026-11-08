@@ -1,8 +1,8 @@
-import crypto from 'crypto';
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseAdmin } from '@/lib/supabase';
 import { getCurrentUserId } from '@/lib/user';
 import { localToday, processHealthFrom } from '@/lib/health-server';
+import { watchKeyOk } from '@/lib/watch-auth';
 
 /**
  * POST /api/watch/ingest — called every 5 minutes by the Garmin watch app
@@ -15,18 +15,10 @@ import { localToday, processHealthFrom } from '@/lib/health-server';
  */
 const METRICS = ['hr', 'stress', 'bodyBattery', 'spo2'] as const;
 
-function keyOk(given: string | null) {
-  const expected = process.env.WATCH_INGEST_KEY;
-  if (!expected || !given) return false;
-  const a = Buffer.from(given);
-  const b = Buffer.from(expected);
-  return a.length === b.length && crypto.timingSafeEqual(a, b);
-}
-
 const n = (v: unknown) => (typeof v === 'number' && Number.isFinite(v) ? v : null);
 
 export async function POST(request: NextRequest) {
-  if (!keyOk(request.headers.get('x-watch-key'))) {
+  if (!watchKeyOk(request.headers.get('x-watch-key'))) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
   const userId = getCurrentUserId();

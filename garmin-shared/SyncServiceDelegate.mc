@@ -1,4 +1,5 @@
 import Toybox.ActivityMonitor;
+import Toybox.Application;
 import Toybox.Background;
 import Toybox.Communications;
 import Toybox.Lang;
@@ -6,6 +7,14 @@ import Toybox.SensorHistory;
 import Toybox.System;
 import Toybox.Time;
 
+//! Runs every 5 minutes (the Connect IQ minimum):
+//!   1. POST sensor data to /api/watch/ingest
+//!   2. GET today's routine tasks from /api/watch/tasks
+//! and hands a small dictionary to AppBase.onBackgroundData:
+//!   { "code" => ingest HTTP code, "tcode" => tasks HTTP code,
+//!     "tasks" => [[id, title, due "HH:MM" or null, status, snoozedUntil or null], ...],
+//!     "readiness" => Number or null, "due" => [id, ...] }
+//! Background memory is 64 KB on the vívoactive 5, so only those fields are kept.
 (:background)
 class SyncServiceDelegate extends System.ServiceDelegate {
 
@@ -13,8 +22,13 @@ class SyncServiceDelegate extends System.ServiceDelegate {
     //! (phone out of range) is filled in next time. The server de-duplicates.
     const WINDOW_SECONDS = 30 * 60;
 
-    function initialize() {
+    //! Only device apps may ask to be opened (ignored for watch faces).
+    private var _canWake as Boolean;
+    private var _ingestCode as Number = 0;
+
+    function initialize(canWake as Boolean) {
         ServiceDelegate.initialize();
+        _canWake = canWake;
     }
 
     function onTemporalEvent() as Void {
@@ -31,20 +45,80 @@ class SyncServiceDelegate extends System.ServiceDelegate {
         Communications.makeWebRequest(
             Config.INGEST_URL,
             payload,
-            {
-                :method => Communications.HTTP_REQUEST_METHOD_POST,
-                :headers => {
-                    "Content-Type" => Communications.REQUEST_CONTENT_TYPE_JSON,
-                    "x-watch-key" => Config.INGEST_KEY
-                },
-                :responseType => Communications.HTTP_RESPONSE_CONTENT_TYPE_JSON
-            },
-            method(:onResponse)
+            Api.options(Communications.HTTP_REQUEST_METHOD_POST),
+            method(:onIngest)
         );
     }
 
-    function onResponse(code as Number, data as Dictionary or String or Null) as Void {
-        Background.exit(code);
+    //! Sensor upload finished (any result): chain the tasks request
+    function onIngest(code as Number, data as Dictionary or String or Null) as Void {
+        _ingestCode = code;
+        Communications.makeWebRequest(
+            Api.url("/tasks"),
+            null,
+            Api.options(Communications.HTTP_REQUEST_METHOD_GET),
+            method(:onTasks)
+        );
+    }
+
+    function onTasks(code as Number, data as Dictionary or String or Null) as Void {
+        var out = { "code" => _ingestCode, "tcode" => code } as Dictionary<String, Application.PropertyValueType>;
+        if (code == 200 && data instanceof Dictionary) {
+            var rows = TaskStore.rows(data);
+            var due = data["dueNow"];
+            out.put("tasks", rows);
+            out.put("readiness", data["readiness"] as Number or Null);
+            out.put("due", due instanceof Array ? due as Array<Application.PropertyValueType> : [] as Array<Application.PropertyValueType>);
+            if (_canWake && due instanceof Array) {
+                maybeWake(due, rows);
+            }
+        }
+        try {
+            Background.exit(out);
+        } catch (e instanceof Background.ExitDataSizeLimitException) {
+            out.remove("tasks");
+            Background.exit(out);
+        }
+    }
+
+    //! Ask the user to open the app for a newly due task. Skipped when the app
+    //! is already open (it vibrates itself) and for tasks already announced.
+    private function maybeWake(due as Array, rows as Array) as Void {
+        var now = Time.now().value();
+        var fgAt = Application.Storage.getValue("fgAt");
+        if (fgAt instanceof Number && now - fgAt < 6 * 60) {
+            return;
+        }
+        var prev = Application.Storage.getValue("woken");
+        var prevIds = prev instanceof String ? prev : "";
+        var ids = "";
+        var newId = null;
+        for (var i = 0; i < due.size(); i += 1) {
+            var id = due[i];
+            if (!(id instanceof String)) {
+                continue;
+            }
+            ids += id + ",";
+            if (newId == null && prevIds.find(id) == null) {
+                newId = id;
+            }
+        }
+        // Remember what was announced; an empty list re-arms snoozed tasks
+        Application.Storage.setValue("woken", ids);
+        if (newId == null) {
+            return;
+        }
+        var title = "";
+        for (var j = 0; j < rows.size(); j += 1) {
+            var r = rows[j] as Array;
+            if (newId.equals(r[0]) && r[1] instanceof String) {
+                title = r[1] as String;
+            }
+        }
+        Application.Storage.setValue("wakeTask", newId);
+        Application.Storage.setValue("wakeAt", now);
+        // Message limit is 255 bytes; titles are <= 40 chars from the server
+        Background.requestApplicationWake("Task due: " + title);
     }
 
     //! Daily totals so far

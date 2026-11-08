@@ -171,9 +171,30 @@ export async function GET(request: Request) {
   const skipped: string[] = [];
   const autoStopped: string[] = [];
 
+  // Tasks snoozed from the watch: don't nag on the phone until the snooze ends
+  const snoozedTaskIds = new Set<string>();
+  {
+    const linked = (rules ?? []).map((r: { linked_entity_id: string | null }) => r.linked_entity_id).filter(Boolean);
+    if (linked.length) {
+      const { data: snoozes } = await supabase
+        .from('daily_task_status')
+        .select('task_id, snoozed_until')
+        .eq('user_id', USER_ID)
+        .eq('date', today)
+        .in('task_id', linked)
+        .gt('snoozed_until', now.toISOString());
+      for (const s of snoozes ?? []) snoozedTaskIds.add(s.task_id);
+    }
+  }
+
   for (const rule of rules ?? []) {
     // Illness flag today → only alarms (requires_acknowledgment) still fire
     if (quietDay && !rule.requires_acknowledgment) {
+      skipped.push(rule.id);
+      continue;
+    }
+
+    if (rule.linked_entity_id && snoozedTaskIds.has(rule.linked_entity_id)) {
       skipped.push(rule.id);
       continue;
     }

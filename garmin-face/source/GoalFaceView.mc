@@ -69,6 +69,9 @@ class GoalFaceView extends WatchUi.WatchFace {
             (info.day_of_week as String).toUpper() + " " + info.day.format("%d") + " " + (info.month as String).toUpper(),
             Graphics.TEXT_JUSTIFY_CENTER | Graphics.TEXT_JUSTIFY_VCENTER);
 
+        // Next routine task, between date and time: "14:30 Stretch"
+        drawNextTask(dc, cx, cy - 75);
+
         // Time
         dc.setColor(TEXT, Graphics.COLOR_TRANSPARENT);
         dc.drawText(cx, cy - 15, Graphics.FONT_NUMBER_THAI_HOT, time,
@@ -81,7 +84,7 @@ class GoalFaceView extends WatchUi.WatchFace {
         drawStat(dc, cx + 95, y, stepsLabel(), "STEPS");
 
         // Sync indicator (gold = data reached the app recently) + battery
-        dc.setColor(syncOk() ? GOLD : NAVY, Graphics.COLOR_TRANSPARENT);
+        dc.setColor(TaskStore.syncOk() ? GOLD : NAVY, Graphics.COLOR_TRANSPARENT);
         dc.fillPolygon([[cx, cy + 128], [cx + 7, cy + 135], [cx, cy + 142], [cx - 7, cy + 135]]);
         dc.setColor(MUTED, Graphics.COLOR_TRANSPARENT);
         dc.drawText(cx, cy + 160, Graphics.FONT_XTINY, System.getSystemStats().battery.toNumber() + "%",
@@ -153,10 +156,41 @@ class GoalFaceView extends WatchUi.WatchFace {
         return steps.format("%d");
     }
 
-    //! True if the last background sync to the app succeeded within 15 min
-    private function syncOk() as Boolean {
-        var code = Application.Storage.getValue("lastResult");
-        var t = Application.Storage.getValue("lastTime");
-        return code == 200 && t != null && Time.now().value() - (t as Number) < 15 * 60;
+    //! "HH:MM title" for the next open routine task (gold time, light title).
+    //! A gold dot in front means it is due now; nothing is drawn without a task.
+    private function drawNextTask(dc as Graphics.Dc, cx as Number, y as Number) as Void {
+        var row = TaskStore.next();
+        if (row == null) {
+            return;
+        }
+        var due = row[TaskStore.DUE] instanceof String ? (row[TaskStore.DUE] as String) + " " : "";
+        var title = row[TaskStore.TITLE] instanceof String ? row[TaskStore.TITLE] as String : "";
+        var id = row[TaskStore.ID];
+        var dot = id instanceof String && TaskStore.isDue(id);
+        var font = Graphics.FONT_XTINY;
+
+        // Fits inside the steps ring at this height (~230 px on a 390 px screen)
+        var maxW = 230 - (dot ? 14 : 0);
+        var dueW = dc.getTextWidthInPixels(due, font);
+        var shown = title;
+        while (shown.length() > 1 && dueW + dc.getTextWidthInPixels(shown, font) > maxW) {
+            var cut = title.substring(0, shown.length() - 1);
+            shown = cut != null ? cut : "";
+            if (dueW + dc.getTextWidthInPixels(shown + "...", font) <= maxW) {
+                shown = shown + "...";
+                break;
+            }
+        }
+        var total = dueW + dc.getTextWidthInPixels(shown, font) + (dot ? 14 : 0);
+        var x = cx - total / 2;
+        if (dot) {
+            dc.setColor(GOLD, Graphics.COLOR_TRANSPARENT);
+            dc.fillCircle(x + 4, y, 4);
+            x += 14;
+        }
+        dc.setColor(GOLD, Graphics.COLOR_TRANSPARENT);
+        dc.drawText(x, y, font, due, Graphics.TEXT_JUSTIFY_LEFT | Graphics.TEXT_JUSTIFY_VCENTER);
+        dc.setColor(TEXT, Graphics.COLOR_TRANSPARENT);
+        dc.drawText(x + dueW, y, font, shown, Graphics.TEXT_JUSTIFY_LEFT | Graphics.TEXT_JUSTIFY_VCENTER);
     }
 }

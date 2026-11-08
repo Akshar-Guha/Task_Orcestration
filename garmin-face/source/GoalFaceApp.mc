@@ -20,11 +20,15 @@ class GoalFaceApp extends Application.AppBase {
     }
 
     function getServiceDelegate() as [System.ServiceDelegate] {
-        return [new SyncServiceDelegate()];
+        // Watch faces can't ask to be opened, so no wake request (false):
+        // a due task shows as a gold dot on the face instead.
+        return [new SyncServiceDelegate(false)];
     }
 
+    //! Sync result + today's routine tasks (see ../garmin-shared/TaskStore.mc)
+    (:typecheck(disableBackgroundCheck))
     function onBackgroundData(data as Application.PersistableType) as Void {
-        Application.Storage.setValue("lastResult", data);
-        Application.Storage.setValue("lastTime", Time.now().value());
+        TaskStore.save(data);
+        WatchUi.requestUpdate();
     }
 }

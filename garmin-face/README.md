@@ -5,7 +5,13 @@
 Time, date, heart rate, Body Battery, steps (gold ring = progress to step goal),
 battery, and a gold diamond that lights up when the last data sync to the
 Goal Tracker app succeeded. It also sends sensor data to the app every
-5 minutes, so you don't need the separate `garmin-watch` app.
+5 minutes, so you don't need the separate `garmin-watch` app for syncing.
+
+Between the date and the time it shows the **next routine task** ("14:30 Stretch",
+fetched from `/api/watch/tasks` in the same 5-minute background sync); a gold dot
+in front means it is due now. Watch faces can't buzz or open apps from the
+background, so for vibration and Done / Snooze / Skip install the
+`garmin-watch` app too (both can run side by side).
 
 ## Option A — on the watch today, phone only (Face It)
 `faceit-background.png` is a 390×390 background in the same style.
