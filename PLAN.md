@@ -218,6 +218,33 @@ nothing duplicated from the built-in Garmin Connect app (raw charts).
 
 ---
 
+## Part D — UI principles (anti-flooding rules, apply to every feature)
+
+Most features produce **decisions, not screens**. They run in the background
+and change what the app already shows.
+
+1. **No new tabs.** Nav stays Home · Goals · Create · Sleep(→Body) · Diary.
+   Garmin/watch connection lives in Settings only.
+2. **One number per surface.** Dashboard gets a single *Readiness* line
+   (score + one sentence). Recovery, strain, sleep debt, illness, burnout fold
+   into it; tap for breakdown.
+3. **Insights only when actionable.** A card appears only on the day it
+   matters (illness flag, burnout trend, nap suggestion), never "because we
+   have the data".
+4. **All health detail in one place.** Sleep page becomes *Body*: one
+   scrolling page, sections collapsed by default (trends, CTL/ATL, VO₂,
+   correlations).
+5. **Watch shows less than the phone.** Glance = next task + readiness.
+   App = task list + actions. Nothing else.
+6. **Gate for every new feature:** it must change an existing number, send
+   one nudge, or add at most one card. Needs its own page → doesn't ship
+   until proven useful.
+7. **Removals offset additions.** Sleep/wake buttons, energy slider,
+   exercise tick, Android step counter are removed; net screen count must
+   go down.
+
+---
+
 ## Open questions
 - Which features of the built-in Garmin Connect app should we deliberately
   **not** rebuild (raw HR/steps charts, sleep-stage pie)? Default: none of them.
