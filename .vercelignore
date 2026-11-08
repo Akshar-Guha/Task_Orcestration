@@ -1,8 +1,10 @@
-.env*
+.env.local
+.env*.local
 .vercel
 node_modules
 .next
-garmin-watch/bin
-garmin-face/bin
+garmin-shared
+garmin-watch
+garmin-face
 *.pem
 *.der
