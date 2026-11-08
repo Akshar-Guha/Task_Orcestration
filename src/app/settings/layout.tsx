@@ -7,6 +7,7 @@ const tabs = [
   { id: 'database',      label: 'Database',      icon: '🗄️',  href: '/settings/database' },
   { id: 'agent',         label: 'Agent Mode',    icon: '🤖',  href: '/settings/agent-mode' },
   { id: 'notifications', label: 'Notifications', icon: '🔔',  href: '/settings/notifications' },
+  { id: 'garmin',        label: 'Garmin',        icon: '⌚',  href: '/settings/garmin' },
   { id: 'status',        label: 'System Status', icon: '⚡',  href: '/settings/system-status' },
   { id: 'profile',       label: 'Profile',       icon: '👤',  href: '/settings/profile' },
 ];
