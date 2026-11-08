@@ -32,7 +32,7 @@ export function DeviceAuthProvider({ children }: DeviceAuthProviderProps) {
   const [isAuthorized, setIsAuthorized] = useState(false);
   
   // Landing page is publicly accessible - bypass auth immediately
-  const isLandingPage = pathname === '/';
+  const isLandingPage = pathname === '/' || pathname === '/privacy';
   
   // Don't show loading for landing page since it's public
   const [isLoading, setIsLoading] = useState(!isLandingPage);
