@@ -1,6 +1,7 @@
 ﻿import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { corsHeaders } from '../_shared/cors.ts';
+import { renderReadinessBlock } from '../_shared/health-blocks.ts';
 
 // FIX: Removed inline corsHeaders duplicate; import from _shared/cors.ts
 // FIX: Moved env var reads to module level so missing vars are caught early
@@ -29,6 +30,15 @@ serve(async (req) => {
     }
 
     const supabase = createClient(supabaseUrl, serviceRoleKey);
+
+    // Optional readiness payload (same shape as wake-up-email's body.health)
+    let health: unknown = null;
+    try {
+      const body = await req.json();
+      health = body?.health ?? null;
+    } catch {
+      // No body → no readiness block
+    }
 
     const today = new Date().toISOString().split('T')[0];
 
@@ -87,6 +97,7 @@ serve(async (req) => {
 <body>
   <h1>&#9728;&#65039; Morning Briefing</h1>
   <p>Good morning! Here is your automated briefing for <strong>${today}</strong>.</p>
+  ${renderReadinessBlock(health)}
   <h2>&#127919; Today's Goals</h2>
   <ul>${goalsHtml}</ul>
   <h2>&#9989; Tasks to Complete</h2>

@@ -9,6 +9,7 @@
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { corsHeaders } from '../_shared/cors.ts';
+import { renderReadinessBlock } from '../_shared/health-blocks.ts';
 
 // FIX: Removed inline corsHeaders duplicate; import from _shared/cors.ts
 
@@ -44,9 +45,12 @@ serve(async (req) => {
 
     // Parse request body (optional mood from wake-up)
     let wakeUpMood = 'good';
+    // Optional readiness payload from /api/cron/morning-email (PLAN.md B4)
+    let health: unknown = null;
     try {
       const body = await req.json();
       wakeUpMood = body.mood || 'good';
+      health = body.health ?? null;
     } catch {
       // No body, use default
     }
@@ -117,6 +121,7 @@ serve(async (req) => {
     };
     // FIX: Replaced garbled emoji literals with HTML entities
     const moodEmojiStr = moodEmoji[wakeUpMood] || '&#127749;';
+    const readinessHtml = renderReadinessBlock(health);
 
     // FIX: Added charset=utf-8 meta
     const emailHtml = `
@@ -143,6 +148,7 @@ serve(async (req) => {
   <div class="summary">
     ${yesterdaySummary}
   </div>
+${readinessHtml}
 
   <h2>&#127919; Today's Top Goals</h2>
   <ul>${goalsHtml}</ul>

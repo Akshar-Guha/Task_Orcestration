@@ -17,7 +17,11 @@ export async function GET(request: Request) {
   try {
     // Trigger sleep email
     // Inject user_id for context
-    await import('@/lib/emailTrigger').then(mod => mod.triggerEmail('sleep', { user_id: FALLBACK_USER_ID }));
+    // B4/C3: bedtime target, sleep debt, today's strain (optional block)
+    const health = await import('@/lib/health-email').then(mod => mod.getNightHealth(FALLBACK_USER_ID));
+    await import('@/lib/emailTrigger').then(mod =>
+      mod.triggerEmail('sleep', { user_id: FALLBACK_USER_ID, ...(health ? { health } : {}) })
+    );
 
     return NextResponse.json({ success: true, triggered: true });
   } catch (error) {

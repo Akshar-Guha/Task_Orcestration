@@ -36,7 +36,11 @@ export async function GET(request: Request) {
     const mood = log?.wake_up_mood ? moodMap[log.wake_up_mood] : 'good';
 
     // We inject user_id into the body so Edge Function knows target (if it supports it)
-    await import('@/lib/emailTrigger').then(mod => mod.triggerEmail('wake-up', { mood, user_id: FALLBACK_USER_ID }));
+    // B4: readiness block (optional; edge function renders it only when present)
+    const health = await import('@/lib/health-email').then(mod => mod.getMorningHealth(FALLBACK_USER_ID));
+    await import('@/lib/emailTrigger').then(mod =>
+      mod.triggerEmail('wake-up', { mood, user_id: FALLBACK_USER_ID, ...(health ? { health } : {}) })
+    );
 
     return NextResponse.json({ success: true, triggered: true });
   } catch (error) {

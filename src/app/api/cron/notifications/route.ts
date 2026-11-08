@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { sendPushNotification } from '@/lib/push/server';
+import { isQuietDay, runHealthNudges } from '@/lib/health-nudges';
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -57,6 +58,31 @@ export async function GET(request: Request) {
   // Today's date in user's timezone
   const todayFormatter = new Intl.DateTimeFormat('en-CA', { timeZone: tz });
   const today = todayFormatter.format(now); // YYYY-MM-DD
+
+  // ── Health-driven nudges (PLAN.md B4) ──
+  // Never let a health failure block the regular rules below.
+  let quietDay = false;
+  let nudgesSent: string[] = [];
+  try {
+    quietDay = await isQuietDay(USER_ID, tz, now);
+    nudgesSent = await runHealthNudges(
+      USER_ID,
+      async (nudge) => {
+        const r = await sendPushNotification(USER_ID, {
+          title: nudge.title,
+          body: nudge.body,
+          tag: `health-${nudge.kind}`,
+          actionType: 'open_app',
+          appUrl: nudge.appUrl,
+        });
+        return r.success;
+      },
+      tz,
+      now
+    );
+  } catch (e) {
+    console.error('[Cron/Notifications] Health nudges failed:', e);
+  }
 
   // Fetch all enabled, non-manual rules
   const { data: rules, error } = await supabase
@@ -146,6 +172,12 @@ export async function GET(request: Request) {
   const autoStopped: string[] = [];
 
   for (const rule of rules ?? []) {
+    // Illness flag today → only alarms (requires_acknowledgment) still fire
+    if (quietDay && !rule.requires_acknowledgment) {
+      skipped.push(rule.id);
+      continue;
+    }
+
     // Check day-of-week
     if (rule.repeat_days?.length && !rule.repeat_days.includes(currentDayOfWeek)) {
       skipped.push(rule.id);
@@ -273,6 +305,8 @@ export async function GET(request: Request) {
     fired: fired.length,
     skipped: skipped.length,
     autoStopped: autoStopped.length,
+    quietDay,
+    nudgesSent,
     firedIds: fired,
     autoStoppedIds: autoStopped,
   });

@@ -10,6 +10,7 @@
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { corsHeaders } from '../_shared/cors.ts';
+import { renderNightHealthBlock } from '../_shared/health-blocks.ts';
 
 // FIX: Removed inline corsHeaders duplicate; import from _shared/cors.ts
 
@@ -42,6 +43,16 @@ serve(async (req) => {
     }
 
     const supabase = createClient(supabaseUrl, serviceRoleKey);
+
+    // Optional health payload from /api/cron/night-email (PLAN.md B4/C3)
+    let health: unknown = null;
+    try {
+      const body = await req.json();
+      health = body?.health ?? null;
+    } catch {
+      // No body (e.g. app's sleep button) → no health block
+    }
+    const nightHealthHtml = renderNightHealthBlock(health);
 
     const today = new Date().toISOString().split('T')[0];
 
@@ -180,6 +191,8 @@ serve(async (req) => {
       <div class="stat-label">Awake</div>
     </div>
   </div>
+
+${nightHealthHtml}
 
   <h2>&#9989; Completed Tasks</h2>
   <ul>${tasksHtml}</ul>
