@@ -1,0 +1,8 @@
+// Copy to Config.mc and fill in. Config.mc is git-ignored.
+import Toybox.Lang;
+
+(:background)
+module Config {
+    const INGEST_URL as String = "https://goal-tracker-web.vercel.app/api/watch/ingest";
+    const INGEST_KEY as String = "<same value as WATCH_INGEST_KEY in Vercel>";
+}

@@ -78,9 +78,41 @@ function buildMetrics(latest: Record<string, Latest>) {
   ];
 }
 
+interface WatchLatest {
+  latest: Record<string, { ts: string; value: number } | null>;
+  today: { date: string; steps: number | null; step_goal: number | null; calories: number | null; active_minutes: number | null; updated_at: string } | null;
+}
+
+function WatchCard({ watch }: { watch: WatchLatest | null }) {
+  const l = watch?.latest ?? {};
+  const t = watch?.today;
+  const times = Object.values(l).filter(Boolean).map((x) => new Date(x!.ts).getTime());
+  const last = times.length ? new Date(Math.max(...times)) : null;
+  const v = (x: { value: number } | null | undefined, suffix = '') => (x ? `${Math.round(x.value)}${suffix}` : '—');
+  return (
+    <div style={card}>
+      <div className="flex items-center justify-between mb-3">
+        <h3 className="text-sm font-semibold" style={{ color: 'var(--text)' }}>Watch (live, every 5 min)</h3>
+        <span className="text-xs" style={{ color: 'var(--text-2)' }}>
+          {last ? `last reading ${last.toLocaleTimeString()}` : 'no data yet'}
+        </span>
+      </div>
+      <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+        <Metric label="Heart rate" value={v(l.hr, ' bpm')} />
+        <Metric label="Stress" value={v(l.stress)} />
+        <Metric label="Body Battery" value={v(l.bodyBattery)} />
+        <Metric label="SpO₂" value={v(l.spo2, '%')} />
+        <Metric label="Steps today" value={t?.steps != null ? t.steps.toLocaleString() : '—'} sub={t?.step_goal ? `goal ${t.step_goal.toLocaleString()}` : undefined} />
+        <Metric label="Active min" value={t?.active_minutes != null ? String(t.active_minutes) : '—'} sub={t?.calories != null ? `${t.calories} kcal` : undefined} />
+      </div>
+    </div>
+  );
+}
+
 export default function GarminSettingsPage() {
   const [pin, setPin] = useState('');
   const [status, setStatus] = useState<Status | null>(null);
+  const [watch, setWatch] = useState<WatchLatest | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
@@ -94,6 +126,8 @@ export default function GarminSettingsPage() {
     }
     const data = (await res.json()) as Status;
     setStatus(data);
+    const w = await fetch('/api/watch/latest', { headers: { 'x-site-pin': p } });
+    if (w.ok) setWatch((await w.json()) as WatchLatest);
     try { sessionStorage.setItem(PIN_KEY, p); } catch {}
   }, []);
 
@@ -191,7 +225,11 @@ export default function GarminSettingsPage() {
             </button>
           </div>
         </div>
-      ) : !status.configured ? (
+      ) : (
+        <WatchCard watch={watch} />
+      )}
+
+      {!status ? null : !status.configured ? (
         <div style={card} className="text-sm">
           <p style={{ color: 'var(--text)' }}>Garmin API keys aren&apos;t set up yet.</p>
           <p className="mt-2" style={{ color: 'var(--text-2)' }}>
