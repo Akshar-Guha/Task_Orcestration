@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseAdmin } from '@/lib/supabase';
 import { getCurrentUserId } from '@/lib/user';
-import { watchAuthorized } from '@/lib/watch-auth';
+import { watchOrDeviceAuthorized } from '@/lib/watch-auth';
 import { fmtMinutes, localNow, ruleRunsToday, toMinutes, userTimezone } from './shared';
 
 export const dynamic = 'force-dynamic';
@@ -25,7 +25,7 @@ const DUE_WINDOW_MIN = 10;
 type Status = 'pending' | 'done' | 'snoozed' | 'skipped';
 
 export async function GET(request: NextRequest) {
-  if (!watchAuthorized(request)) {
+  if (!(await watchOrDeviceAuthorized(request))) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
   const userId = getCurrentUserId();

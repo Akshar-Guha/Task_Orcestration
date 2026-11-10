@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseAdmin } from '@/lib/supabase';
 import { getCurrentUserId } from '@/lib/user';
-import { watchAuthorized } from '@/lib/watch-auth';
+import { watchOrDeviceAuthorized } from '@/lib/watch-auth';
 import { localNow, userTimezone } from '../../shared';
 
 /**
@@ -21,7 +21,7 @@ import { localNow, userTimezone } from '../../shared';
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  if (!watchAuthorized(request)) {
+  if (!(await watchOrDeviceAuthorized(request))) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
   const userId = getCurrentUserId();

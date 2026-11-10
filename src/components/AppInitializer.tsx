@@ -5,6 +5,7 @@ import { WakeUpModal } from './sleep/WakeUpModal';
 import { RoutineNotificationScheduler } from '@/lib/routineNotifications';
 import { PushNotificationScheduler } from '@/lib/pushScheduler';
 import { useTasks, useResetDailyTasks, useSleepLogs, useTimeSlots } from '@/lib/hooks/useSupabase';
+import { useBodyToday } from '@/lib/hooks/useBody';
 
 export function AppInitializer() {
   // State to track if we've already run the initialization check this session
@@ -16,6 +17,8 @@ export function AppInitializer() {
   // Hooks for data
   const { data: tasks = [], isLoading: tasksLoading } = useTasks();
   const { data: sleepLogs = [], isLoading: sleepLoading } = useSleepLogs();
+  // With a watch connected, Garmin logs wake-up time — never ask for it
+  const { hasWatch, isLoading: bodyLoading } = useBodyToday();
   useTimeSlots(); // Pre-fetch time slots for downstream components
 
   const resetDailyTasksMutation = useResetDailyTasks();
@@ -23,7 +26,7 @@ export function AppInitializer() {
   // Initialization Logic
   useEffect(() => {
     // Only run if data is loaded and we haven't initialized yet
-    if (tasksLoading || sleepLoading || hasInitialized) return;
+    if (tasksLoading || sleepLoading || bodyLoading || hasInitialized) return;
     // Synchronous guard to prevent double-execution on fast re-renders
     if (initRef.current) return;
     initRef.current = true;
@@ -48,12 +51,13 @@ export function AppInitializer() {
         // 2. Wake Up Modal Check
         const isLandingPage = window.location.pathname === '/';
         const isDiaryRoute = window.location.pathname.startsWith('/diary');
+        const isTv = window.location.pathname === '/tv';
 
         // Check if user already dismissed it today
         const dismissedKey = `mto_wake_dismissed_${today}`;
         const isDismissed = localStorage.getItem(dismissedKey) === 'true';
 
-        if (!isLandingPage && !isDiaryRoute && !isDismissed) {
+        if (!isLandingPage && !isDiaryRoute && !isTv && !hasWatch && !isDismissed) {
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
           const todayLog = sleepLogs.find((log: any) => log.date === today);
           if (!todayLog?.wakeUpTime) {
@@ -71,7 +75,7 @@ export function AppInitializer() {
     };
 
     init();
-  }, [tasks, sleepLogs, tasksLoading, sleepLoading, hasInitialized, resetDailyTasksMutation]);
+  }, [tasks, sleepLogs, tasksLoading, sleepLoading, bodyLoading, hasWatch, hasInitialized, resetDailyTasksMutation]);
 
   const handleCloseModal = () => {
     const today = new Date().toISOString().split('T')[0];

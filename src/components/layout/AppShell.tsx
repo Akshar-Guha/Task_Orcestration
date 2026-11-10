@@ -13,6 +13,8 @@ interface AppShellProps {
 export function AppShell({ children }: AppShellProps) {
   const pathname = usePathname();
   const isLandingPage = pathname === '/';
+  // TV dashboard is full-screen: no header, nav or phone overlays
+  if (pathname === '/tv') return <>{children}</>;
   if (isLandingPage) {
     return (
       <div className="min-h-screen min-h-[100dvh] bg-slate-950 text-slate-100 dark">
