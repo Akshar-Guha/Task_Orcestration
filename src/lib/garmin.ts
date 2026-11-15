@@ -17,8 +17,8 @@ export const GARMIN_TOKEN_URL = 'https://diauth.garmin.com/di-oauth2-service/oau
 export const GARMIN_API_BASE = 'https://apis.garmin.com/wellness-api/rest';
 
 export function garminConfig() {
-  const clientId = process.env.GARMIN_CLIENT_ID;
-  const clientSecret = process.env.GARMIN_CLIENT_SECRET;
+  const clientId = process.env.GARMIN_CLIENT_ID?.trim();
+  const clientSecret = process.env.GARMIN_CLIENT_SECRET?.trim();
   return { clientId, clientSecret, configured: !!clientId && !!clientSecret };
 }
 
@@ -71,11 +71,20 @@ async function requestToken(params: Record<string, string>): Promise<TokenRespon
 
   const res = await fetch(GARMIN_TOKEN_URL, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-    body: new URLSearchParams({ ...params, client_id: clientId, client_secret: clientSecret }),
+    headers: {
+      'Content-Type': 'application/x-www-form-urlencoded',
+      Authorization: `Basic ${Buffer.from(`${clientId}:${clientSecret}`).toString('base64')}`,
+    },
+    body: new URLSearchParams(params),
   });
   const text = await res.text();
-  if (!res.ok) throw new Error(`Garmin token request failed (${res.status}): ${text.slice(0, 300)}`);
+  if (!res.ok) {
+    // Never expose upstream HTML, credentials, or token responses in redirect URLs.
+    const reason = res.status === 401
+      ? 'Garmin rejected the app credentials. Check the OAuth client ID and secret.'
+      : 'Please restart Connect Garmin and try again.';
+    throw new Error(`Garmin token request failed (${res.status}). ${reason}`);
+  }
   return JSON.parse(text) as TokenResponse;
 }
 
